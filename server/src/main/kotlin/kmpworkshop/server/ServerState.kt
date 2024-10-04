@@ -16,7 +16,10 @@ internal data class ServerState(
 )
 
 private val serverStateLock = Mutex()
-private var serverState by fileBackedProperty<ServerState>(getEnvironment()!!["server-database-file"]!!)
+private var serverState by fileBackedProperty<ServerState>(
+    filePath = "/Users/Wout.Werkman/Documents/KotlinMultiplatformWorkshopWarsaw2024/participantsDatabase.csv",
+    defaultValue = { ServerState(emptyList(), emptyList()) },
+)
 
 internal suspend fun <T> updateServerStateAndGetValue(update: (ServerState) -> Pair<ServerState, T>): T =
     serverStateLock.withLock {
