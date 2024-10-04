@@ -36,8 +36,8 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
             2. Run the following command:
             
             ```sh
-            touch $pathToSecretsInSourceCode
-            sed -i '' 's/^$keyToAccessClientApiKeySecret = .*/$keyToAccessClientApiKeySecret = ${result.key.stringRepresentation}/' $pathToSecretsInSourceCode
+            touch $pathToSecretsInSourceCode && 
+            awk -v key="$keyToAccessClientApiKeySecret" -v value="${result.key.stringRepresentation}" 'BEGIN { found=0 } { if (${'$'}1 == key) { ${'$'}3 = value; found=1 } print } END { if (!found) print key" = "value }' $pathToSecretsInSourceCode > $pathToSecretsInSourceCode.tmp && mv $pathToSecretsInSourceCode.tmp $pathToSecretsInSourceCode
             ```
             3. Run the following code to verify your registration:
             
