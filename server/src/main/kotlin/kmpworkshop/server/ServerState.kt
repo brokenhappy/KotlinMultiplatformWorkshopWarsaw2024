@@ -21,6 +21,6 @@ private var serverState by fileBackedProperty<ServerState>(getEnvironment()!!["s
 internal suspend fun <T> updateServerStateAndGetValue(update: (ServerState) -> Pair<ServerState, T>): T =
     serverStateLock.withLock {
         val (newState, value) = update(serverState)
-        serverState = newState
+        if (newState != serverState) serverState = newState
         value
     }
