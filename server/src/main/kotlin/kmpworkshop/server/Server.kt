@@ -1,4 +1,4 @@
-package com.example
+package kmpworkshop.server
 
 import com.example.kmpworkshop.common.Pizza
 import com.example.kmpworkshop.common.PizzaShop
