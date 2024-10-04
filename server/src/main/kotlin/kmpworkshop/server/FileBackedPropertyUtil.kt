@@ -2,6 +2,7 @@ package kmpworkshop.server
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
@@ -14,13 +15,22 @@ import kotlin.io.use
 import kotlin.properties.ReadWriteProperty
 
 
-inline fun <reified T : Any> fileBackedProperty(filePath: String): ReadWriteProperty<Any?, T> =
-    fileBackedProperty(File(filePath), serializer<T>())
+inline fun <reified T : Any> fileBackedProperty(
+    filePath: String,
+    noinline defaultValue: () -> T,
+): ReadWriteProperty<Any?, T> = fileBackedProperty(File(filePath), serializer<T>(), defaultValue)
 
-fun <T> fileBackedProperty(filePath: File, serializer: KSerializer<T>): ReadWriteProperty<Any?, T> =
-    FileBackedProperty(filePath, serializer)
+fun <T> fileBackedProperty(
+    filePath: File,
+    serializer: KSerializer<T>,
+    defaultValue: () -> T,
+): ReadWriteProperty<Any?, T> = FileBackedProperty(filePath, serializer, defaultValue)
 
-private class FileBackedProperty<T>(private val file: File, private val serializer: KSerializer<T>): ReadWriteProperty<Any?, T> {
+private class FileBackedProperty<T>(
+    private val file: File,
+    private val serializer: KSerializer<T>,
+    private val defaultValue: () -> T,
+): ReadWriteProperty<Any?, T> {
     private val cacheLock = ReentrantReadWriteLock()
     @Volatile private var cachedValue: T? = null
 
@@ -38,7 +48,13 @@ private class FileBackedProperty<T>(private val file: File, private val serializ
             }
 
             file.inputStream()
-                .use { Json.decodeFromStream(serializer, it) }
+                .use {
+                    try {
+                        Json.decodeFromStream(serializer, it)
+                    } catch (t: SerializationException) {
+                        defaultValue()
+                    }
+                }
                 .also { value -> cachedValue = value }
         }
     }
