@@ -1,4 +1,4 @@
-package com.example.kmpworkshop.common
+package kmpworkshop.common
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable

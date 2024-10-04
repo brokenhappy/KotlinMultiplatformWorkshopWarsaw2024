@@ -1,7 +1,7 @@
 package kmpworkshop.client
 
-import com.example.kmpworkshop.common.Pizza
-import com.example.kmpworkshop.common.PizzaShop
+import kmpworkshop.common.Pizza
+import kmpworkshop.common.PizzaShop
 import io.ktor.client.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
