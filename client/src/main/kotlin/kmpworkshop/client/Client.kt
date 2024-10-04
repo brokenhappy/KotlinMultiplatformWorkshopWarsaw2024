@@ -1,17 +1,17 @@
-package com.example
+package kmpworkshop.client
 
 import com.example.kmpworkshop.common.Pizza
 import com.example.kmpworkshop.common.PizzaShop
 import io.ktor.client.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.rpc.client.withService
-import kotlinx.rpc.serialization.json
-import kotlinx.rpc.transport.ktor.client.installRPC
-import kotlinx.rpc.transport.ktor.client.rpc
-import kotlinx.rpc.transport.ktor.client.rpcConfig
-import kotlinx.rpc.streamScoped
-import kotlinx.rpc.transport.ktor.client.KtorRPCClient
+import kotlinx.rpc.krpc.ktor.client.KtorRPCClient
+import kotlinx.rpc.krpc.ktor.client.installRPC
+import kotlinx.rpc.krpc.ktor.client.rpc
+import kotlinx.rpc.krpc.ktor.client.rpcConfig
+import kotlinx.rpc.krpc.serialization.json.json
+import kotlinx.rpc.krpc.streamScoped
+import kotlinx.rpc.withService
 
 fun main() = runBlocking {
     val ktorClient = HttpClient {
