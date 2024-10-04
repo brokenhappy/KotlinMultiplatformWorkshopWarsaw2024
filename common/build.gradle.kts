@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlinx.rpc.plugin") version "0.2.4"
 }
 
-group = "com.example"
+group = "com.woutwerkman"
 version = "1.0-SNAPSHOT"
 
 repositories {
