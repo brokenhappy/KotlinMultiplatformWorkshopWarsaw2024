@@ -10,9 +10,9 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.rpc.serialization.json
-import kotlinx.rpc.transport.ktor.server.RPC
-import kotlinx.rpc.transport.ktor.server.rpc
+import kotlinx.rpc.krpc.ktor.server.RPC
+import kotlinx.rpc.krpc.ktor.server.rpc
+import kotlinx.rpc.krpc.serialization.json.json
 import kotlin.coroutines.CoroutineContext
 
 class PizzaShopImpl(

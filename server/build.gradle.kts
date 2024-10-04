@@ -1,9 +1,9 @@
 plugins {
-    kotlin("jvm") version "1.9.24"
-    kotlin("plugin.serialization") version "1.9.24"
+    kotlin("jvm") version "2.0.10"
+    kotlin("plugin.serialization") version "2.0.10"
     id("io.ktor.plugin") version "2.3.12"
-    id("com.google.devtools.ksp") version "1.9.24-1.0.20"
-    id("org.jetbrains.kotlinx.rpc.plugin") version "0.2.1"
+    id("com.google.devtools.ksp") version "2.0.10-1.0.24"
+    id("org.jetbrains.kotlinx.rpc.plugin") version "0.3.0"
 }
 
 group = "com.woutwerkman"
