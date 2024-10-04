@@ -71,8 +71,7 @@ private const val keyToAccessClientApiKeySecret = "client-api-key"
 
 private fun requestNameAndSuggestFollowup() {
     val name = readLine()
-    println(
-        """
+    println("""
         To proceed, run the following kotlin code:
         
         ```kotlin
@@ -80,6 +79,5 @@ private fun requestNameAndSuggestFollowup() {
             registerMyselfByNameThatIWillUseForTheRestOfTheSessions("$name")
         }
         ```
-    """.trimIndent()
-    )
+    """.trimIndent())
 }
