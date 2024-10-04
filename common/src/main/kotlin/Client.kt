@@ -1,7 +1,7 @@
 package com.example
 
-import com.example.model.Pizza
-import com.example.model.PizzaShop
+import com.example.kmpworkshop.common.Pizza
+import com.example.kmpworkshop.common.PizzaShop
 import io.ktor.client.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking

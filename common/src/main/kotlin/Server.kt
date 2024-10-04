@@ -1,8 +1,8 @@
 package com.example
 
-import com.example.model.Pizza
-import com.example.model.PizzaShop
-import com.example.model.Receipt
+import com.example.kmpworkshop.common.Pizza
+import com.example.kmpworkshop.common.PizzaShop
+import com.example.kmpworkshop.common.Receipt
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
