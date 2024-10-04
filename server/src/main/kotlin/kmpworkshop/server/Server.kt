@@ -1,8 +1,8 @@
 package kmpworkshop.server
 
-import com.example.kmpworkshop.common.Pizza
-import com.example.kmpworkshop.common.PizzaShop
-import com.example.kmpworkshop.common.Receipt
+import kmpworkshop.common.Pizza
+import kmpworkshop.common.PizzaShop
+import kmpworkshop.common.Receipt
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
