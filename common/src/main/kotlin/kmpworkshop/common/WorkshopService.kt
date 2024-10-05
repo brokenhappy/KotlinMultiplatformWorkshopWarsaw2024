@@ -20,6 +20,12 @@ sealed class SolvingStatus {
     @Serializable
     data object IncorrectInput : SolvingStatus()
     @Serializable
+    data object InvalidApiKey : SolvingStatus()
+    @Serializable
+    data object PuzzleNotOpenedYet : SolvingStatus()
+    @Serializable
+    data object AlreadySolved : SolvingStatus()
+    @Serializable
     data object Done : SolvingStatus()
 }
 

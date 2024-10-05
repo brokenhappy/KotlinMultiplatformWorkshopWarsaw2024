@@ -3,24 +3,24 @@ package kmpworkshop.server
 import androidx.compose.material.MaterialTheme
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import kmpworkshop.common.ApiKey
-import kmpworkshop.common.ApiKeyRegistrationResult
-import kmpworkshop.common.NameVerificationResult
-import kmpworkshop.common.SolvingStatus
-import kmpworkshop.common.WorkshopService
+import kmpworkshop.common.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.Clock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import java.util.*
+import javax.sound.sampled.AudioSystem
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.seconds
 
 fun main(): Unit = runBlocking {
     launch(Dispatchers.Default) {
@@ -67,7 +67,8 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                 return@updateServerStateAndGetValue stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
             stateWithoutUnverifiedParticipant.copy(
                 participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key)
-            ) to NameVerificationResult.Success
+            ).to(NameVerificationResult.Success)
+                .also { launch(Dispatchers.IO) { playSuccessSound() } }
         }
 
     override suspend fun doPuzzleSolveAttempt(
@@ -75,6 +76,10 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
+        if (updateServerStateAndGetValue { it to it.participantFor(key) } == null) {
+            emit(SolvingStatus.InvalidApiKey)
+            return@flow
+        }
         val puzzle = puzzles.firstOrNull { it.name == puzzleName } ?: run {
             println("Someone tried to request puzzle name: $puzzleName")
             emit(SolvingStatus.IncorrectInput)
@@ -95,18 +100,40 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                     puzzleIndex++
                 }
                 if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
-                    emit(SolvingStatus.Done)
+                    updateServerStateAndGetValue { oldState ->
+                        (oldState.puzzleStates[puzzleName] as? PuzzleState.Opened)?.let { puzzleState ->
+                            when {
+                                key.stringRepresentation in puzzleState.submissions -> oldState to SolvingStatus.AlreadySolved
+                                else -> oldState.copy(
+                                    puzzleStates = oldState.puzzleStates + (
+                                        puzzleName to puzzleState.copy(
+                                            submissions = puzzleState.submissions + (key.stringRepresentation to Clock.System.now())
+                                        )
+                                        )
+                                ).to(SolvingStatus.Done).also { launch(Dispatchers.IO) { playSuccessSound() } }
+                            }
+                        } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
+                    }.also { emit(it) }
                 } else {
                     val (input, _) = puzzle.inAndOutputs[puzzleIndex]
                     emit(SolvingStatus.Next(Json.encodeToJsonElement(puzzle.tSerializer, input).also { lastInput = it }))
                 }
             }
-        } catch (t: SerializationException) {
+        } catch (_: SerializationException) {
             emit(SolvingStatus.IncorrectInput)
         }
     }
 
     override val coroutineContext = coroutineContext
+}
+
+private suspend fun playSuccessSound() {
+    AudioSystem.getClip().use { clip ->
+        clip.open(AudioSystem.getAudioInputStream((object {})::class.java.getResourceAsStream("/success.wav")))
+        clip.start()
+        clip.drain()
+        delay(3.seconds)
+    }
 }
 
 private inline fun <reified T, reified R> puzzle(name: String, vararg inAndOutputs: Pair<T, R>): Puzzle<T, R> =
@@ -121,7 +148,7 @@ private data class Puzzle<T, R>(
 
 private val puzzles = listOf(
     puzzle(
-        "PalindromeCheck.kt",
+        WorkshopStage.PalindromeCheckTask.kotlinFile,
         "racecar" to true,
         "Racecar" to false,
         "radar" to true,

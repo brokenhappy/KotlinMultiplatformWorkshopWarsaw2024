@@ -1,16 +1,4 @@
-# A simple Ktor applciation using Kotlin RPC
 
-A sample project created in
-the [First steps with Kotlin RPC](https://ktor.io/docs/tutorial-first-steps-with-kotlin-rpc.html)
-tutorial.
+Here are the attributions for the sound snippets I used:
 
-## Run
-
-To run the sample, follow the steps below:
-
-1. Navigate to the __Server.kt__ file.
-
-2. In IntelliJ IDEA, click on the run button next to the `main()` function to start the application.
-
-3. Navigate to the __Client.kt__ file and run the application. You should see the output in the
-console.
+success.wav by sophieciruela -- https://freesound.org/s/634450/ -- License: Creative Commons 0
