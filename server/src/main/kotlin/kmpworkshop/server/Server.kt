@@ -163,7 +163,7 @@ private val puzzles = listOf(
         "ABBA" to true,
     ),
     puzzle(
-        WorkshopStage.FindOldestUserTask.kotlinFile,
+        WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile,
         listOf(SerializableUser("John", 18)) to 18,
         listOf(SerializableUser("John", 0)) to 0,
         listOf(
@@ -178,6 +178,23 @@ private val puzzles = listOf(
             SerializableUser("John", 100),
             SerializableUser("Jane", 10),
         ) to 100,
+    ),
+    puzzle(
+        WorkshopStage.FindOldestUserTask.kotlinFile,
+        listOf(SerializableUser("John", 18)) to SerializableUser("John", 18),
+        listOf(SerializableUser("John", 0)) to SerializableUser("John", 0),
+        listOf(
+            SerializableUser("John", 0),
+            SerializableUser("Jane", 10),
+        ) to SerializableUser("Jane", 10),
+        listOf(
+            SerializableUser("John", 10),
+            SerializableUser("Jane", 100),
+        ) to SerializableUser("Jane", 100),
+        listOf(
+            SerializableUser("John", 100),
+            SerializableUser("Jane", 10),
+        ) to SerializableUser("John", 100),
     ),
 )
 
