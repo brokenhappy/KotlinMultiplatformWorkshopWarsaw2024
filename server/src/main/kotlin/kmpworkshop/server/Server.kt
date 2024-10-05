@@ -83,7 +83,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         val puzzle =
             WorkshopStage
                 .entries
-                .firstOrNull()
+                .firstOrNull { it.kotlinFile == puzzleName }
                 ?.let { findPuzzleFor(it) } ?: run {
             println("Someone tried to request puzzle name: $puzzleName")
             emit(SolvingStatus.IncorrectInput)
@@ -156,6 +156,7 @@ private data class Puzzle<T, R>(
 )
 
 private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *> = when (stage) {
+    WorkshopStage.Registration -> error("This stage has no puzzle!")
     WorkshopStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,
