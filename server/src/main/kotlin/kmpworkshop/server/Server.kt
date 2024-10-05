@@ -6,10 +6,19 @@ import androidx.compose.ui.window.application
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.ApiKeyRegistrationResult
 import kmpworkshop.common.NameVerificationResult
+import kmpworkshop.common.SolvingStatus
 import kmpworkshop.common.WorkshopService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.serializer
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
@@ -61,7 +70,65 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
             ) to NameVerificationResult.Success
         }
 
+    override suspend fun doPuzzleSolveAttempt(
+        key: ApiKey,
+        puzzleName: String,
+        answers: Flow<JsonElement>,
+    ): Flow<SolvingStatus> = flow {
+        val puzzle = puzzles.firstOrNull { it.name == puzzleName } ?: run {
+            println("Someone tried to request puzzle name: $puzzleName")
+            emit(SolvingStatus.IncorrectInput)
+            return@flow
+        }
+
+        var puzzleIndex = 0
+        var lastInput: JsonElement? = null
+        try {
+            (answers as Flow<JsonElement?>).onStart { emit(null) }.collect { answerJson ->
+                if (answerJson != null) {
+                    val answer = Json.decodeFromJsonElement(puzzle.rSerializer, answerJson)
+                    val (_, expected) = puzzle.inAndOutputs[puzzleIndex]
+                    if (answer != expected) {
+                        emit(SolvingStatus.Failed(lastInput!!, answerJson, Json.encodeToJsonElement(puzzle.rSerializer, expected)))
+                        return@collect
+                    }
+                    puzzleIndex++
+                }
+                if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
+                    emit(SolvingStatus.Done)
+                } else {
+                    val (input, _) = puzzle.inAndOutputs[puzzleIndex]
+                    emit(SolvingStatus.Next(Json.encodeToJsonElement(puzzle.tSerializer, input).also { lastInput = it }))
+                }
+            }
+        } catch (t: SerializationException) {
+            emit(SolvingStatus.IncorrectInput)
+        }
+    }
+
     override val coroutineContext = coroutineContext
 }
+
+private inline fun <reified T, reified R> puzzle(name: String, vararg inAndOutputs: Pair<T, R>): Puzzle<T, R> =
+    Puzzle(name, inAndOutputs.asList(), serializer(), serializer())
+
+private data class Puzzle<T, R>(
+    val name: String,
+    val inAndOutputs: List<Pair<T, R>>,
+    val tSerializer: KSerializer<T>,
+    val rSerializer: KSerializer<R>,
+)
+
+private val puzzles = listOf(
+    puzzle(
+        "PalindromeCheck.kt",
+        "racecar" to true,
+        "Racecar" to false,
+        "radar" to true,
+        "foo" to false,
+        "abba" to true,
+        "ABBA" to true,
+    ),
+)
 
 private fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
