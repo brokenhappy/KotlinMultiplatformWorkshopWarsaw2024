@@ -80,7 +80,11 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
             emit(SolvingStatus.InvalidApiKey)
             return@flow
         }
-        val puzzle = puzzles.firstOrNull { it.name == puzzleName } ?: run {
+        val puzzle =
+            WorkshopStage
+                .entries
+                .firstOrNull()
+                ?.let { findPuzzleFor(it) } ?: run {
             println("Someone tried to request puzzle name: $puzzleName")
             emit(SolvingStatus.IncorrectInput)
             return@flow
@@ -142,45 +146,41 @@ private suspend fun playSuccessSound() {
     }
 }
 
-private inline fun <reified T, reified R> puzzle(name: String, vararg inAndOutputs: Pair<T, R>): Puzzle<T, R> =
-    Puzzle(name, inAndOutputs.asList(), serializer(), serializer())
+private inline fun <reified T, reified R> puzzle(vararg inAndOutputs: Pair<T, R>): Puzzle<T, R> =
+    Puzzle(inAndOutputs.asList(), serializer(), serializer())
 
 private data class Puzzle<T, R>(
-    val name: String,
     val inAndOutputs: List<Pair<T, R>>,
     val tSerializer: KSerializer<T>,
     val rSerializer: KSerializer<R>,
 )
 
-private val puzzles = listOf(
-    puzzle(
-        WorkshopStage.PalindromeCheckTask.kotlinFile,
+private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *> = when (stage) {
+    WorkshopStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,
         "radar" to true,
         "foo" to false,
         "abba" to true,
         "ABBA" to true,
-    ),
-    puzzle(
-        WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile,
+    )
+    WorkshopStage.FindMinimumAgeOfUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to 18,
         listOf(SerializableUser("John", 0)) to 0,
         listOf(
             SerializableUser("John", 0),
             SerializableUser("Jane", 10),
-        ) to 10,
+        ) to 0,
         listOf(
             SerializableUser("John", 10),
             SerializableUser("Jane", 100),
-        ) to 100,
+        ) to 10,
         listOf(
             SerializableUser("John", 100),
             SerializableUser("Jane", 10),
-        ) to 100,
-    ),
-    puzzle(
-        WorkshopStage.FindOldestUserTask.kotlinFile,
+        ) to 10,
+    )
+    WorkshopStage.FindOldestUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to SerializableUser("John", 18),
         listOf(SerializableUser("John", 0)) to SerializableUser("John", 0),
         listOf(
@@ -195,7 +195,7 @@ private val puzzles = listOf(
             SerializableUser("John", 100),
             SerializableUser("Jane", 10),
         ) to SerializableUser("John", 100),
-    ),
-)
+    )
+}
 
 private fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
