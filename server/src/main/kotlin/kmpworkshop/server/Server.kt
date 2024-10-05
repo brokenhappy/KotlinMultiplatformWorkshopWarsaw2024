@@ -89,12 +89,11 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         var puzzleIndex = 0
         var lastInput: JsonElement? = null
         try {
-            (answers as Flow<JsonElement?>).onStart { emit(null) }.collect { answerJson ->
-                if (answerJson != null) {
-                    val answer = Json.decodeFromJsonElement(puzzle.rSerializer, answerJson)
-                    val (_, expected) = puzzle.inAndOutputs[puzzleIndex]
+            (answers as Flow<JsonElement?>).onStart { emit(null) }.collect { answer ->
+                if (answer != null) {
+                    val expected = puzzle.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex)
                     if (answer != expected) {
-                        emit(SolvingStatus.Failed(lastInput!!, answerJson, Json.encodeToJsonElement(puzzle.rSerializer, expected)))
+                        emit(SolvingStatus.Failed(lastInput!!, answer, expected))
                         return@collect
                     }
                     puzzleIndex++
@@ -115,8 +114,9 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                         } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
                     }.also { emit(it) }
                 } else {
-                    val (input, _) = puzzle.inAndOutputs[puzzleIndex]
-                    emit(SolvingStatus.Next(Json.encodeToJsonElement(puzzle.tSerializer, input).also { lastInput = it }))
+                    val element = puzzle.getPuzzleInputAsJsonElementAtIndex(puzzleIndex)
+                    emit(SolvingStatus.Next(element))
+                    lastInput = element
                 }
             }
         } catch (_: SerializationException) {
@@ -126,6 +126,12 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
 
     override val coroutineContext = coroutineContext
 }
+
+private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
+    Json.encodeToJsonElement(tSerializer, inAndOutputs[puzzleIndex].first)
+
+private fun <T, R> Puzzle<T, R>.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
+    Json.encodeToJsonElement(rSerializer, inAndOutputs[puzzleIndex].second)
 
 private suspend fun playSuccessSound() {
     AudioSystem.getClip().use { clip ->
