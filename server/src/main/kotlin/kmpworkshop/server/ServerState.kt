@@ -1,6 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
+import kmpworkshop.common.getEnvironment
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,6 +33,7 @@ internal enum class WorkshopStage(val kotlinFile: String) {
     Registration("Registration.kt"),
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
+    FindOldestUserTask("OldestUserFinding.kt"),
 }
 
 internal fun serverState(): Flow<ServerState> = serverStateProperty
@@ -48,7 +50,7 @@ internal suspend inline fun updateServerState(crossinline update: (ServerState) 
 
 private val serverStateLock = Mutex()
 private val serverStateProperty = fileBackedProperty<ServerState>(
-    filePath = "/Users/Wout.Werkman/Documents/KotlinMultiplatformWorkshopWarsaw2024/participantsDatabase.csv",
+    filePath = getEnvironment()!!["server-database-file"]!!,
     defaultValue = { ServerState() },
 )
 private var serverState by serverStateProperty

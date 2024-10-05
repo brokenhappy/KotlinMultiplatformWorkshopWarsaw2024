@@ -40,5 +40,4 @@ private fun createService(): WorkshopService = runBlocking {
     }
 
     client.withService<WorkshopService>()
-        .also { println("Client connected!") }
 }
