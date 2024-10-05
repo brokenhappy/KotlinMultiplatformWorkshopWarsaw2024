@@ -1,5 +1,7 @@
 package kmpworkshop.server
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -14,56 +16,64 @@ import kotlin.concurrent.write
 import kotlin.io.use
 import kotlin.properties.ReadWriteProperty
 
+internal interface ReadWriteMutableStateFlow<T>: ReadWriteProperty<Any?, T>, StateFlow<T>
 
-inline fun <reified T : Any> fileBackedProperty(
+internal inline fun <reified T : Any> fileBackedProperty(
     filePath: String,
     noinline defaultValue: () -> T,
-): ReadWriteProperty<Any?, T> = fileBackedProperty(File(filePath), serializer<T>(), defaultValue)
+): ReadWriteMutableStateFlow<T> = fileBackedProperty(File(filePath), serializer<T>(), defaultValue)
 
-fun <T> fileBackedProperty(
+internal fun <T> fileBackedProperty(
     filePath: File,
     serializer: KSerializer<T>,
     defaultValue: () -> T,
-): ReadWriteProperty<Any?, T> = FileBackedProperty(filePath, serializer, defaultValue)
+): ReadWriteMutableStateFlow<T> = FileBackedProperty(filePath, serializer, defaultValue)
 
+// Dear readers, don't be fooled by thinking that this is remotely reusable, I'm just too lazy to factor rn.
 private class FileBackedProperty<T>(
     private val file: File,
     private val serializer: KSerializer<T>,
     private val defaultValue: () -> T,
-): ReadWriteProperty<Any?, T> {
+): ReadWriteMutableStateFlow<T>, MutableStateFlow<T> by MutableStateFlow(defaultValue()) {
     private val cacheLock = ReentrantReadWriteLock()
-    @Volatile private var cachedValue: T? = null
+    init {
+        updateValue(true)
+    }
+
 
     @OptIn(ExperimentalSerializationApi::class)
     private fun readValue(): T {
         cacheLock.read {
-            cachedValue?.let {
+            value.let {
                 return it
             }
         }
 
-        return cacheLock.write {
-            cachedValue?.let {
-                return@write it
-            }
+        return updateValue(false)
+    }
 
-            file.inputStream()
-                .use {
-                    try {
-                        Json.decodeFromStream(serializer, it)
-                    } catch (t: SerializationException) {
-                        defaultValue()
-                    }
-                }
-                .also { value -> cachedValue = value }
+    @OptIn(ExperimentalSerializationApi::class)
+    private fun updateValue(force: Boolean): T = cacheLock.write {
+        value.let {
+            if (!force) return@write it
         }
+
+        file.inputStream()
+            .use {
+                try {
+                    Json.decodeFromStream(serializer, it)
+                } catch (t: SerializationException) {
+                    defaultValue()
+                }
+            }
+            .also { value -> this.value = value }
     }
 
     @OptIn(ExperimentalSerializationApi::class)
     private fun writeValue(value: T) {
         cacheLock.write {
             file.outputStream().use { Json.encodeToStream(serializer, value, it) }
-            cachedValue = value
+            this.value = value
         }
     }
 
