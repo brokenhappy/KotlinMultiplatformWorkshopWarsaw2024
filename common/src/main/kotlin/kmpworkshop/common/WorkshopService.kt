@@ -51,3 +51,9 @@ sealed class NameVerificationResult {
 
 @Serializable
 data class ApiKey(val stringRepresentation: String)
+
+// We don't want to burden the user with @Serializable, so we hide it here
+@Serializable
+data class SerializableUser(val name: String, val age: Int) {
+    override fun toString(): String = "User(name=$name, age=$age)"
+}

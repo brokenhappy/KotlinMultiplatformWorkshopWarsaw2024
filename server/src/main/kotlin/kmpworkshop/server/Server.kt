@@ -156,6 +156,23 @@ private val puzzles = listOf(
         "abba" to true,
         "ABBA" to true,
     ),
+    puzzle(
+        WorkshopStage.FindOldestUserTask.kotlinFile,
+        listOf(SerializableUser("John", 18)) to 18,
+        listOf(SerializableUser("John", 0)) to 0,
+        listOf(
+            SerializableUser("John", 0),
+            SerializableUser("Jane", 10),
+        ) to 10,
+        listOf(
+            SerializableUser("John", 10),
+            SerializableUser("Jane", 100),
+        ) to 100,
+        listOf(
+            SerializableUser("John", 100),
+            SerializableUser("Jane", 10),
+        ) to 100,
+    ),
 )
 
 private fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
