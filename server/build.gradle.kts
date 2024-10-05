@@ -23,6 +23,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server")
     implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
     implementation("ch.qos.logback:logback-classic:1.5.6")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
     implementation(compose.desktop.currentOs)
     testImplementation(kotlin("test"))
 }

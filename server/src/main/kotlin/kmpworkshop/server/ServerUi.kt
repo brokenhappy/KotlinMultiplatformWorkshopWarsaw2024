@@ -4,6 +4,9 @@ package kmpworkshop.server
 import androidx.compose.foundation.gestures.Orientation.Vertical
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Column
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.minutes
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -27,18 +30,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight.Companion.Bold
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kmpworkshop.common.ApiKey
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 
 @Composable
 internal fun ServerUi() {
-    val state by produceState(initialValue = ServerState(emptyList(), emptyList(), WorkshopStage.Registration)) {
+    val state by produceState(initialValue = ServerState()) {
         serverState().collect { value = it }
     }
     val scope = rememberCoroutineScope()
@@ -52,14 +55,57 @@ private fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> Server
         StageTopBar(state.currentStage, onStageChange = { newStage -> onStateChange { it.copy(currentStage = newStage) } })
         when (state.currentStage) {
             WorkshopStage.Registration -> Registration(state, onStateChange)
-            WorkshopStage.PalindromeCheckTask -> PalindromeCheckTask()
+            WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onStateChange)
         }
     }
 }
 
 @Composable
-private fun PalindromeCheckTask() {
+private fun Puzzle(state: ServerState, puzzleName: String, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+    val puzzleState = state.puzzleStates[puzzleName] ?: PuzzleState.Unopened
+    when (puzzleState) {
+        PuzzleState.Unopened -> {
+            Row {
+                Spacer(modifier = Modifier.weight(1f))
+                Button(onClick = {
+                    onStateChange {
+                        it.copy(puzzleStates =  it.puzzleStates + (puzzleName to PuzzleState.Opened(
+                            startTime = Clock.System.now(),
+                            submissions = emptyMap()
+                        )))
+                    }
+                }) {
+                    Text("Open puzzle!")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+        is PuzzleState.Opened -> OpenedPuzzle(puzzleState) { key -> state.participants.first { it.apiKey == key } }
+    }
+}
 
+@Composable
+private fun OpenedPuzzle(state: PuzzleState.Opened, getParticipant: (ApiKey) -> Participant) {
+    Column(modifier = Modifier.padding(16.dp).scrollable(rememberScrollState(), orientation = Vertical)) {
+        BasicText(text = "Number of completions: ${state.submissions.size}")
+        for ((apiKey, timeOfCompletion) in state.submissions) {
+            val participant = getParticipant(ApiKey(apiKey))
+            Row(modifier = Modifier.padding(8.dp)) {
+                BasicText(text = participant.name)
+                val duration = timeOfCompletion - state.startTime
+                BasicText(
+                    text = "Took: ${formatDuration(duration)}",
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun formatDuration(duration: Duration): String = when {
+    duration < 1.seconds -> "${duration.inWholeMilliseconds}ms"
+    duration < 1.minutes -> "${duration.inWholeSeconds}s ${duration.minus(duration.inWholeSeconds.seconds).inWholeMilliseconds}ms"
+    else -> "${duration.inWholeMinutes}m ${duration.minus(duration.inWholeMinutes.minutes).inWholeSeconds}s"
 }
 
 @Composable
@@ -134,7 +180,7 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onStateChange { it.copy(participants = it.participants - participant) } }) {
+                Button(onClick = { onStateChange { it.removeParticipant(participant) } }) {
                     Text("Delete")
                 }
             }
@@ -154,3 +200,14 @@ private fun Registration(
         }
     }
 }
+
+private fun ServerState.removeParticipant(participant: Participant): ServerState = copy(
+    participants = participants - participant,
+    puzzleStates = puzzleStates.mapValues { (_, puzzleState) ->
+        when (puzzleState) {
+            PuzzleState.Unopened -> puzzleState
+            is PuzzleState.Opened -> puzzleState
+                .copy(submissions = puzzleState.submissions - participant.apiKey.stringRepresentation)
+        }
+    }
+)

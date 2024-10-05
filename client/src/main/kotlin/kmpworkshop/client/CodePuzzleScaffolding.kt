@@ -56,14 +56,30 @@ internal fun <T : Any, R : Any> checkCodePuzzle(
                                     accidentalChangesMadeError()
                                 }
                             }
+                            SolvingStatus.AlreadySolved -> {
+                                println("""
+                                    Yaay! You solved it again! Perhaps you could look around and see if some of your peers would like your help? :))
+                                """.trimIndent())
+                                throw DoneWithPuzzleException()
+                            }
+                            SolvingStatus.InvalidApiKey -> wrongApiKeyConfigurationError()
+                            SolvingStatus.PuzzleNotOpenedYet -> {
+                                println("""
+                                    Hold on there pal! Don't get ahead of yourself, the puzzle is not yet open for solving!
+                                    I'm sure there's people around you that you can help :))
+                                """.trimIndent())
+                                throw DoneWithPuzzleException()
+                            }
                             SolvingStatus.IncorrectInput -> accidentalChangesMadeError()
-                            SolvingStatus.Done -> throw DoneWithPuzzleException()
+                            SolvingStatus.Done -> {
+                                println("Yaaay! You solved the puzzle! You can now wait for the workshop host to tell you what to do next!")
+                                throw DoneWithPuzzleException()
+                            }
                         }
                     }
             }
         }
     } catch (_: DoneWithPuzzleException) {
-        println("Yaaay! You solved the puzzle! You can now wait for the workshop host to tell you what to do next!")
     }
 }
 
