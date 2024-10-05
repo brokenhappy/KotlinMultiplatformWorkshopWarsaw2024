@@ -69,6 +69,14 @@ internal fun verifyMyApiKey() {
 private const val pathToSecretsInSourceCode = "common/src/main/resources/Secrets.ini"
 private const val keyToAccessClientApiKeySecret = "client-api-key"
 
+internal fun getApiKeyFromEnvironment(): ApiKey {
+    val apiKey = getEnvironment()?.get(keyToAccessClientApiKeySecret) ?: error("""
+        You either your API key configuration got lost, or you haven't gone through registration yet!
+        Please ask assistance from the workshop host.
+    """.trimIndent())
+    return ApiKey(apiKey)
+}
+
 private fun requestNameAndSuggestFollowup() {
     val name = readLine()
     println("""

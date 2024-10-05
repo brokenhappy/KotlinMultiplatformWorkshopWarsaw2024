@@ -1,0 +1,73 @@
+package kmpworkshop.client
+
+import kmpworkshop.common.SolvingStatus
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
+import kotlinx.rpc.streamScoped
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
+
+internal inline fun <reified T : Any, reified R : Any> checkCodePuzzle(
+    puzzleName: String,
+    noinline solution: (T) -> R,
+) = checkCodePuzzle(puzzleName, solution, serializer(), serializer())
+
+internal fun <T : Any, R : Any> checkCodePuzzle(
+    puzzleName: String,
+    solution: (T) -> R,
+    tSerializer: KSerializer<T>,
+    rSerializer: KSerializer<R>,
+) {
+    try {
+        runBlocking {
+            streamScoped {
+                val answers = MutableSharedFlow<R>()
+                workshopService
+                    .doPuzzleSolveAttempt(
+                        key = getApiKeyFromEnvironment(),
+                        puzzleName = puzzleName,
+                        answers = answers.map { Json.encodeToJsonElement(rSerializer, it) },
+                    )
+                    .collect { question ->
+                        when (question) {
+                            is SolvingStatus.Next -> {
+                                val answer = try {
+                                    solution(Json.decodeFromJsonElement(tSerializer, question.questionJson))
+                                } catch (_: SerializationException) {
+                                    accidentalChangesMadeError()
+                                }
+                                answers.emit(answer)
+                            }
+                            is SolvingStatus.Failed -> {
+                                try {
+                                    val input = Json.decodeFromJsonElement(tSerializer, question.input)
+                                    val actual = Json.decodeFromJsonElement(rSerializer, question.actual)
+                                    val expected = Json.decodeFromJsonElement(rSerializer, question.expected)
+                                    throw AssertionError(
+                                        """
+                                            Tested your solution with input: $input
+                                            But we got $actual instead of $expected!
+                                        """.trimIndent()
+                                    )
+                                } catch (_: SerializationException) {
+                                    accidentalChangesMadeError()
+                                }
+                            }
+                            SolvingStatus.IncorrectInput -> accidentalChangesMadeError()
+                            SolvingStatus.Done -> throw DoneWithPuzzleException()
+                        }
+                    }
+            }
+        }
+    } catch (_: DoneWithPuzzleException) {
+        println("Yaaay! You solved the puzzle! You can now wait for the workshop host to tell you what to do next!")
+    }
+}
+
+private class DoneWithPuzzleException: Throwable("", null, false, false)
+
+private fun accidentalChangesMadeError(): Nothing =
+    error("You accidentally made changes to the puzzle types or scaffolding.\nPlease revert those changes yourself or ask the workshop host for help!")
