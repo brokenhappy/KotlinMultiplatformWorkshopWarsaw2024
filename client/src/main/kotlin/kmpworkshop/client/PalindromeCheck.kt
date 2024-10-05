@@ -1,7 +1,7 @@
 package kmpworkshop.client
 
 fun main() {
-    checkCodePuzzle("PalindromeCheck.kt", ::doPalindromeCheckOn)
+    checkCodePuzzle("PalindromeCheck.kt", solution = ::doPalindromeCheckOn)
 }
 
 /**

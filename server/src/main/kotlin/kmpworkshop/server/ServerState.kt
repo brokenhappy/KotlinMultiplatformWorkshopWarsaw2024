@@ -31,6 +31,7 @@ sealed class PuzzleState {
 internal enum class WorkshopStage(val kotlinFile: String) {
     Registration("Registration.kt"),
     PalindromeCheckTask("PalindromeCheck.kt"),
+    FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
 }
 
 internal fun serverState(): Flow<ServerState> = serverStateProperty

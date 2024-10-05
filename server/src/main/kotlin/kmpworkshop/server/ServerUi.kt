@@ -56,6 +56,7 @@ private fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> Server
         when (state.currentStage) {
             WorkshopStage.Registration -> Registration(state, onStateChange)
             WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onStateChange)
+            WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onStateChange)
         }
     }
 }
