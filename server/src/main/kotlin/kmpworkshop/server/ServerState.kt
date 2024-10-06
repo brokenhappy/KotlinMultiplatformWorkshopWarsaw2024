@@ -7,7 +7,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 @Serializable
 internal data class Participant(val name: String, val apiKey: ApiKey)
@@ -18,6 +17,7 @@ internal data class ServerState(
     val unverifiedParticipants: List<Participant> = emptyList(),
     val currentStage: WorkshopStage = WorkshopStage.Registration,
     val puzzleStates: Map<String, PuzzleState> = emptyMap(),
+    val sliderGameState: SliderGameState = SliderGameState.NotStarted,
 )
 
 @Serializable
@@ -25,8 +25,10 @@ sealed class PuzzleState {
     @Serializable
     data object Unopened: PuzzleState()
     @Serializable
-    data class Opened(val startTime: Instant, val submissions: Map</* Is ApiKey, but can't be serialized to JSON */String, Instant>): PuzzleState()
+    data class Opened(val startTime: Instant, val submissions: Map<ApiKeyString, Instant>): PuzzleState()
 }
+
+typealias ApiKeyString = String // Because ApiKey is not serializable when used as a Map key
 
 @Serializable
 internal enum class WorkshopStage(val kotlinFile: String) {
@@ -34,7 +36,25 @@ internal enum class WorkshopStage(val kotlinFile: String) {
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
     FindOldestUserTask("OldestUserFinding.kt"),
+    SliderGameStage("SliderGameClient.kt"),
 }
+
+@Serializable
+internal sealed class SliderGameState {
+    @Serializable
+    data object NotStarted : SliderGameState()
+    @Serializable
+    data class InProgress(
+        val participantStates: Map<ApiKeyString, SliderState>,
+        val pegLevel: Int,
+        val pegPosition: Double,
+    ) : SliderGameState()
+    @Serializable
+    data class Done(val lastState: InProgress) : SliderGameState()
+}
+
+@Serializable
+data class SliderState(val gapOffset: Double, val position: Double)
 
 internal fun serverState(): Flow<ServerState> = serverStateProperty
 internal suspend fun <T> updateServerStateAndGetValue(update: (ServerState) -> Pair<ServerState, T>): T =

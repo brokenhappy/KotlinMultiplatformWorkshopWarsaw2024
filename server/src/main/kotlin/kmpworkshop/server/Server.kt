@@ -128,8 +128,54 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         }
     }
 
+    override suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult =
+        updateServerStateAndGetValue { oldState ->
+            if (oldState.participantFor(key) == null) oldState to SlideResult.InvalidApiKey
+            else {
+                (oldState.sliderGameState as? SliderGameState.InProgress)?.let { oldGameState ->
+                    oldGameState.moveSlider(key, suggestedRatio).withGravityApplied()
+                        .let { oldState.copy(sliderGameState = it) to SlideResult.Success(when (it) {
+                            is SliderGameState.InProgress -> it.findPositionOfParticipant(key)
+                            is SliderGameState.Done -> it
+                                .lastState
+                                .findPositionOfParticipant(key)
+                                .also { launch { playSuccessSound() }}
+                            is SliderGameState.NotStarted -> error("Impossible")
+                        }) }
+                } ?: oldState.to(SlideResult.NoSliderGameInProgress)
+            }
+        }
+
     override val coroutineContext = coroutineContext
 }
+
+private fun SliderGameState.InProgress.withGravityApplied(): SliderGameState =
+    participantStates.values.elementAtOrNull(pegLevel + 1)?.let { slider ->
+        if (slider.letsThroughPegPositionedAt(pegPosition)) copy(pegLevel = pegLevel + 1).withGravityApplied()
+        else this
+    } ?: SliderGameState.Done(copy(pegLevel = participantStates.size))
+
+private fun SliderGameState.InProgress.findLevelOfParticipant(key: ApiKey): Int =
+    participantStates.entries.indexOfFirst { it.key == key.stringRepresentation }
+
+private fun SliderGameState.InProgress.findPositionOfParticipant(key: ApiKey): Double =
+    participantStates.entries.first { it.key == key.stringRepresentation }.value.position
+
+private fun SliderGameState.InProgress.moveSlider(key: ApiKey, ratio: Double): SliderGameState.InProgress {
+    val sliderState = participantStates[key.stringRepresentation]!!
+    return copy(
+        participantStates = (participantStates + key.stringRepresentation.to(
+            sliderState.copy(
+                position = if (findLevelOfParticipant(key) == pegLevel) {
+                    ratio.coerceIn(sliderState.positionRangeInWhichPegWouldFallThrough(pegPosition))
+                } else ratio
+            )
+        )).toSortedMap()
+    )
+}
+
+internal const val PegWidth = 0.075
+internal const val SliderGapWidth = 0.1
 
 private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
     Json.encodeToJsonElement(tSerializer, inAndOutputs[puzzleIndex].first)
@@ -156,7 +202,8 @@ private data class Puzzle<T, R>(
 )
 
 private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
-    WorkshopStage.Registration -> null
+    WorkshopStage.Registration,
+    WorkshopStage.SliderGameStage -> null
     WorkshopStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,

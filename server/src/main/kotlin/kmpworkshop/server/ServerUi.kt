@@ -1,31 +1,15 @@
 @file:Suppress("FunctionName")
 package kmpworkshop.server
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation.Vertical
 import androidx.compose.foundation.gestures.scrollable
-import androidx.compose.foundation.layout.Column
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Duration.Companion.minutes
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.material.Button
-import androidx.compose.material.Divider
-import androidx.compose.material.DropdownMenu
-import androidx.compose.material.DropdownMenuItem
-import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +22,10 @@ import androidx.compose.ui.unit.sp
 import kmpworkshop.common.ApiKey
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlin.random.Random
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
 internal fun ServerUi() {
@@ -58,9 +46,106 @@ private fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> Server
             WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onStateChange)
             WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onStateChange)
             WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onStateChange)
+            WorkshopStage.SliderGameStage -> SliderGame(state, onStateChange)
         }
     }
 }
+
+@Composable
+private fun SliderGame(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+    when (val gameState = state.sliderGameState) {
+        SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
+            TopButton("Start game") { onStateChange { it.startingNewGame() } }
+        }
+        is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
+            TopButton("Stop game") { onStateChange { it.copy(sliderGameState = SliderGameState.Done(gameState)) } }
+            UninteractiveSliderGame(gameState, getParticipant = { it -> state.getParticipantBy(it) })
+        }
+        is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
+            TopButton("Restart game") { onStateChange { it.startingNewGame() } }
+            UninteractiveSliderGame(gameState.lastState, getParticipant = { it -> state.getParticipantBy(it) })
+        }
+    }
+}
+
+private fun ServerState.startingNewGame(): ServerState = copy(sliderGameState = newSliderGame(participants.map { it.apiKey }))
+
+@Composable
+private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getParticipant: (ApiKey) -> Participant) {
+    Row {
+        fun Modifier.weight(d: Double): Modifier = if (d == .0) this else this.weight(d.toFloat())
+        Column {
+            Spacer(modifier = Modifier.height(32.dp))
+            gameState.participantStates.map { getParticipant(ApiKey(it.key)) }.forEach { participant ->
+                Text("${participant.name}: ")
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+        }
+        Box {
+            Column {
+                Spacer(modifier = Modifier.height(32.dp))
+                gameState.participantStates.values.forEach { slider ->
+                    Row(modifier = Modifier.height(32.dp)) {
+                        val leftOffset = slider.position * 2 / 3 + slider.gapOffset / 3
+                        Spacer(
+                            modifier = Modifier
+                                .weight(leftOffset)
+                                .height(32.dp)
+                                .background(Color.Black)
+                        )
+                        Spacer(modifier = Modifier.weight(SliderGapWidth).height(32.dp))
+                        Spacer(
+                            modifier = Modifier
+                                .weight(1.0 - SliderGapWidth - leftOffset)
+                                .height(32.dp)
+                                .background(Color.Black)
+                        )
+                    }
+                }
+            }
+            Column {
+                Spacer(modifier = Modifier.height(32.dp * (gameState.pegLevel + 1)))
+                Row {
+                    Spacer(modifier = Modifier.weight(1.0 + gameState.pegPosition))
+                    Spacer(modifier = Modifier.weight(PegWidth * 3).background(Color.Red).height(32.dp))
+                    Spacer(modifier = Modifier.weight(2.0 - gameState.pegPosition - PegWidth * 3))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopButton(text: String, onClick: () -> Unit) {
+    Row {
+        Spacer(modifier = Modifier.weight(1f))
+        Button(onClick = onClick) {
+            Text(text)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+private fun newSliderGame(participants: List<ApiKey>): SliderGameState.InProgress =
+    newSliderGame(participants, Random.nextDouble(1.0 - PegWidth * 3))
+
+private fun newSliderGame(participants: List<ApiKey>, pegPosition: Double): SliderGameState.InProgress =
+    SliderGameState.InProgress(
+        participantStates = participants.associate {
+            it.stringRepresentation to generateSequence {
+                SliderState(gapOffset = Random.nextDouble(1.0 - SliderGapWidth * 3), position = 0.5)
+            }.first { !it.letsThroughPegPositionedAt(pegPosition) }
+        }.toSortedMap(),
+        pegPosition = pegPosition,
+        pegLevel = -1,
+    )
+
+internal fun SliderState.letsThroughPegPositionedAt(pegPosition: Double): Boolean =
+    position in positionRangeInWhichPegWouldFallThrough(pegPosition)
+
+internal fun SliderState.positionRangeInWhichPegWouldFallThrough(pegPosition: Double): ClosedFloatingPointRange<Double> =
+    ((pegPosition - gapOffset + 1.0) / 2)
+        .let { end -> (end - (SliderGapWidth - PegWidth) * 3 / 2)..end }
 
 @Composable
 private fun Puzzle(state: ServerState, puzzleName: String, onStateChange: ((ServerState) -> ServerState) -> Unit) {
@@ -82,9 +167,11 @@ private fun Puzzle(state: ServerState, puzzleName: String, onStateChange: ((Serv
                 Spacer(modifier = Modifier.weight(1f))
             }
         }
-        is PuzzleState.Opened -> OpenedPuzzle(puzzleState) { key -> state.participants.first { it.apiKey == key } }
+        is PuzzleState.Opened -> OpenedPuzzle(puzzleState) { key -> state.getParticipantBy(key) }
     }
 }
+
+private fun ServerState.getParticipantBy(key: ApiKey): Participant = participants.first { it.apiKey == key }
 
 @Composable
 private fun OpenedPuzzle(state: PuzzleState.Opened, getParticipant: (ApiKey) -> Participant) {
