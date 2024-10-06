@@ -155,8 +155,8 @@ private data class Puzzle<T, R>(
     val rSerializer: KSerializer<R>,
 )
 
-private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *> = when (stage) {
-    WorkshopStage.Registration -> error("This stage has no puzzle!")
+private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
+    WorkshopStage.Registration -> null
     WorkshopStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,
