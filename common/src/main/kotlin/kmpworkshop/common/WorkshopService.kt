@@ -9,6 +9,17 @@ interface WorkshopService : RPC {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
     suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
+    suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
+}
+
+@Serializable
+sealed class SlideResult {
+    @Serializable
+    data class Success(val setRatio: Double) : SlideResult()
+    @Serializable
+    data object NoSliderGameInProgress : SlideResult()
+    @Serializable
+    data object InvalidApiKey : SlideResult()
 }
 
 @Serializable
