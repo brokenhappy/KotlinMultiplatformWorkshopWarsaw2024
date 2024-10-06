@@ -108,11 +108,11 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                             when {
                                 key.stringRepresentation in puzzleState.submissions -> oldState to SolvingStatus.AlreadySolved
                                 else -> oldState.copy(
-                                    puzzleStates = oldState.puzzleStates + (
-                                        puzzleName to puzzleState.copy(
+                                    puzzleStates = oldState.puzzleStates + puzzleName.to(
+                                        puzzleState.copy(
                                             submissions = puzzleState.submissions + (key.stringRepresentation to Clock.System.now())
                                         )
-                                        )
+                                    )
                                 ).to(SolvingStatus.Done).also { launch(Dispatchers.IO) { playSuccessSound() } }
                             }
                         } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
