@@ -6,12 +6,7 @@ import androidx.compose.ui.window.application
 import kmpworkshop.common.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
@@ -20,12 +15,16 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
+import java.io.File
 import java.util.*
 import javax.sound.sampled.AudioSystem
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.seconds
 
 fun main(): Unit = runBlocking {
+    launch(Dispatchers.Default) {
+        serverStateProperty.persisting(File(getEnvironment()!!["server-database-file"]!!))
+    }
     launch(Dispatchers.Default) {
         serveSingleService<WorkshopService> { coroutineContext ->
             workshopService(coroutineContext)
@@ -79,7 +78,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
-        if (updateServerStateAndGetValue { it to it.participantFor(key) } == null) {
+        if (serverStateProperty.value.participantFor(key) == null) {
             emit(SolvingStatus.InvalidApiKey)
             return@flow
         }
@@ -151,7 +150,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
 
     override suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
         channelFlow {
-            if (updateServerStateAndGetValue { it to it.participantFor(key) } == null) {
+            if (serverStateProperty.value.participantFor(key) == null) {
                 send("You have not been registered! Contact the workshop host for help!")
                 return@channelFlow
             }
@@ -283,3 +282,20 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
 }
 
 private fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
+
+private var serverStateProperty = MutableStateFlow(ServerState())
+
+internal fun serverState(): Flow<ServerState> = serverStateProperty
+internal inline fun <T : Any> updateServerStateAndGetValue(update: (ServerState) -> Pair<ServerState, T>): T {
+    var result: T? = null
+    serverStateProperty.update {
+        val (newState, value) = update(it)
+        result = value
+        newState
+    }
+    return result!!
+}
+
+internal inline fun updateServerState(update: (ServerState) -> ServerState) {
+    updateServerStateAndGetValue { update(it) to Unit }
+}
