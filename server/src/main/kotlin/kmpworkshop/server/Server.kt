@@ -7,7 +7,10 @@ import kmpworkshop.common.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -146,6 +149,38 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
             }
         }
 
+    override suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
+        channelFlow {
+            if (updateServerStateAndGetValue { it to it.participantFor(key) } == null) {
+                send("You have not been registered! Contact the workshop host for help!")
+                return@channelFlow
+            }
+
+            launch {
+                pressEvents.collect { pressEvent ->
+                    updateServerState {
+                        it.copy(pressiveGameState = it.pressiveGameState.pressing(pressEvent, presserKey = key, ::trySend))
+                    }
+                }
+            }
+
+            serverState()
+                .map { it.pressiveGameState }
+                .map { gameState ->
+                    when (gameState) {
+                        PressiveGameState.NotStarted -> "The Pressive game has not started yet! Please wait for the workshop host to start it."
+                        PressiveGameState.FirstGameDone -> "Waiting for the second game to start!"
+                        is PressiveGameState.FirstGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
+                            ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
+                        PressiveGameState.SecondGameDone -> "The game has finished! Thank you for playing!"
+                        is PressiveGameState.SecondGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
+                            ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
+                    }
+                }
+                .distinctUntilChanged()
+                .collect { send(it) }
+        }
+
     override val coroutineContext = coroutineContext
 }
 
@@ -203,6 +238,7 @@ private data class Puzzle<T, R>(
 
 private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
     WorkshopStage.Registration,
+    WorkshopStage.PressiveGameStage,
     WorkshopStage.SliderGameStage -> null
     WorkshopStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
