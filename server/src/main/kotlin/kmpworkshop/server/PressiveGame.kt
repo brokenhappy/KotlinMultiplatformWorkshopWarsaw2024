@@ -6,19 +6,19 @@ import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kotlinx.datetime.Clock
 
 internal fun SecondPressiveGameParticipantState.toHint(): String = """
-    ${if (isBeingCalled) "|Someone is calling you, try to call them back!" else ""}|You are: $personalId
+    ${if (isBeingCalled) "|Someone is calling you, try to call them back!\n" else ""}|You are: $personalId
     |${
         when (pairingState) {
             is PressivePairingState.InProgress -> "Dialing: ${pairingState.progress}"
             PressivePairingState.TriedToCallNonExistingCode -> "This sequence does not exist! Try again!"
             PressivePairingState.PartnerHungUp -> "Oh no! Your partner just reset! Let's start pairing again!"
             is SuccessFullyPaired -> "You are now paired! Now you wait for all others to pair!"
-            is PressivePairingState.Calling -> "You are ringing: ${pairingState.partner}, wait for them to call back!"
+            is PressivePairingState.Calling -> "You are ringing: ${pairingState.partner /* TODO: Printing ApiKey here!!! */}, wait for them to call back!"
             PressivePairingState.DialedPersonIsBeingCalled -> "The person you dialed is already being called! Let's try someone else!"
             PressivePairingState.DialedPersonIsCalling -> "The person you dialed is already calling! Ask them to reset or try someone else!"
             PressivePairingState.DialedThemselves -> "You dialed yourself! Try calling someone else!"
             is PressivePairingState.RoundSuccess -> """
-                You are placed ${if (pairingState.isPlacedBeforePartner) "before" else "after"} the person you called!
+                Your position in the sequence comes ${if (pairingState.isPlacedBeforePartner) "before" else "after"} the person you called!
                 |Continue dialing to get more information, or try pressing the correct sequence!
             """.trimIndent()
         }
