@@ -3,14 +3,14 @@ package kmpworkshop.client
 import kmpworkshop.common.PressiveGamePressType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.rpc.streamScoped
 
 private val pressEvents = MutableSharedFlow<PressiveGamePressType>()
 
-fun getFlowOfPressiveGameHints(): Flow<String> = flow {
+fun getFlowOfPressiveGameHints(): Flow<String> = channelFlow {
     streamScoped {
-        workshopService.playPressiveGame(getApiKeyFromEnvironment(), pressEvents).collect { emit(it) }
+        workshopService.playPressiveGame(getApiKeyFromEnvironment(), pressEvents).collect { send(it) }
     }
 }
 
