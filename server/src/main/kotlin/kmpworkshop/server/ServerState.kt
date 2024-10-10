@@ -3,9 +3,7 @@ package kmpworkshop.server
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.PressiveGamePressType
 import kmpworkshop.common.getEnvironment
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 
@@ -116,22 +114,3 @@ internal sealed class SliderGameState {
 
 @Serializable
 data class SliderState(val gapOffset: Double, val position: Double)
-
-internal fun serverState(): Flow<ServerState> = serverStateProperty
-internal suspend inline fun <T> updateServerStateAndGetValue(update: (ServerState) -> Pair<ServerState, T>): T =
-    serverStateLock.withLock {
-        val (newState, value) = update(serverState)
-        if (newState != serverState) serverState = newState
-        value
-    }
-
-internal suspend inline fun updateServerState(update: (ServerState) -> ServerState) {
-    updateServerStateAndGetValue { update(it) to Unit }
-}
-
-private val serverStateLock = Mutex()
-private val serverStateProperty = fileBackedProperty<ServerState>(
-    filePath = getEnvironment()!!["server-database-file"]!!,
-    defaultValue = { ServerState() },
-)
-private var serverState by serverStateProperty
