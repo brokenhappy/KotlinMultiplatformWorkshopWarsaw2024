@@ -46,7 +46,7 @@ internal fun FirstPressiveGameParticipantState.toHint(): String = when {
     }
 }
 
-private const val NumberOfPressesNeededForFirstPressiveGame = 10
+private const val NumberOfPressesNeededForFirstPressiveGame = 4
 
 internal fun PressiveGameState.pressing(
     type: PressiveGamePressType,
