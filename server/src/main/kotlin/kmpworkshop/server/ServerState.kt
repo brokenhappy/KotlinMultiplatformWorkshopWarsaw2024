@@ -2,8 +2,6 @@ package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.PressiveGamePressType
-import kmpworkshop.common.getEnvironment
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 
@@ -16,10 +14,22 @@ internal data class ServerState(
     val deactivatedParticipants: List<Participant> = emptyList(),
     val unverifiedParticipants: List<Participant> = emptyList(),
     val currentStage: WorkshopStage = WorkshopStage.Registration,
+    val scheduledEvents: List<TimedEvent> = emptyList(),
     val puzzleStates: Map<String, PuzzleState> = emptyMap(),
     val sliderGameState: SliderGameState = SliderGameState.NotStarted,
     val pressiveGameState: PressiveGameState = PressiveGameState.NotStarted,
 )
+
+@Serializable
+internal data class TimedEvent(
+    val time: Instant,
+    val type: TimedEventType,
+)
+
+@Serializable
+internal sealed class TimedEventType() {
+    data object PressiveGameTickEvent: TimedEventType()
+}
 
 @Serializable
 sealed class PuzzleState {
