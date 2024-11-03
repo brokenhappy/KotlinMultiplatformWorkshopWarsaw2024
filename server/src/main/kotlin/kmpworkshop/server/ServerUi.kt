@@ -69,6 +69,10 @@ private fun PressiveGame(state: ServerState, onStateChange: ((ServerState) -> Se
             enabled = state.participants.size % 2 == 0,
             onClick = { onStateChange { it.startingSecondPressiveGame() } },
         )
+        TopButton(
+            "Start Third game",
+            onClick = { onStateChange { it.startingThirdPressiveGame() } },
+        )
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
@@ -184,6 +188,15 @@ private fun ServerState.startingSecondPressiveGame(): ServerState =
                 )
             }
     ))
+
+fun ServerState.startingThirdPressiveGame(): ServerState =
+    copy(
+        pressiveGameState = PressiveGameState.ThirdGameInProgress(
+            order = participants.shuffled().map { it.apiKey },
+            progress = 0,
+            participantThatIsBeingRung = null,
+        )
+    ).scheduling(TimedEventType.PressiveGameTickEvent).after(0.seconds)
 
 // @TestOnly public!!!
 fun binaryMoreCodeIdentifiers(count: Int, random: Random = Random): List<String> = count
