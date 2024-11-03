@@ -1,6 +1,5 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.ApiKey
 import kmpworkshop.server.TimedEventType.PressiveGameTickEvent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,16 +44,16 @@ private fun ServerState.after(event: TimedEventType): ServerState = when (event)
         is PressiveGameState.ThirdGameInProgress -> copy(
             pressiveGameState = state.copy(
                 participantThatIsBeingRung = when (val current = state.participantThatIsBeingRung) {
-                    null -> state.order.getOrNull(state.order.indexOfFirst { it == current } + 1)
-                    else -> state.order.firstOrNull()
+                    null -> state.order.firstOrNull()
+                    else -> state.order.getOrNull(state.order.indexOfFirst { it == current } + 1)
                 }
             )
-        ).scheduling(PressiveGameTickEvent).after(delayForNextEvent(state.participantThatIsBeingRung))
+        ).scheduling(PressiveGameTickEvent).after(delayForNextEvent(state))
     }
 }
 
-private fun delayForNextEvent(participantThatIsBeingRung: ApiKey?): Duration = when (participantThatIsBeingRung) {
-    null -> 1.seconds // Wait a bit in between cycles
+private fun delayForNextEvent(lastState: PressiveGameState.ThirdGameInProgress): Duration = when {
+    lastState.participantThatIsBeingRung == lastState.order.last() -> 1.seconds // Wait a bit in between cycles
     else -> 150.milliseconds
 }
 
