@@ -58,7 +58,7 @@ private fun delayForNextEvent(participantThatIsBeingRung: ApiKey?): Duration = w
 }
 
 private suspend fun delayUntil(time: Instant) {
-    (Clock.System.now() - time)
+    (time - Clock.System.now())
         .takeIf { it.isPositive() }
         ?.also { timeUntilEvent -> delay(timeUntilEvent) }
 }
