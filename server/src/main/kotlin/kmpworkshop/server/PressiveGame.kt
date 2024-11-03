@@ -72,7 +72,7 @@ internal fun PressiveGameState.pressing(
                             },
                         )
                     }
-            else -> copy(states = states.put(presserKey, FirstPressiveGameParticipantState(newRandomPresses(), justFailed = true, finishTime = null)))
+            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true)))
         }
     } ?: this.also {
         onMessage("You somehow are not part of this Pressive round! Contact the workshop host for help!")
@@ -105,6 +105,9 @@ internal fun PressiveGameState.pressing(
     }
     PressiveGameState.SecondGameDone -> TODO()
 }
+
+internal fun newFirstPressiveGameState(justFailed: Boolean): FirstPressiveGameParticipantState =
+    FirstPressiveGameParticipantState(newRandomPresses(), justFailed = justFailed, finishTime = null)
 
 private fun FirstPressiveGameParticipantState.dropSinglePressLeft(): FirstPressiveGameParticipantState =
     copy(pressesLeft = pressesLeft.drop(1))
