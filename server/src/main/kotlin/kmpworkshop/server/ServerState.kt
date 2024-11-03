@@ -43,12 +43,12 @@ typealias ApiKeyString = String // Because ApiKey is not serializable when used 
 
 @Serializable
 internal enum class WorkshopStage(val kotlinFile: String) {
-    Registration("Registration.kt"), // TODO: Make possible to disable and enable a participant?
+    Registration("Registration.kt"),
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
     FindOldestUserTask("OldestUserFinding.kt"),
     SliderGameStage("SliderGameClient.kt"), // TODO: Handle deletion of user!
-    PressiveGameStage("PressiveGameClient.kt"), // TODO: Remember to make it possible to exclude myself in case of odd number of participants!
+    PressiveGameStage("PressiveGameClient.kt"), // TODO: Handle deletion of user!
 }
 
 @Serializable
@@ -91,6 +91,7 @@ internal data class SecondPressiveGameParticipantState(
     val personalId: String,
     val isBeingCalled: Boolean,
 )
+
 @Serializable
 internal data class FirstPressiveGameParticipantState(
     val pressesLeft: List<PressiveGamePressType>,

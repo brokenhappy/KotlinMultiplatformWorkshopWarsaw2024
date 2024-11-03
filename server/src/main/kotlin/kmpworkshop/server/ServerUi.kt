@@ -42,6 +42,7 @@ internal fun ServerUi() {
 @Composable
 private fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
     Column {
+        // TODO: Start first pressive tick event when switching to Pressive game!
         StageTopBar(state.currentStage, onStageChange = { newStage -> onStateChange { it.copy(currentStage = newStage) } })
         when (state.currentStage) {
             WorkshopStage.Registration -> Registration(state, onStateChange)
