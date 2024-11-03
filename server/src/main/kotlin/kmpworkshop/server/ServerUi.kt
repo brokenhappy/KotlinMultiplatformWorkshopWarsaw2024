@@ -325,7 +325,7 @@ private fun ServerState.getParticipantBy(key: ApiKey): Participant = participant
 private fun Submissions(submissions: Submissions) {
     Column(modifier = Modifier.padding(16.dp).scrollable(rememberScrollState(), orientation = Vertical)) {
         BasicText(text = "Number of completions: ${submissions.completedSubmissions.size}")
-        for ((apiKey, timeOfCompletion) in submissions.completedSubmissions) {
+        for ((apiKey, timeOfCompletion) in submissions.completedSubmissions.entries.sortedBy { it.value }) {
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = submissions.participants.first { it.apiKey == apiKey }.name)
                 val duration = timeOfCompletion - submissions.startTime
