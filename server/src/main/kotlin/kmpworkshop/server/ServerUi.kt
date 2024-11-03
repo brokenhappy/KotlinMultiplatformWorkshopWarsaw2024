@@ -66,7 +66,7 @@ private fun PressiveGame(state: ServerState, onStateChange: ((ServerState) -> Se
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
-        PressiveGameState.FirstGameDone -> Unit
+        is PressiveGameState.FirstGameDone -> Submissions(gameState.asSubmissions(state.participants))
         is PressiveGameState.FirstGameInProgress -> Submissions(gameState.asSubmissions(state.participants))
         PressiveGameState.SecondGameDone -> SecondPressiveGame(1f)
         is PressiveGameState.SecondGameInProgress -> SecondPressiveGame(gameState.progress.toFloat() / gameState.states.size)
@@ -116,6 +116,12 @@ private fun PressiveGameState.FirstGameInProgress.asSubmissions(participants: Li
     completedSubmissions = states
         .mapNotNull { (key, state) -> state.finishTime?.let { ApiKey(key) to it } }
         .toMap()
+)
+
+private fun PressiveGameState.FirstGameDone.asSubmissions(participants: List<Participant>) = Submissions(
+    startTime = startTime,
+    participants = participants,
+    completedSubmissions = finishTimes.mapKeys { (key, _) -> ApiKey(key) }
 )
 
 @Composable
