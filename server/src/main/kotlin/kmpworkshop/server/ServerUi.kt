@@ -149,7 +149,7 @@ private fun ServerState.startingFirstPressiveGame(): ServerState =
         states = participants.associate { participant ->
             Pair(
                 participant.apiKey.stringRepresentation,
-                FirstPressiveGameParticipantState(newRandomPresses(), justFailed = false, finishTime = null),
+                newFirstPressiveGameState(justFailed = false),
             )
         }
     ))
