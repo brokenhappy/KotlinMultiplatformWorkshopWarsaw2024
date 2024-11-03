@@ -20,7 +20,7 @@ internal fun SecondPressiveGameParticipantState.toHint(): String = """
             is PressivePairingState.RoundSuccess -> """
                 Your position in the sequence comes ${if (pairingState.isPlacedBeforePartner) "before" else "after"} the person you called!
                 |Continue dialing to get more information, or try pressing the correct sequence!
-            """.trimIndent()
+            """.trimMargin()
         }
     }
     |Do a double press to restart dialing!
