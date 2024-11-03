@@ -5,7 +5,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.engine.stopServerOnCancellation
 import io.ktor.server.netty.Netty
 import io.ktor.server.routing.routing
-import kmpworkshop.common.WorkshopService
+import kmpworkshop.common.WorkshopApiService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.rpc.RPC
@@ -27,7 +27,7 @@ suspend fun <Service : RPC> serveSingleService(
         install(RPC)
 
         routing {
-            rpc("/${WorkshopService::class.simpleName!!}") {
+            rpc("/${WorkshopApiService::class.simpleName!!}") {
                 rpcConfig {
                     serialization {
                         json()

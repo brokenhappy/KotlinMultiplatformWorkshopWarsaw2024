@@ -1,17 +1,43 @@
 package kmpworkshop.common
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.serialization.Serializable
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.rpc.RPC
+import kotlinx.rpc.streamScoped
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-interface WorkshopService : RPC {
+interface WorkshopApiService : RPC {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
     suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
     suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
     suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?>
+}
+
+interface WorkshopServer {
+    fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
+    suspend fun setSlider(suggestedRatio: Double): SlideResult
+    fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
+    fun pressiveGameBackground(): Flow<Color?>
+}
+
+fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
+    override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
+        decoupledRpcFlow { this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers) }
+    override suspend fun setSlider(suggestedRatio: Double): SlideResult =
+        this@asServer.setSlider(apiKey, suggestedRatio)
+    override fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String> =
+        decoupledRpcFlow { this@asServer.playPressiveGame(apiKey, pressEvents) }
+    override fun pressiveGameBackground(): Flow<Color?> =
+        decoupledRpcFlow { this@asServer.pressiveGameBackground(apiKey) }
+}
+
+fun <T> decoupledRpcFlow(rpcFlow: suspend () -> Flow<T>): Flow<T> = channelFlow {
+    streamScoped {
+        rpcFlow().collect { send(it) }
+    }
 }
 
 @Serializable

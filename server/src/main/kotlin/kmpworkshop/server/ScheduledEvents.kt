@@ -3,22 +3,24 @@ package kmpworkshop.server
 import kmpworkshop.common.ApiKey
 import kmpworkshop.server.TimedEventType.PressiveGameTickEvent
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-internal suspend fun performScheduledEvents(): Nothing {
-    serverState()
+internal suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>): Nothing {
+    serverState
         .map { it.scheduledEvents.minBy { it.time } }
         .distinctUntilChangedBy { it.time }
         .collectLatest { firstScheduledEvent ->
             delayUntil(firstScheduledEvent.time)
-            updateServerState {
+            serverState.update {
                 it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
             }
         }

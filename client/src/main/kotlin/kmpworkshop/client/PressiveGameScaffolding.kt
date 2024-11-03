@@ -8,6 +8,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import kmpworkshop.common.Color
 import kmpworkshop.common.PressiveGamePressType
+import kmpworkshop.common.WorkshopServer
+import kmpworkshop.common.asServer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
@@ -22,11 +24,14 @@ fun getFlowOfPressiveGameHints(): Flow<String> = channelFlow {
 }
 
 @Composable
-fun AdaptingBackground(content: @Composable () -> Unit) {
+internal fun AdaptingBackground(content: @Composable () -> Unit) {
+    AdaptingBackground(workshopService.asServer(getApiKeyFromEnvironment()), content)
+}
+
+@Composable
+fun AdaptingBackground(server: WorkshopServer, content: @Composable () -> Unit) {
     val background = produceState(null as Color?) {
-        streamScoped {
-            workshopService.pressiveGameBackground(getApiKeyFromEnvironment()).collect { value = it }
-        }
+        server.pressiveGameBackground().collect { value = it }
     }
     background.value?.let {
         Box(modifier = Modifier.fillMaxSize().background(it.toComposeColor())) {
