@@ -164,12 +164,7 @@ private fun ServerState.startingSecondPressiveGame(): ServerState =
         progress = 0,
         states = participants
             .zip(
-                participants.size.nextPowerOfTwo().let { totalBits ->
-                    (0..<totalBits)
-                        .shuffled()
-                        .take(participants.size)
-                        .map { it.binaryAsMorseCode().padEnd(totalBits, '.') }
-                }
+                binaryMoreCodeIdentifiers(count = participants.size)
             )
             .associate { (participant, code) ->
                 Pair(
@@ -183,6 +178,22 @@ private fun ServerState.startingSecondPressiveGame(): ServerState =
                 )
             }
     ))
+
+// @TestOnly public!!!
+fun binaryMoreCodeIdentifiers(count: Int, random: Random = Random): List<String> = count
+    .nextPowerOfTwo()
+    .let { totalBits ->
+        val width = when (count) {
+            1 -> 1
+            else -> totalBits.countLeadingZeroBits().let { leadingBits ->
+                Int.SIZE_BITS - leadingBits - 1
+            }
+        }
+        (0..<totalBits)
+            .shuffled(random)
+            .take(count)
+            .map { it.binaryAsMorseCode().padEnd(width, '.') }
+    }
 
 // Thanks, AI assistant!
 private fun Int.nextPowerOfTwo(): Int {
@@ -198,9 +209,8 @@ private fun Int.nextPowerOfTwo(): Int {
 
 // 3 => 11 => --
 // 4 => 100 => -..
-private fun Int.binaryAsMorseCode(): String =
-    (if (this % 2 == 0) "." else "-") +
-        if (this == 0) "" else (this / 2).binaryAsMorseCode()
+fun Int.binaryAsMorseCode(): String =
+    if (this == 0) "" else (if (this % 2 == 0) "." else "-") + (this / 2).binaryAsMorseCode()
 
 @Composable
 private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getParticipant: (ApiKey) -> Participant) {
