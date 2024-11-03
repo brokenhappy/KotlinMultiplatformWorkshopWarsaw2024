@@ -45,7 +45,7 @@ internal fun ServerUi(serverState: MutableStateFlow<ServerState>) {
 }
 
 @Composable
-private fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
     Column {
         // TODO: Start first pressive tick event when switching to Pressive game!
         StageTopBar(state.currentStage, onStageChange = { newStage -> onStateChange { it.copy(currentStage = newStage) } })

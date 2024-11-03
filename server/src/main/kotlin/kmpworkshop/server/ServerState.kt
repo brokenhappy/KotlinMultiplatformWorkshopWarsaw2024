@@ -6,10 +6,10 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 
 @Serializable
-internal data class Participant(val name: String, val apiKey: ApiKey)
+data class Participant(val name: String, val apiKey: ApiKey)
 
 @Serializable
-internal data class ServerState(
+data class ServerState(
     val participants: List<Participant> = emptyList(),
     val deactivatedParticipants: List<Participant> = emptyList(),
     val unverifiedParticipants: List<Participant> = emptyList(),
@@ -21,13 +21,13 @@ internal data class ServerState(
 )
 
 @Serializable
-internal data class TimedEvent(
+data class TimedEvent(
     val time: Instant,
     val type: TimedEventType,
 )
 
 @Serializable
-internal sealed class TimedEventType() {
+sealed class TimedEventType() {
     data object PressiveGameTickEvent: TimedEventType()
 }
 
@@ -42,7 +42,7 @@ sealed class PuzzleState {
 typealias ApiKeyString = String // Because ApiKey is not serializable when used as a Map key
 
 @Serializable
-internal enum class WorkshopStage(val kotlinFile: String) {
+enum class WorkshopStage(val kotlinFile: String) {
     Registration("Registration.kt"),
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
@@ -52,7 +52,7 @@ internal enum class WorkshopStage(val kotlinFile: String) {
 }
 
 @Serializable
-internal sealed class PressiveGameState {
+sealed class PressiveGameState {
     @Serializable
     data object NotStarted : PressiveGameState()
     @Serializable
@@ -85,7 +85,7 @@ internal sealed class PressiveGameState {
 }
 
 @Serializable
-internal data class SecondPressiveGameParticipantState(
+data class SecondPressiveGameParticipantState(
     val pairingState: PressivePairingState,
     val key: ApiKey,
     val personalId: String,
@@ -93,14 +93,14 @@ internal data class SecondPressiveGameParticipantState(
 )
 
 @Serializable
-internal data class FirstPressiveGameParticipantState(
+data class FirstPressiveGameParticipantState(
     val pressesLeft: List<PressiveGamePressType>,
     val justFailed: Boolean,
     val finishTime: Instant?, // TODO: Yikes, nullable? Refactor!
 )
 
 @Serializable
-internal sealed class PressivePairingState {
+sealed class PressivePairingState {
     @Serializable
     data class Calling(val partner: ApiKey) : PressivePairingState()
     @Serializable
@@ -122,7 +122,7 @@ internal sealed class PressivePairingState {
 }
 
 @Serializable
-internal sealed class SliderGameState {
+sealed class SliderGameState {
     @Serializable
     data object NotStarted : SliderGameState()
     @Serializable

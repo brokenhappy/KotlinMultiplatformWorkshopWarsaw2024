@@ -14,3 +14,4 @@ rootProject.name = "KotlinMultiplatformWorkshopWarsaw2024"
 include("common")
 include("server")
 include("client")
+include("testEnvironment")

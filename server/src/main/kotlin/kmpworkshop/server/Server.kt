@@ -43,9 +43,15 @@ fun main(): Unit = runBlocking {
     }
 }
 
+fun workshopServer(
+    coroutineContext: CoroutineContext,
+    serverState: MutableStateFlow<ServerState>,
+    apiKey: ApiKey,
+): WorkshopServer = workshopService(coroutineContext, serverState).asServer(apiKey)
+
 private fun workshopService(
     coroutineContext: CoroutineContext,
-    serverState: MutableStateFlow<ServerState>
+    serverState: MutableStateFlow<ServerState>,
 ): WorkshopApiService = object : WorkshopApiService {
     override suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult =
         serverState.updateAndGetValue { oldState ->

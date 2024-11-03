@@ -14,7 +14,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-internal suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>): Nothing {
+suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>): Nothing {
     serverState
         .map { it.scheduledEvents.minBy { it.time } }
         .distinctUntilChangedBy { it.time }
