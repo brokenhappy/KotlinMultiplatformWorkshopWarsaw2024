@@ -30,6 +30,9 @@ fun main(): Unit = runBlocking {
             workshopService(coroutineContext)
         }
     }
+    launch(Dispatchers.Default) {
+        performScheduledEvents()
+    }
     application {
         Window(onCloseRequest = ::exitApplication, title = "KMP Workshop") {
             MaterialTheme {
