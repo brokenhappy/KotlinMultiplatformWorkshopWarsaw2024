@@ -16,9 +16,10 @@ import kotlin.time.Duration.Companion.seconds
 
 suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>): Nothing {
     serverState
-        .map { it.scheduledEvents.minBy { it.time } }
-        .distinctUntilChangedBy { it.time }
+        .map { it.scheduledEvents.minByOrNull { it.time } }
+        .distinctUntilChangedBy { it?.time }
         .collectLatest { firstScheduledEvent ->
+            if (firstScheduledEvent == null) return@collectLatest
             delayUntil(firstScheduledEvent.time)
             serverState.update {
                 it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
