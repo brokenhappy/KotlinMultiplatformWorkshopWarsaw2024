@@ -153,11 +153,6 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
 
     override suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
         channelFlow {
-            if (serverStateProperty.value.participantFor(key) == null) {
-                send("You have not been registered! Contact the workshop host for help!")
-                return@channelFlow
-            }
-
             launch {
                 pressEvents.collect { pressEvent ->
                     updateServerState {
