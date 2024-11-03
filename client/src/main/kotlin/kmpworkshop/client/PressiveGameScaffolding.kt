@@ -33,12 +33,19 @@ fun AdaptingBackground(server: WorkshopServer, content: @Composable () -> Unit) 
     val background = produceState(null as Color?) {
         server.pressiveGameBackground().collect { value = it }
     }
-    background.value?.let {
-        Box(modifier = Modifier.fillMaxSize().background(it.toComposeColor())) {
-            content()
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .applyIfNotNull(background.value) { background(it.toComposeColor()) }
+    ) {
+        content()
     }
 }
+
+private fun <T : Any> Modifier.applyIfNotNull(
+    value: T?,
+    function: Modifier.(T) -> Modifier
+): Modifier = value?.let { function(it) } ?: this
 
 private fun Color.toComposeColor(): androidx.compose.ui.graphics.Color =
     androidx.compose.ui.graphics.Color(red, green, blue)
