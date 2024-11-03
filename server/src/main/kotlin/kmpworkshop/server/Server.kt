@@ -22,29 +22,33 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.seconds
 
 fun main(): Unit = runBlocking {
+    val serverState = MutableStateFlow(ServerState())
     launch(Dispatchers.Default) {
-        serverStateProperty.persisting(File(getEnvironment()!!["server-database-file"]!!))
+        serverState.persisting(File(getEnvironment()!!["server-database-file"]!!))
     }
     launch(Dispatchers.Default) {
-        serveSingleService<WorkshopService> { coroutineContext ->
-            workshopService(coroutineContext)
+        serveSingleService<WorkshopApiService> { coroutineContext ->
+            workshopService(coroutineContext, serverState)
         }
     }
     launch(Dispatchers.Default) {
-        performScheduledEvents()
+        performScheduledEvents(serverState)
     }
     application {
         Window(onCloseRequest = ::exitApplication, title = "KMP Workshop") {
             MaterialTheme {
-                ServerUi()
+                ServerUi(serverState)
             }
         }
     }
 }
 
-private fun workshopService(coroutineContext: CoroutineContext): WorkshopService = object : WorkshopService {
+private fun workshopService(
+    coroutineContext: CoroutineContext,
+    serverState: MutableStateFlow<ServerState>
+): WorkshopApiService = object : WorkshopApiService {
     override suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult =
-        updateServerStateAndGetValue { oldState ->
+        serverState.updateAndGetValue { oldState ->
             when {
                 !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
                 oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
@@ -59,17 +63,17 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         }
 
     override suspend fun verifyRegistration(key: ApiKey): NameVerificationResult =
-        updateServerStateAndGetValue { oldState ->
+        serverState.updateAndGetValue { oldState ->
             val name = oldState
                 .unverifiedParticipants
                 .firstOrNull { it.apiKey == key }
                 ?.name
-                ?: return@updateServerStateAndGetValue oldState to NameVerificationResult.ApiKeyDoesNotExist
+                ?: return@updateAndGetValue oldState to NameVerificationResult.ApiKeyDoesNotExist
             val stateWithoutUnverifiedParticipant = oldState.copy(
                 unverifiedParticipants = oldState.unverifiedParticipants.filter { it.apiKey != key },
             )
             if (oldState.participants.any { it.name == name })
-                return@updateServerStateAndGetValue stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
+                return@updateAndGetValue stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
             stateWithoutUnverifiedParticipant.copy(
                 participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key)
             ).to(NameVerificationResult.Success)
@@ -81,7 +85,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
-        if (serverStateProperty.value.participantFor(key) == null) {
+        if (serverState.value.participantFor(key) == null) {
             emit(SolvingStatus.InvalidApiKey)
             return@flow
         }
@@ -108,7 +112,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                     puzzleIndex++
                 }
                 if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
-                    updateServerStateAndGetValue { oldState ->
+                    serverState.updateAndGetValue { oldState ->
                         (oldState.puzzleStates[puzzleName] as? PuzzleState.Opened)?.let { puzzleState ->
                             when {
                                 key.stringRepresentation in puzzleState.submissions -> oldState to SolvingStatus.AlreadySolved
@@ -134,19 +138,23 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
     }
 
     override suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult =
-        updateServerStateAndGetValue { oldState ->
+        serverState.updateAndGetValue { oldState ->
             if (oldState.participantFor(key) == null) oldState to SlideResult.InvalidApiKey
             else {
                 (oldState.sliderGameState as? SliderGameState.InProgress)?.let { oldGameState ->
                     oldGameState.moveSlider(key, suggestedRatio).withGravityApplied()
-                        .let { oldState.copy(sliderGameState = it) to SlideResult.Success(when (it) {
-                            is SliderGameState.InProgress -> it.findPositionOfParticipant(key)
-                            is SliderGameState.Done -> it
-                                .lastState
-                                .findPositionOfParticipant(key)
-                                .also { launch { playSuccessSound() }}
-                            is SliderGameState.NotStarted -> error("Impossible")
-                        }) }
+                        .let {
+                            oldState.copy(sliderGameState = it) to SlideResult.Success(
+                                when (it) {
+                                is SliderGameState.InProgress -> it.findPositionOfParticipant(key)
+                                is SliderGameState.Done -> it
+                                    .lastState
+                                    .findPositionOfParticipant(key)
+                                    .also { launch { playSuccessSound() } }
+
+                                is SliderGameState.NotStarted -> error("Impossible")
+                            })
+                        }
                 } ?: oldState.to(SlideResult.NoSliderGameInProgress)
             }
         }
@@ -155,13 +163,13 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
         channelFlow {
             launch {
                 pressEvents.collect { pressEvent ->
-                    updateServerState {
+                    serverState.update {
                         it.copy(pressiveGameState = it.pressiveGameState.pressing(pressEvent, presserKey = key, ::trySend))
                     }
                 }
             }
 
-            serverState()
+            serverState
                 .map { it.pressiveGameState }
                 .map { gameState ->
                     when (gameState) {
@@ -180,7 +188,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                 .collect { send(it) }
         }
 
-    override suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?> = serverState()
+    override suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?> = serverState
         .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
         .distinctUntilChanged()
         .map { isBeingRung -> Color(0, 0, 0).takeIf { isBeingRung } }
@@ -288,19 +296,12 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
 
 private fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
 
-private var serverStateProperty = MutableStateFlow(ServerState())
-
-internal fun serverState(): Flow<ServerState> = serverStateProperty
-internal inline fun <T : Any> updateServerStateAndGetValue(update: (ServerState) -> Pair<ServerState, T>): T {
-    var result: T? = null
-    serverStateProperty.update {
+private inline fun <T, R : Any> MutableStateFlow<T>.updateAndGetValue(update: (T) -> Pair<T, R>): R {
+    var result: R? = null
+    update {
         val (newState, value) = update(it)
         result = value
         newState
     }
     return result!!
-}
-
-internal inline fun updateServerState(update: (ServerState) -> ServerState) {
-    updateServerStateAndGetValue { update(it) to Unit }
 }

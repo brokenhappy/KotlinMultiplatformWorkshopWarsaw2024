@@ -21,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight.Companion.Bold
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kmpworkshop.common.ApiKey
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -30,13 +33,15 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
-internal fun ServerUi() {
+internal fun ServerUi(serverState: MutableStateFlow<ServerState>) {
     val state by produceState(initialValue = ServerState()) {
-        serverState().collect { value = it }
+        serverState.collect { value = it }
     }
     val scope = rememberCoroutineScope()
 
-    ServerUi(state, onStateChange = { stateUpdater -> scope.launch { updateServerState(stateUpdater) } })
+    ServerUi(state, onStateChange = { stateUpdater ->
+        scope.launch(Dispatchers.Default) { serverState.update { stateUpdater(it) } }
+    })
 }
 
 @Composable
