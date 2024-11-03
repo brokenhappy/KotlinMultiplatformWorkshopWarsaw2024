@@ -51,7 +51,10 @@ internal sealed class PressiveGameState {
         val states: Map<ApiKeyString, FirstPressiveGameParticipantState>,
     ) : PressiveGameState()
     @Serializable
-    data object FirstGameDone : PressiveGameState()
+    data class FirstGameDone(
+        val startTime: Instant,
+        val finishTimes: Map<ApiKeyString, Instant>,
+    ) : PressiveGameState()
     @Serializable
     data class SecondGameInProgress(
         val order: List<ApiKey>,

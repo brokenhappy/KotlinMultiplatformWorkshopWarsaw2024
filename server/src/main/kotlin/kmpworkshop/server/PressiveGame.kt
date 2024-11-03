@@ -56,14 +56,24 @@ internal fun PressiveGameState.pressing(
     PressiveGameState.NotStarted -> this.also {
         onMessage("Hold up there fella! We haven't started the game yet :)")
     }
-    PressiveGameState.FirstGameDone -> this.also {
+    is PressiveGameState.FirstGameDone -> this.also {
         onMessage("I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?")
     }
     is PressiveGameState.FirstGameInProgress -> states[presserKey]?.let { state ->
-        copy(states = when (type) {
-            state.pressesLeft.first() -> states.put(presserKey, state.dropSinglePressLeft())
-            else -> states.put(presserKey, FirstPressiveGameParticipantState(newRandomPresses(), justFailed = true, finishTime = null))
-        })
+        when (type) {
+            state.pressesLeft.first() ->
+                copy(states = states.put(presserKey, state.dropSinglePressLeft()))
+                    .let { newState ->
+                        // Mind the early return! We only finish the game if...
+                        PressiveGameState.FirstGameDone(
+                            startTime = newState.startTime,
+                            finishTimes = newState.states.mapValues { (_, participantState) ->
+                                participantState.finishTime ?: return@let newState // ...All the participants finished
+                            },
+                        )
+                    }
+            else -> copy(states = states.put(presserKey, FirstPressiveGameParticipantState(newRandomPresses(), justFailed = true, finishTime = null)))
+        }
     } ?: this.also {
         onMessage("You somehow are not part of this Pressive round! Contact the workshop host for help!")
     }

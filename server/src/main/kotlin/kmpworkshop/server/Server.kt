@@ -168,7 +168,7 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                 .map { gameState ->
                     when (gameState) {
                         PressiveGameState.NotStarted -> "The Pressive game has not started yet! Please wait for the workshop host to start it."
-                        PressiveGameState.FirstGameDone -> "Waiting for the second game to start!"
+                        is PressiveGameState.FirstGameDone -> "Waiting for the second game to start!"
                         is PressiveGameState.FirstGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
                             ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
                         PressiveGameState.SecondGameDone -> "The game has finished! Thank you for playing!"
