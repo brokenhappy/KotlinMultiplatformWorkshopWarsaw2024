@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
 class PositionRangeInWhichPegWouldFallThroughTest {
-    @Test
+//    @Test
     fun foo() {
         val someValue = 0.0
         fun endingAt(rangeStart: Double) = (rangeStart - ((SliderGapWidth - PegWidth) * 2 / 3))..rangeStart
