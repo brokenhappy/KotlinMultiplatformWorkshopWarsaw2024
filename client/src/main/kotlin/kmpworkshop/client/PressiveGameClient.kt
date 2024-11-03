@@ -13,7 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 
 fun main() {
-    WorkshopApp("Pressive Game Client") { PressiveGame() }
+    WorkshopApp("Pressive Game Client") { AdaptingBackground { PressiveGame() } }
 }
 
 @Composable

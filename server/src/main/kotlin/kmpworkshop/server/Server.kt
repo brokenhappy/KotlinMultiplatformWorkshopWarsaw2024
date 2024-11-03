@@ -171,14 +171,21 @@ private fun workshopService(coroutineContext: CoroutineContext): WorkshopService
                         is PressiveGameState.FirstGameDone -> "Waiting for the second game to start!"
                         is PressiveGameState.FirstGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
                             ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
-                        PressiveGameState.SecondGameDone -> "The game has finished! Thank you for playing!"
+                        is PressiveGameState.SecondGameDone -> "Waiting for the third game to start!"
                         is PressiveGameState.SecondGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
                             ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
+                        PressiveGameState.ThirdGameDone-> "The game has finished! Thank you for playing!"
+                        is PressiveGameState.ThirdGameInProgress -> ""
                     }
                 }
                 .distinctUntilChanged()
                 .collect { send(it) }
         }
+
+    override suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?> = serverState()
+        .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
+        .distinctUntilChanged()
+        .map { isBeingRung -> Color(0, 0, 0).takeIf { isBeingRung } }
 
     override val coroutineContext = coroutineContext
 }

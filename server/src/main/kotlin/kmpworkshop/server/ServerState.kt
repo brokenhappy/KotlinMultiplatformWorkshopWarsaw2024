@@ -63,6 +63,15 @@ internal sealed class PressiveGameState {
     ) : PressiveGameState()
     @Serializable
     data object SecondGameDone : PressiveGameState()
+    @Serializable
+    data class ThirdGameInProgress(
+        val order: List<ApiKey>,
+        val progress: Int = 0,
+        /** Null means that a whole cycle was just done, and a new one is about to start */
+        val participantThatIsBeingRung: ApiKey?,
+    ) : PressiveGameState()
+    @Serializable
+    data object ThirdGameDone : PressiveGameState()
 }
 
 @Serializable
