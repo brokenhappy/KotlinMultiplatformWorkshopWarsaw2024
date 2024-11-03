@@ -68,13 +68,17 @@ private fun PressiveGame(state: ServerState, onStateChange: ((ServerState) -> Se
         PressiveGameState.NotStarted -> Unit
         is PressiveGameState.FirstGameDone -> Submissions(gameState.asSubmissions(state.participants))
         is PressiveGameState.FirstGameInProgress -> Submissions(gameState.asSubmissions(state.participants))
-        PressiveGameState.SecondGameDone -> SecondPressiveGame(1f)
-        is PressiveGameState.SecondGameInProgress -> SecondPressiveGame(gameState.progress.toFloat() / gameState.states.size)
+        PressiveGameState.SecondGameDone -> SecondOrThirdPressiveGame(1f)
+        is PressiveGameState.SecondGameInProgress ->
+            SecondOrThirdPressiveGame(gameState.progress.toFloat() / gameState.states.size)
+        PressiveGameState.ThirdGameDone -> SecondOrThirdPressiveGame(1f)
+        is PressiveGameState.ThirdGameInProgress ->
+            SecondOrThirdPressiveGame(gameState.progress.toFloat() / gameState.order.size)
     }
 }
 
 @Composable
-private fun SecondPressiveGame(progress: Float) {
+private fun SecondOrThirdPressiveGame(progress: Float) {
     Row(modifier = Modifier.padding(horizontal = 32.dp)) {
         Text("Progress: ")
         BigProgressBar(progress)

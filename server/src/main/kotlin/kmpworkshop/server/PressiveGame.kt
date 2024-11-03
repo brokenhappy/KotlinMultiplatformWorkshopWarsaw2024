@@ -56,6 +56,8 @@ internal fun PressiveGameState.pressing(
     PressiveGameState.NotStarted -> this.also {
         onMessage("Hold up there fella! We haven't started the game yet :)")
     }
+    PressiveGameState.ThirdGameDone,
+    PressiveGameState.SecondGameDone,
     is PressiveGameState.FirstGameDone -> this.also {
         onMessage("I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?")
     }
@@ -81,7 +83,7 @@ internal fun PressiveGameState.pressing(
         val stateWithProgressIncreased = copy(
             progress = if (order[progress] == presserKey) progress + 1 else 0,
         )
-        if (stateWithProgressIncreased.progress == order.size) PressiveGameState.SecondGameDone
+        if (stateWithProgressIncreased.progress == order.size) PressiveGameState.SecondGameDone // TODO: Sound effects!
         else when (presserState.pairingState) {
             is PressivePairingState.InProgress,
             PressivePairingState.DialedThemselves,
@@ -103,7 +105,9 @@ internal fun PressiveGameState.pressing(
     } ?: this.also {
         onMessage("You somehow are not part of this Pressive round! Contact the workshop host for help!")
     }
-    PressiveGameState.SecondGameDone -> TODO()
+    is PressiveGameState.ThirdGameInProgress -> copy(
+        progress = if (order[progress] == presserKey) progress + 1 else 0,
+    ).let { if (it.progress == order.size) PressiveGameState.ThirdGameDone else it } // TODO: Sound effects!
 }
 
 internal fun newFirstPressiveGameState(justFailed: Boolean): FirstPressiveGameParticipantState =

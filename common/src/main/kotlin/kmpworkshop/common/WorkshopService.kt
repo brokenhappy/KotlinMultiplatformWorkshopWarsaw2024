@@ -11,7 +11,11 @@ interface WorkshopService : RPC {
     suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
     suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
+    suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?>
 }
+
+@Serializable
+data class Color(val red: Int, val green: Int, val blue: Int)
 
 @Serializable
 enum class PressiveGamePressType {

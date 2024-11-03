@@ -1,5 +1,12 @@
 package kmpworkshop.client
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.Modifier
+import kmpworkshop.common.Color
 import kmpworkshop.common.PressiveGamePressType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -13,6 +20,23 @@ fun getFlowOfPressiveGameHints(): Flow<String> = channelFlow {
         workshopService.playPressiveGame(getApiKeyFromEnvironment(), pressEvents).collect { send(it) }
     }
 }
+
+@Composable
+fun AdaptingBackground(content: @Composable () -> Unit) {
+    val background = produceState(null as Color?) {
+        streamScoped {
+            workshopService.pressiveGameBackground(getApiKeyFromEnvironment()).collect { value = it }
+        }
+    }
+    background.value?.let {
+        Box(modifier = Modifier.fillMaxSize().background(it.toComposeColor())) {
+            content()
+        }
+    }
+}
+
+private fun Color.toComposeColor(): androidx.compose.ui.graphics.Color =
+    androidx.compose.ui.graphics.Color(red, green, blue)
 
 suspend fun doSinglePress(): Unit = pressEvents.emit(PressiveGamePressType.SinglePress)
 suspend fun doDoublePress(): Unit = pressEvents.emit(PressiveGamePressType.DoublePress)
