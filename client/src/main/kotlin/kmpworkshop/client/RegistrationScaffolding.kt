@@ -61,7 +61,7 @@ internal fun verifyMyApiKey() {
         when (runBlocking { workshopService.verifyRegistration(ApiKey(apiKey)) }) {
             NameVerificationResult.ApiKeyDoesNotExist -> "Hmm, somehow your client-api-key is invalid, you tried to register with $apiKey. Please restart the process!"
             NameVerificationResult.NameAlreadyExists -> "Oh no, someone who registered with the same name verified before you! Please try again with a different name!"
-            NameVerificationResult.Success -> "Congratulations! You've now been verified! You can wait for further instructions from the workshop host!"
+            NameVerificationResult.Success -> "Congratulations! You've now been verified! You can now help the others to register!"
         }
     )
 }
