@@ -176,15 +176,14 @@ private fun workshopService(
             }
 
             serverState
-                .map { it.pressiveGameState }
-                .map { gameState ->
-                    when (gameState) {
+                .map { state ->
+                    when (val gameState = state.pressiveGameState) {
                         PressiveGameState.NotStarted -> "The Pressive game has not started yet! Please wait for the workshop host to start it."
                         is PressiveGameState.FirstGameDone -> "Waiting for the second game to start!"
                         is PressiveGameState.FirstGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
                             ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
                         is PressiveGameState.SecondGameDone -> "Waiting for the third game to start!"
-                        is PressiveGameState.SecondGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
+                        is PressiveGameState.SecondGameInProgress -> gameState.states[key.stringRepresentation]?.toHint(state)
                             ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
                         PressiveGameState.ThirdGameDone-> "The game has finished! Thank you for playing!"
                         is PressiveGameState.ThirdGameInProgress -> ""
