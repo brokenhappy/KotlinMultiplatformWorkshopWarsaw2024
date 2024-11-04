@@ -5,7 +5,7 @@ import kmpworkshop.common.PressiveGamePressType
 import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kotlinx.datetime.Clock
 
-internal fun SecondPressiveGameParticipantState.toHint(): String = """
+internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): String = """
     ${if (isBeingCalled) "|Someone is calling you, try to call them back!\n" else ""}|You are: $personalId
     |${
         when (pairingState) {
@@ -13,7 +13,7 @@ internal fun SecondPressiveGameParticipantState.toHint(): String = """
             PressivePairingState.TriedToCallNonExistingCode -> "This sequence does not exist! Try again!"
             PressivePairingState.PartnerHungUp -> "Oh no! Your partner just reset! Let's start pairing again!"
             is SuccessFullyPaired -> "You are now paired! Now you wait for all others to pair!"
-            is PressivePairingState.Calling -> "You are ringing: ${pairingState.partner /* TODO: Printing ApiKey here!!! */}, wait for them to call back!"
+            is PressivePairingState.Calling -> "You are ringing: ${state.participants.first { it -> it.apiKey == pairingState.partner }.name}, wait for them to call back!"
             PressivePairingState.DialedPersonIsBeingCalled -> "The person you dialed is already being called! Let's try someone else!"
             PressivePairingState.DialedPersonIsCalling -> "The person you dialed is already calling! Ask them to reset or try someone else!"
             PressivePairingState.DialedThemselves -> "You dialed yourself! Try calling someone else!"
