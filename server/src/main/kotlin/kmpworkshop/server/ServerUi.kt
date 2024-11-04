@@ -140,6 +140,7 @@ private fun PressiveGameState.FirstGameDone.asSubmissions(participants: List<Par
 
 @Composable
 private fun SliderGame(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+    // TODO: Names don't line up with sliders.
     when (val gameState = state.sliderGameState) {
         SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
             TopButton("Start game") { onStateChange { it.startingNewSliderGame() } }
@@ -238,8 +239,8 @@ private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getPa
         Column {
             Spacer(modifier = Modifier.height(32.dp))
             gameState.participantStates.map { getParticipant(ApiKey(it.key)) }.forEach { participant ->
-                Text("${participant.name}: ")
-                Spacer(modifier = Modifier.width(16.dp))
+                Text("${participant.name}: ", modifier = Modifier.height(32.dp))
+//                Spacer(modifier = Modifier.width(16.dp))
             }
         }
         Box {
