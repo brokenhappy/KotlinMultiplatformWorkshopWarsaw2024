@@ -27,7 +27,7 @@ internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): Stri
 """.trimMargin()
 
 internal fun FirstPressiveGameParticipantState.toHint(): String = when {
-    pressesLeft.isEmpty() -> "Yay! You've finished this puzzle, you can wait for the others to finish!"
+    pressesLeft.isEmpty() -> "Yay! You've finished this puzzle, you can now help the others!"
     pressesLeft.size == NumberOfPressesNeededForFirstPressiveGame -> when {
         this.justFailed -> """
             That was the wrong button!
