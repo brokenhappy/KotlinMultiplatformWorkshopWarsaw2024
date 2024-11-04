@@ -13,6 +13,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.client.AdaptingBackground
 import kmpworkshop.common.ApiKey
+import kmpworkshop.common.WorkshopServer
 import kmpworkshop.server.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -26,6 +27,7 @@ suspend fun main(): Unit = coroutineScope {
             Participant("John", ApiKey("JohnKey")),
             Participant("Jane", ApiKey("JaneKey")),
             Participant("Alice", ApiKey("AliceKey")),
+            Participant("Jobber", ApiKey("JobberKey")),
         ),
         currentStage = WorkshopStage.PressiveGameStage,
     ).startingThirdPressiveGame())
@@ -47,11 +49,12 @@ suspend fun main(): Unit = coroutineScope {
 fun ResizableDraggableItem(
     initialWidth: Dp = 100.dp,
     initialHeight: Dp = 100.dp,
-    content: @Composable () -> Unit
+    initialOffsetX: Float = 0f,
+    initialOffsetY: Float = 0f,
+    content: @Composable () -> Unit,
 ) {
-    // Maintain the offset position and size of the Composable
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
+    var offsetX by remember { mutableStateOf(initialOffsetX) }
+    var offsetY by remember { mutableStateOf(initialOffsetY) }
     var width by remember { mutableStateOf(initialWidth) }
     var height by remember { mutableStateOf(initialHeight) }
 
@@ -62,7 +65,6 @@ fun ResizableDraggableItem(
             .height(height)
             .wrapContentSize()
     ) {
-        // Draggable top bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -77,14 +79,11 @@ fun ResizableDraggableItem(
                 }
         )
 
-        // Content of the resizable, draggable item
         Box(
             modifier = Modifier
                 .fillMaxSize()
         ) {
             content()
-
-            // Bottom-right resize handle
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -115,18 +114,28 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>) {
             .fillMaxSize()
             .background(Color.LightGray)
     ) {
-        ResizableDraggableItem {
+        ResizableDraggableItem(initialWidth = 500.dp, initialHeight = 750.dp) {
             ServerUi(state, onStateChange = { stateUpdater ->
                 scope.launch(Dispatchers.Default) { serverState.update { stateUpdater(it) } }
             })
         }
-        state.participants.forEach { participant ->
-            val server = workshopServer(scope.coroutineContext, serverState, participant.apiKey)
-            ResizableDraggableItem {
-                AdaptingBackground(server) {
-                    PressiveGameSolution(server)
-                }
+        state.participants.forEachIndexed { index, participant ->
+            val server = remember { workshopServer(scope.coroutineContext, serverState, participant.apiKey) }
+            ResizableDraggableItem(
+                initialWidth = 194.dp,
+                initialHeight = 242.dp,
+                initialOffsetX = 1000f + index % 4 * 386f,
+                initialOffsetY = index / 4 * 484f
+            ) {
+                FunctionUnderTest(server)
             }
         }
+    }
+}
+
+@Composable
+fun FunctionUnderTest(server: WorkshopServer) {
+    AdaptingBackground(server) {
+        PressiveGameSolution(server)
     }
 }
