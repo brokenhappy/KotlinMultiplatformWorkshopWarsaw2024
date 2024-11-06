@@ -81,9 +81,9 @@ private fun workshopService(
             if (oldState.participants.any { it.name == name })
                 return@updateAndGetValue stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
             stateWithoutUnverifiedParticipant.copy(
-                participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key)
-            ).to(NameVerificationResult.Success)
-                .also { launch(Dispatchers.IO) { playSuccessSound() } }
+                participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key),
+            ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+                .to(NameVerificationResult.Success)
         }
 
     override suspend fun doPuzzleSolveAttempt(
@@ -128,7 +128,8 @@ private fun workshopService(
                                             submissions = puzzleState.submissions + (key.stringRepresentation to Clock.System.now())
                                         )
                                     )
-                                ).to(SolvingStatus.Done).also { launch(Dispatchers.IO) { playSuccessSound() } }
+                                ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+                                    .to(SolvingStatus.Done)
                             }
                         } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
                     }.also { emit(it) }
@@ -150,16 +151,17 @@ private fun workshopService(
                 (oldState.sliderGameState as? SliderGameState.InProgress)?.let { oldGameState ->
                     oldGameState.moveSlider(key, suggestedRatio).withGravityApplied()
                         .let {
-                            oldState.copy(sliderGameState = it) to SlideResult.Success(
-                                when (it) {
-                                is SliderGameState.InProgress -> it.findPositionOfParticipant(key)
-                                is SliderGameState.Done -> it
-                                    .lastState
-                                    .findPositionOfParticipant(key)
-                                    .also { launch { playSuccessSound() } }
-
-                                is SliderGameState.NotStarted -> error("Impossible")
-                            })
+                            oldState.copy(sliderGameState = it)
+                                .applyIf({ it.sliderGameState is SliderGameState.Done }) {
+                                    it.scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+                                }
+                                .to(SlideResult.Success(when (it) {
+                                    is SliderGameState.InProgress -> it.findPositionOfParticipant(key)
+                                    is SliderGameState.Done -> it
+                                        .lastState
+                                        .findPositionOfParticipant(key)
+                                    is SliderGameState.NotStarted -> error("Impossible")
+                                }))
                         }
                 } ?: oldState.to(SlideResult.NoSliderGameInProgress)
             }
@@ -192,6 +194,47 @@ private fun workshopService(
                 .distinctUntilChanged()
                 .collect { send(it) }
         }
+
+    override suspend fun discoGameInstructions(key: ApiKey, pressEvents: Flow<Unit>): Flow<DiscoGameInstruction?> =
+        channelFlow {
+            launch {
+                pressEvents.collect {
+                    serverState.update {
+                        it.afterDiscoGameKeyPressBy(key)
+                    }
+                }
+            }
+
+            serverState
+                .map { it.discoGameState }
+                .map { gameState ->
+                    when (gameState) {
+                        DiscoGameState.Done,
+                        DiscoGameState.NotStarted -> null
+                        is DiscoGameState.InProgress -> gameState
+                            .instructionOrder
+                            .getOrNull(gameState.progress)
+                            ?.takeIf { it.participant == key }
+                            ?.instruction
+                    }
+                }
+                .distinctUntilChanged()
+                .collect { send(it) }
+        }
+
+    override suspend fun discoGameBackground(key: ApiKey): Flow<Color> = serverState
+        .map { it.discoGameState }
+        .map {
+            when (it) {
+                DiscoGameState.Done,
+                DiscoGameState.NotStarted -> null
+                is DiscoGameState.InProgress -> it
+                    .orderedParticipants
+                    .firstOrNull { it.participant == key }
+                    ?.color
+            }
+        }
+        .map { it ?: Color(0, 0, 0) }
 
     override suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?> = serverState
         .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
@@ -235,15 +278,6 @@ private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: 
 private fun <T, R> Puzzle<T, R>.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
     Json.encodeToJsonElement(rSerializer, inAndOutputs[puzzleIndex].second)
 
-private suspend fun playSuccessSound() {
-    AudioSystem.getClip().use { clip ->
-        clip.open(AudioSystem.getAudioInputStream((object {})::class.java.getResourceAsStream("/success.wav")))
-        clip.start()
-        clip.drain()
-        delay(3.seconds)
-    }
-}
-
 private inline fun <reified T, reified R> puzzle(vararg inAndOutputs: Pair<T, R>): Puzzle<T, R> =
     Puzzle(inAndOutputs.asList(), serializer(), serializer())
 
@@ -256,6 +290,7 @@ private data class Puzzle<T, R>(
 private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
     WorkshopStage.Registration,
     WorkshopStage.PressiveGameStage,
+    WorkshopStage.DiscoGame,
     WorkshopStage.SliderGameStage -> null
     WorkshopStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
@@ -310,3 +345,5 @@ private inline fun <T, R : Any> MutableStateFlow<T>.updateAndGetValue(update: (T
     }
     return result!!
 }
+
+inline fun <T> T.applyIf(predicate: (T) -> Boolean, mapper: (T) -> T): T = if (predicate(this)) mapper(this) else this

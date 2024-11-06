@@ -14,6 +14,8 @@ interface WorkshopApiService : RPC {
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
     suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
     suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?>
+    suspend fun discoGameInstructions(key: ApiKey, pressEvents: Flow<Unit>): Flow<DiscoGameInstruction?>
+    suspend fun discoGameBackground(key: ApiKey): Flow<Color>
 }
 
 interface WorkshopServer {
@@ -21,6 +23,8 @@ interface WorkshopServer {
     suspend fun setSlider(suggestedRatio: Double): SlideResult
     fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
     fun pressiveGameBackground(): Flow<Color?>
+    fun discoGameInstructions(pressEvents: Flow<Unit>): Flow<DiscoGameInstruction?>
+    fun discoGameBackground(): Flow<Color>
 }
 
 fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
@@ -32,6 +36,10 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
         decoupledRpcFlow { this@asServer.playPressiveGame(apiKey, pressEvents) }
     override fun pressiveGameBackground(): Flow<Color?> =
         decoupledRpcFlow { this@asServer.pressiveGameBackground(apiKey) }
+    override fun discoGameInstructions(buttonPressEvents: Flow<Unit>): Flow<DiscoGameInstruction?> =
+        decoupledRpcFlow { this@asServer.discoGameInstructions(apiKey, buttonPressEvents) }
+    override fun discoGameBackground(): Flow<Color> =
+        decoupledRpcFlow { this@asServer.discoGameBackground(apiKey) }
 }
 
 fun <T> decoupledRpcFlow(rpcFlow: suspend () -> Flow<T>): Flow<T> = channelFlow {
@@ -46,6 +54,18 @@ data class Color(val red: Int, val green: Int, val blue: Int)
 @Serializable
 enum class PressiveGamePressType {
     SinglePress, DoublePress, LongPress;
+}
+
+@Serializable
+enum class DiscoGameInstruction(val dx: Int, val dy: Int) {
+    Left(-1, 0),
+    LeftUp(-1, -1),
+    Up(0, -1),
+    RightUp(1, -1),
+    Right(1, 0),
+    RightDown(1, 1),
+    Down(0, 1),
+    LeftDown(-1, 1),
 }
 
 @Serializable

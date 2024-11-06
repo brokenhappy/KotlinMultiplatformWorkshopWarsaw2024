@@ -19,7 +19,7 @@ private val pressEvents = MutableSharedFlow<PressiveGamePressType>()
 
 fun getFlowOfPressiveGameHints(): Flow<String> = channelFlow {
     streamScoped {
-        workshopService.playPressiveGame(getApiKeyFromEnvironment(), pressEvents).collect { send(it) }
+        workshopService.asServer(getApiKeyFromEnvironment()).playPressiveGame(pressEvents).collect { send(it) }
     }
 }
 
@@ -47,7 +47,7 @@ private fun <T : Any> Modifier.applyIfNotNull(
     function: Modifier.(T) -> Modifier
 ): Modifier = value?.let { function(it) } ?: this
 
-private fun Color.toComposeColor(): androidx.compose.ui.graphics.Color =
+fun Color.toComposeColor(): androidx.compose.ui.graphics.Color =
     androidx.compose.ui.graphics.Color(red, green, blue)
 
 suspend fun doSinglePress(): Unit = pressEvents.emit(PressiveGamePressType.SinglePress)

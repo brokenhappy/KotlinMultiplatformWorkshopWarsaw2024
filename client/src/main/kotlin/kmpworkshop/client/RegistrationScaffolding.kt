@@ -37,7 +37,7 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
             
             ```sh
             touch $pathToSecretsInSourceCode && 
-            awk -v key="$keyToAccessClientApiKeySecret" -v value="${result.key.stringRepresentation}" 'BEGIN { found=0 } { if (${'$'}1 == key) { ${'$'}3 = value; found=1 } print } END { if (!found) print key" = "value }' $pathToSecretsInSourceCode > $pathToSecretsInSourceCode.tmp && mv $pathToSecretsInSourceCode.tmp $pathToSecretsInSourceCode
+            awk -v key="$keyToAccessClientApiKeySecret" -v value="${result.key.stringRepresentation}" 'BEGIN { found=0 } { if ($1 == key) { $3 = value; found=1 } print } END { if (!found) print key" = "value }' $pathToSecretsInSourceCode > $pathToSecretsInSourceCode.tmp && mv $pathToSecretsInSourceCode.tmp $pathToSecretsInSourceCode
             ```
             3. Run the following code to verify your registration:
             
