@@ -260,7 +260,7 @@ private fun PressiveGameState.FirstGameInProgress.lastPress(
 ): PressiveGameState = pressing(type, presser, onMessage = {})
     .assertIs<PressiveGameState.FirstGameDone> { "Game state was supposed to finish, but is $it" }
 
-private inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =
+internal inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =
     if (this is T) this else fail(message(this))
 
 private fun ApiKey.startEntryWithId(string: String): Pair<String, SecondPressiveGameParticipantState> =

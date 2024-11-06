@@ -16,6 +16,7 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopServer
 import kmpworkshop.server.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -29,8 +30,9 @@ suspend fun main(): Unit = coroutineScope {
             Participant("Alice", ApiKey("AliceKey")),
             Participant("Jobber", ApiKey("JobberKey")),
         ),
-        currentStage = WorkshopStage.PressiveGameStage,
-    ).startingThirdPressiveGame())
+//        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
+        currentStage = WorkshopStage.DiscoGame,
+    ))
 
     launch(Dispatchers.Default) {
         performScheduledEvents(serverState)
@@ -120,7 +122,7 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>) {
             })
         }
         state.participants.forEachIndexed { index, participant ->
-            val server = remember { workshopServer(scope.coroutineContext, serverState, participant.apiKey) }
+            val server = remember { workshopServer(GlobalScope.coroutineContext, serverState, participant.apiKey) }
             ResizableDraggableItem(
                 initialWidth = 194.dp,
                 initialHeight = 242.dp,
@@ -135,7 +137,5 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>) {
 
 @Composable
 fun FunctionUnderTest(server: WorkshopServer) {
-    AdaptingBackground(server) {
-        PressiveGameSolution(server)
-    }
+    DiscoGameSolution(server)
 }

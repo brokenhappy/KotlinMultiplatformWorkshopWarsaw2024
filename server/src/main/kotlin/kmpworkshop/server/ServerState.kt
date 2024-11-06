@@ -1,6 +1,8 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
+import kmpworkshop.common.Color
+import kmpworkshop.common.DiscoGameInstruction
 import kmpworkshop.common.PressiveGamePressType
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
@@ -18,6 +20,7 @@ data class ServerState(
     val puzzleStates: Map<String, PuzzleState> = emptyMap(),
     val sliderGameState: SliderGameState = SliderGameState.NotStarted,
     val pressiveGameState: PressiveGameState = PressiveGameState.NotStarted,
+    val discoGameState: DiscoGameState = DiscoGameState.NotStarted,
 )
 
 @Serializable
@@ -29,6 +32,9 @@ data class TimedEvent(
 @Serializable
 sealed class TimedEventType() {
     data object PressiveGameTickEvent: TimedEventType()
+    data object DiscoGameBackgroundTickEvent: TimedEventType()
+    data object DiscoGamePressTimeoutEvent: TimedEventType()
+    data object PlaySuccessSound: TimedEventType()
 }
 
 @Serializable
@@ -47,9 +53,35 @@ enum class WorkshopStage(val kotlinFile: String) {
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
     FindOldestUserTask("OldestUserFinding.kt"),
-    SliderGameStage("SliderGameClient.kt"), // TODO: Handle deletion of user!
-    PressiveGameStage("PressiveGameClient.kt"), // TODO: Handle deletion of user!
+    // TODO: Handle deletion of user!
+    // TODO: Test scroll ability with 30 users!
+    SliderGameStage("SliderGameClient.kt"),
+    // TODO: Handle deletion of user!
+    PressiveGameStage("PressiveGameClient.kt"),
+    // TODO: Handle deletion of user!
+    // TODO: Test "feasibleness" with 30 users
+    DiscoGame("DiscoGameClient.kt"),
 }
+
+@Serializable
+sealed class DiscoGameState {
+    @Serializable
+    data object NotStarted : DiscoGameState()
+    @Serializable
+    data class InProgress(
+        val orderedParticipants: List<DiscoGameParticipantState>,
+        val progress: Int,
+        val instructionOrder: List<DiscoGameInstructionRequest>,
+    ) : DiscoGameState()
+    @Serializable
+    data object Done : DiscoGameState()
+}
+
+@Serializable
+data class DiscoGameParticipantState(val participant: ApiKey, val color: Color)
+
+@Serializable
+data class DiscoGameInstructionRequest(val participant: ApiKey, val instruction: DiscoGameInstruction)
 
 @Serializable
 sealed class PressiveGameState {

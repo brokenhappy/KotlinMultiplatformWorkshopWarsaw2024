@@ -30,6 +30,7 @@ import kotlinx.datetime.Instant
 import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -56,9 +57,65 @@ fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -
             WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onStateChange)
             WorkshopStage.SliderGameStage -> SliderGame(state, onStateChange)
             WorkshopStage.PressiveGameStage -> PressiveGame(state, onStateChange)
+            WorkshopStage.DiscoGame -> DiscoGame(state, onStateChange)
         }
     }
 }
+
+@Composable
+private fun DiscoGame(
+    state: ServerState,
+    onStateChange: ((ServerState) -> ServerState) -> Unit
+) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        TopButton(
+            text = when (state.discoGameState) {
+                DiscoGameState.Done -> "Restart game"
+                is DiscoGameState.InProgress -> "Stop game"
+                DiscoGameState.NotStarted -> "Start game"
+            },
+            onClick = {
+                onStateChange {
+                    when (state.discoGameState) {
+                        is DiscoGameState.InProgress -> it.copy(discoGameState = DiscoGameState.NotStarted)
+                        DiscoGameState.Done,
+                        DiscoGameState.NotStarted -> it.startingDiscoGame()
+                    }
+
+                }
+            },
+        )
+    }
+    when (val gameState = state.discoGameState) {
+        DiscoGameState.Done -> Text("Game finished!")
+        DiscoGameState.NotStarted -> Text("Game has not started yet!")
+        is DiscoGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
+            BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
+            state
+                .scheduledEvents
+                .firstOrNull { it.type is TimedEventType.DiscoGamePressTimeoutEvent }
+                ?.let { CountDownProgressBar(it.time) }
+                ?: BigProgressBar(0f)
+            gameState
+                .orderedParticipants
+                .chunked(gameState.width)
+                .forEach { row ->
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        for ((_, color) in row) {
+                            Spacer(modifier = Modifier.weight(1f).fillMaxHeight().background(color.toComposeColor()))
+                        }
+                        if (row.size < gameState.width) {
+                            Spacer(modifier = Modifier.weight((gameState.width - row.size).toFloat()))
+                        }
+                    }
+                    // TODO: Progress bar
+                    // TODO: Countdown bar
+                }
+        }
+    }
+}
+
+private fun kmpworkshop.common.Color.toComposeColor(): Color = Color(red, green, blue)
 
 @Composable
 private fun PressiveGame(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
@@ -93,6 +150,24 @@ private fun SecondOrThirdPressiveGame(progress: Float) {
         Text("Progress: ")
         BigProgressBar(progress)
     }
+}
+
+@Composable
+private fun CountDownProgressBar(time: Instant) {
+    var progress by remember { mutableStateOf(1f) }
+
+    LaunchedEffect(time) {
+        val startInstant = Clock.System.now()
+        val startNanos = withFrameNanos { it }
+        fun frameNanosToInstant(frameNanos: Long): Instant = startInstant + (frameNanos - startNanos).nanoseconds
+        while (true) {
+            withFrameNanos { frameTimeNanos ->
+                progress = ((time - frameNanosToInstant(frameTimeNanos)) / discoGamePressTimeout).toFloat().coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    BigProgressBar(progress)
 }
 
 @Composable
@@ -168,6 +243,19 @@ private fun ServerState.startingFirstPressiveGame(): ServerState =
             )
         }
     ))
+
+fun ServerState.startingDiscoGame(): ServerState = copy(
+    discoGameState = DiscoGameState.InProgress(
+        orderedParticipants = participants
+            .map { DiscoGameParticipantState(it.apiKey, kmpworkshop.common.Color(0, 0, 0)) }
+            .shuffled(),
+        progress = 0,
+        instructionOrder = emptyList(),
+    ).restartingInstructions(),
+)
+    .scheduling(TimedEventType.DiscoGameBackgroundTickEvent).after(0.seconds)
+    .scheduling(TimedEventType.DiscoGamePressTimeoutEvent).after(1.5.seconds)
+
 
 private fun ServerState.startingSecondPressiveGame(): ServerState =
     copy(pressiveGameState = PressiveGameState.SecondGameInProgress(
@@ -496,6 +584,14 @@ private fun ServerState.deactivateParticipant(participant: Participant): ServerS
             lastState = sliderGameState.lastState.removeParticipant(participant)
         )
     },
+    discoGameState = when (discoGameState) {
+        DiscoGameState.Done,
+        DiscoGameState.NotStarted -> discoGameState
+        is DiscoGameState.InProgress -> discoGameState.copy(
+            orderedParticipants = discoGameState.orderedParticipants.filterNot { it.participant == participant.apiKey },
+            instructionOrder = discoGameState.instructionOrder.filterNot { it.participant == participant.apiKey },
+        )
+    },
 )
 
 private fun ServerState.removeParticipant(participant: Participant): ServerState = copy(
@@ -505,6 +601,20 @@ private fun ServerState.removeParticipant(participant: Participant): ServerState
 private fun ServerState.activateParticipant(participant: Participant): ServerState = copy(
     participants = participants + participant,
     deactivatedParticipants = deactivatedParticipants - participant,
+    discoGameState = when (val gameState = discoGameState) {
+        DiscoGameState.Done,
+        DiscoGameState.NotStarted -> gameState
+        is DiscoGameState.InProgress -> gameState.copy(
+            orderedParticipants = gameState.orderedParticipants
+                + DiscoGameParticipantState(participant.apiKey, color = kmpworkshop.common.Color(0, 0, 0)),
+        ).let {
+            it.copy(
+                instructionOrder = it.instructionOrder
+                    + it.createInstructionThatInstructsFrom(participant.apiKey)
+                    + it.createInstructionThatTargets(participant.apiKey)
+            )
+        }
+    },
 )
 
 private fun SliderGameState.InProgress.removeParticipant(participant: Participant): SliderGameState.InProgress = copy(
