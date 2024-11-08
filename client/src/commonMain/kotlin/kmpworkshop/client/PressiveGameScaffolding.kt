@@ -13,7 +13,6 @@ import kmpworkshop.common.asServer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.rpc.streamScoped
 
 private val pressEvents = MutableSharedFlow<PressiveGamePressType>()
 

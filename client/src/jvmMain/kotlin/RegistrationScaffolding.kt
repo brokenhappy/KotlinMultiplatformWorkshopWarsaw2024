@@ -1,15 +1,16 @@
-package kmpworkshop.client
-
+import kmpworkshop.client.keyToAccessClientApiKeySecret
+import kmpworkshop.client.pathToSecretsInSourceCode
+import kmpworkshop.client.workshopService
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.ApiKeyRegistrationResult
 import kmpworkshop.common.NameVerificationResult
 import kmpworkshop.common.getEnvironment
 import kotlinx.coroutines.runBlocking
+import java.io.File
 
 internal fun printFirstHint() {
     println("""
         Welcome to the workshop! To start, you have to tell me the name that you will be using for the rest of the sessions!
-        What name would you like to use (Sorry, please use ASCII characters)? 
     """.trimIndent())
     requestNameAndSuggestFollowup()
 }
@@ -19,7 +20,8 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
         ApiKeyRegistrationResult.NameAlreadyExists -> {
             println("""
                 Oh no! Someone verified this name before you could!
-                Please provide another name: 
+                Let's restart!
+                
             """.trimIndent())
             requestNameAndSuggestFollowup()
         }
@@ -66,25 +68,13 @@ internal fun verifyMyApiKey() {
     )
 }
 
-private const val pathToSecretsInSourceCode = "common/src/main/resources/Secrets.ini"
-private const val keyToAccessClientApiKeySecret = "client-api-key"
-
-internal fun getApiKeyFromEnvironment(): ApiKey =
-    ApiKey(getEnvironment()?.get(keyToAccessClientApiKeySecret) ?: wrongApiKeyConfigurationError())
-
-internal fun wrongApiKeyConfigurationError(): Nothing = error("""
-    You either your API key configuration got lost, or you haven't gone through registration yet!
-    Please ask assistance from the workshop host.
-""".trimIndent())
-
 private fun requestNameAndSuggestFollowup() {
-    val name = readLine()
     println("""
         To proceed, run the following kotlin code:
         
         ```kotlin
         fun main() {
-            registerMyselfByNameThatIWillUseForTheRestOfTheSessions("$name")
+            registerMyselfByNameThatIWillUseForTheRestOfTheSessions("<your name here!>") // (Sorry, please use ASCII characters)
         }
         ```
     """.trimIndent())
