@@ -1,7 +1,5 @@
 @file:Suppress("FunctionName")
 
-package kmpworkshop.client
-
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.window.Window

@@ -6,10 +6,6 @@ import androidx.compose.material.Button
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 
-fun main() {
-    WorkshopApp("Slider Game Client") { SliderGameClient() }
-}
-
 @Composable
 fun SliderGameClient() {
     var sliderValue by remember { mutableStateOf(0.0f) }

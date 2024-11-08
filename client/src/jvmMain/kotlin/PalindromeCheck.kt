@@ -1,4 +1,5 @@
-package kmpworkshop.client
+import kmpworkshop.client.checkCodePuzzle
+
 
 fun main() {
     checkCodePuzzle("PalindromeCheck.kt", solution = ::doPalindromeCheckOn)

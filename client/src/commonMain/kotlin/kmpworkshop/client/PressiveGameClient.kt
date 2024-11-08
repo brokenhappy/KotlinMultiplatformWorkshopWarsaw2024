@@ -12,10 +12,6 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 
-fun main() {
-    WorkshopApp("Pressive Game Client") { AdaptingBackground { PressiveGame() } }
-}
-
 @Composable
 fun PressiveGame() {
     var hint by remember { mutableStateOf("Connecting to host...") }
