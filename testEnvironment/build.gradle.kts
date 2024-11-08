@@ -1,11 +1,11 @@
 plugins {
-    kotlin("jvm") version "2.0.10"
-    kotlin("plugin.serialization") version "2.0.10"
-    id("io.ktor.plugin") version "2.3.12"
-    id("com.google.devtools.ksp") version "2.0.10-1.0.24"
-    id("org.jetbrains.kotlinx.rpc.plugin") version "0.2.4" // Don't ask my why I need all of this, I'm just trying to make my build pass okay? :((
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.10"
-    id("org.jetbrains.compose") version "1.6.11"
+    kotlin("jvm")
+    kotlin("plugin.serialization")
+    id("io.ktor.plugin")
+    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlinx.rpc.plugin") // Don't ask my why I need all of this, I'm just trying to make my build pass okay? :((
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.compose")
 }
 
 group = "com.woutwerkman"

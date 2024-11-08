@@ -1,11 +1,43 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+
 plugins {
-    kotlin("multiplatform") version "2.0.10"
-    kotlin("plugin.serialization") version "2.0.10"
-    id("io.ktor.plugin") version "2.3.12"
-    id("com.google.devtools.ksp") version "2.0.10-1.0.24"
-    id("org.jetbrains.kotlinx.rpc.plugin") version "0.2.4"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.10"
-    id("org.jetbrains.compose") version "1.6.11"
+    kotlin("multiplatform")
+    kotlin("plugin.serialization")
+    id("com.android.application")
+//    id("io.ktor.plugin")
+    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlinx.rpc.plugin")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.compose")
+}
+
+android {
+    namespace = "com.woutwerkman"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.woutwerkman"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
 }
 
 group = "com.woutwerkman"
@@ -17,12 +49,16 @@ repositories {
 }
 
 kotlin {
-    jvm {
-        withJava()
+    jvm()
+    androidTarget {
+        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-core")
+            implementation("io.ktor:ktor-client-core:2.3.12")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
@@ -30,7 +66,12 @@ kotlin {
             implementation(project(":common"))
         }
         jvmMain.dependencies {
-            implementation("io.ktor:ktor-client-okhttp")
+            implementation("io.ktor:ktor-client-cio:2.3.12")
+        }
+        androidMain.dependencies {
+            implementation("io.ktor:ktor-client-cio:2.3.12")
+            implementation(compose.preview)
+            implementation("androidx.activity:activity-compose:1.9.3")
         }
     }
     jvmToolchain(17)

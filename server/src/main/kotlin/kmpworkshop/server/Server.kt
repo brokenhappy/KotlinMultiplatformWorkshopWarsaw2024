@@ -24,7 +24,7 @@ fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<WorkshopEvent>(capacity = Channel.UNLIMITED)
     launch(Dispatchers.Default) {
-        serverState.persisting(File(getEnvironment()!!["server-database-file"]!!))
+        serverState.persisting(File(serverBackupFile))
     }
     launch(Dispatchers.Default) {
         serveSingleService<WorkshopApiService> { coroutineContext ->
