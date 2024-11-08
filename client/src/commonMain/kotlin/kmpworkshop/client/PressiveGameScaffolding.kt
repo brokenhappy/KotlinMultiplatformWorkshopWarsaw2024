@@ -6,10 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
-import kmpworkshop.common.Color
-import kmpworkshop.common.PressiveGamePressType
-import kmpworkshop.common.WorkshopServer
-import kmpworkshop.common.asServer
+import kmpworkshop.common.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
@@ -17,12 +14,12 @@ import kotlinx.coroutines.flow.channelFlow
 private val pressEvents = MutableSharedFlow<PressiveGamePressType>()
 
 fun getFlowOfPressiveGameHints(): Flow<String> = channelFlow {
-    workshopService.asServer(getApiKeyFromEnvironment()).playPressiveGame(pressEvents).collect { send(it) }
+    workshopService.asServer(ApiKey(clientApiKey!!)).playPressiveGame(pressEvents).collect { send(it) }
 }
 
 @Composable
 internal fun AdaptingBackground(content: @Composable () -> Unit) {
-    AdaptingBackground(workshopService.asServer(getApiKeyFromEnvironment()), content)
+    AdaptingBackground(workshopService.asServer(ApiKey(clientApiKey!!)), content)
 }
 
 @Composable

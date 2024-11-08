@@ -1,15 +1,13 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.SlideResult
-import kmpworkshop.common.WorkshopServer
-import kmpworkshop.common.asServer
+import kmpworkshop.common.*
 
 /**
  * Asks the server to move your slider.
  * Returns the position that the server slid you to, or null if there is no game in progress.
  */ // TODO: Rename, it looks horrible in retrospect.
 suspend fun suggestSliderPosition(ratio: Double): Double? =
-    suggestSliderPosition(workshopService.asServer(getApiKeyFromEnvironment()), ratio)
+    suggestSliderPosition(workshopService.asServer(ApiKey(clientApiKey!!)), ratio)
 
 suspend fun suggestSliderPosition(server: WorkshopServer, ratio: Double): Double? =
     when (val result = server.setSlider(ratio)) {

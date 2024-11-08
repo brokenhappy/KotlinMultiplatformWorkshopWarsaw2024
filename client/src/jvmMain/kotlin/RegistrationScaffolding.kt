@@ -1,10 +1,5 @@
-import kmpworkshop.client.keyToAccessClientApiKeySecret
-import kmpworkshop.client.pathToSecretsInSourceCode
 import kmpworkshop.client.workshopService
-import kmpworkshop.common.ApiKey
-import kmpworkshop.common.ApiKeyRegistrationResult
-import kmpworkshop.common.NameVerificationResult
-import kmpworkshop.common.getEnvironment
+import kmpworkshop.common.*
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -13,17 +8,6 @@ internal fun printFirstHint() {
         Welcome to the workshop! To start, you have to tell me the name that you will be using for the rest of the sessions!
     """.trimIndent())
     requestNameAndSuggestFollowup()
-}
-
-// TODO: Combine these 2 steps
-internal fun prepareApiKey(apiKeyString: String) {
-    val file = File("../common/src/main/resources/secrets.ini")
-    file.createNewFile()
-    file.readLines()
-        .filterNot { it.filterNot { it.isWhitespace() }.startsWith("const val clientApiKey=") }
-        .let { listOf("const val clientApiKey = \"$apiKeyString\"") + it }
-        .joinToString("\n")
-        .let { file.writeText(it) }
 }
 
 internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: String) {
@@ -43,29 +27,22 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
             """.trimIndent())
             requestNameAndSuggestFollowup()
         }
-        is ApiKeyRegistrationResult.Success -> println("""
-            Welcome! To verify your registration, do the following:
-            1. Open a terminal in IntelliJ by pressing Alt/Opt + F12.
-            2. Run the following code to store your api key:
-            
-            ```kotlin
-            fun main() {
-               prepareApiKey("${result.key.stringRepresentation}")
-            }
-            ```
-            3. Run the following code to verify your registration:
-            
-            ```kotlin
-            fun main() {
-               verifyMyApiKey()
-            }
-            ```
-        """.trimIndent())
+        is ApiKeyRegistrationResult.Success -> {
+            prepareApiKey(result.key.stringRepresentation)
+            println("""
+                Welcome! To verify your registration, run the following:
+                ```kotlin
+                fun main() {
+                   verifyMyApiKey()
+                }
+                ```
+            """.trimIndent())
+        }
     }
 }
 
 internal fun verifyMyApiKey() {
-    val apiKey = getEnvironment()?.get(keyToAccessClientApiKeySecret) ?: return run {
+    val apiKey = clientApiKey ?: return run {
         println("""
             Your client API key has not been set up yet!
             Run `registerMyselfByNameThatIWillUseForTheRestOfTheSessions("nameThatYouWantToUse")` to get an explanation of how to proceed! 
@@ -90,4 +67,14 @@ private fun requestNameAndSuggestFollowup() {
         }
         ```
     """.trimIndent())
+}
+
+private fun prepareApiKey(apiKeyString: String) {
+    val file = File("../common/src/commonMain/kotlin/kmpworkshop/common/Secrets.kt")
+    file.createNewFile()
+    file.readLines()
+        .filterNot { it.startsWith("val clientApiKey: String? =") }
+        .plus("const val clientApiKey = \"$apiKeyString\"")
+        .joinToString("\n")
+        .let { file.writeText(it) }
 }

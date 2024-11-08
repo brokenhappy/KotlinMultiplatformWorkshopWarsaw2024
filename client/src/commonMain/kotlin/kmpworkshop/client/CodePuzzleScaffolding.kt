@@ -1,6 +1,8 @@
 package kmpworkshop.client
 
+import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SolvingStatus
+import kmpworkshop.common.clientApiKey
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
@@ -27,7 +29,7 @@ internal fun <T : Any, R : Any> checkCodePuzzle(
                 val answers = MutableSharedFlow<R>()
                 workshopService
                     .doPuzzleSolveAttempt(
-                        key = getApiKeyFromEnvironment(),
+                        key = ApiKey(clientApiKey!!),
                         puzzleName = puzzleName,
                         answers = answers.map { Json.encodeToJsonElement(rSerializer, it) },
                     )
