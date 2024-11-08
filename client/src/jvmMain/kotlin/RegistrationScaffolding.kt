@@ -15,6 +15,17 @@ internal fun printFirstHint() {
     requestNameAndSuggestFollowup()
 }
 
+// TODO: Combine these 2 steps
+internal fun prepareApiKey(apiKeyString: String) {
+    val file = File("../common/src/main/resources/secrets.ini")
+    file.createNewFile()
+    file.readLines()
+        .filterNot { it.filterNot { it.isWhitespace() }.startsWith("client-api-key=") }
+        .let { listOf("client-api-key = \"$apiKeyString\"") + it }
+        .joinToString("\n")
+        .let { file.writeText(it) }
+}
+
 internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: String) {
     when (val result = runBlocking { workshopService.registerApiKeyFor(name) }) {
         ApiKeyRegistrationResult.NameAlreadyExists -> {
@@ -35,11 +46,12 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
         is ApiKeyRegistrationResult.Success -> println("""
             Welcome! To verify your registration, do the following:
             1. Open a terminal in IntelliJ by pressing Alt/Opt + F12.
-            2. Run the following command:
+            2. Run the following code to store your api key:
             
-            ```sh
-            touch $pathToSecretsInSourceCode && 
-            awk -v key="$keyToAccessClientApiKeySecret" -v value="${result.key.stringRepresentation}" 'BEGIN { found=0 } { if ($1 == key) { $3 = value; found=1 } print } END { if (!found) print key" = "value }' $pathToSecretsInSourceCode > $pathToSecretsInSourceCode.tmp && mv $pathToSecretsInSourceCode.tmp $pathToSecretsInSourceCode
+            ```kotlin
+            fun main() {
+               prepareApiKey("${result.key.stringRepresentation}")
+            }
             ```
             3. Run the following code to verify your registration:
             
