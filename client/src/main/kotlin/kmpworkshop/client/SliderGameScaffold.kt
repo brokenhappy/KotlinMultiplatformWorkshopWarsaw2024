@@ -7,7 +7,7 @@ import kmpworkshop.common.asServer
 /**
  * Asks the server to move your slider.
  * Returns the position that the server slid you to, or null if there is no game in progress.
- */
+ */ // TODO: Rename, it looks horrible in retrospect.
 suspend fun suggestSliderPosition(ratio: Double): Double? =
     suggestSliderPosition(workshopService.asServer(getApiKeyFromEnvironment()), ratio)
 

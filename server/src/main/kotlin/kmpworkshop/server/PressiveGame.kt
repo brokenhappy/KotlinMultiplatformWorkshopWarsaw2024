@@ -4,6 +4,66 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.PressiveGamePressType
 import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.seconds
+
+@Serializable
+sealed class PressiveGameEvent : WorkshopEvent() {
+    @Serializable
+    data object StartFirst : PressiveGameEvent()
+    @Serializable
+    data object StartSecond : PressiveGameEvent()
+    @Serializable
+    data object StartThird : PressiveGameEvent()
+}
+
+fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
+    PressiveGameEvent.StartFirst -> startingFirstPressiveGame()
+    PressiveGameEvent.StartSecond -> startingSecondPressiveGame()
+    PressiveGameEvent.StartThird -> startingThirdPressiveGame()
+}
+
+private fun ServerState.startingFirstPressiveGame(): ServerState = copy(
+    pressiveGameState = PressiveGameState.FirstGameInProgress(
+        startTime = Clock.System.now(),
+        states = participants.associate { participant ->
+            Pair(
+                participant.apiKey.stringRepresentation,
+                newFirstPressiveGameState(justFailed = false),
+            )
+        },
+    ),
+)
+
+private fun ServerState.startingSecondPressiveGame(): ServerState =
+    copy(pressiveGameState = PressiveGameState.SecondGameInProgress(
+        order = participants.shuffled().map { it.apiKey },
+        progress = 0,
+        states = participants
+            .zip(
+                binaryMoreCodeIdentifiers(count = participants.size)
+            )
+            .associate { (participant, code) ->
+                Pair(
+                    participant.apiKey.stringRepresentation,
+                    SecondPressiveGameParticipantState(
+                        PressivePairingState.InProgress(""),
+                        participant.apiKey,
+                        personalId = code,
+                        isBeingCalled = false,
+                    ),
+                )
+            }
+    ))
+
+private fun ServerState.startingThirdPressiveGame(): ServerState =
+    copy(
+        pressiveGameState = PressiveGameState.ThirdGameInProgress(
+            order = participants.shuffled().map { it.apiKey },
+            progress = 0,
+            participantThatIsBeingRung = null,
+        )
+    ).scheduling(TimedEventType.PressiveGameTickEvent).after(0.seconds)
 
 internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): String = """
     ${if (isBeingCalled) "|Someone is calling you, try to call them back!\n" else ""}|You are: $personalId

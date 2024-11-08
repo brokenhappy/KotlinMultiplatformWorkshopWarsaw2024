@@ -2,6 +2,36 @@ package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.DiscoGameInstruction
+import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.seconds
+
+@Serializable
+sealed class DiscoGameEvent : WorkshopEvent() {
+    @Serializable
+    data object Start : DiscoGameEvent()
+    @Serializable
+    data object Restart : DiscoGameEvent()
+    @Serializable
+    data object Stop : DiscoGameEvent()
+}
+
+fun ServerState.after(event: DiscoGameEvent): ServerState = when (event) {
+    DiscoGameEvent.Stop -> copy(discoGameState = DiscoGameState.NotStarted)
+    DiscoGameEvent.Restart,
+    DiscoGameEvent.Start -> startingDiscoGame()
+}
+
+fun ServerState.startingDiscoGame(): ServerState = copy(
+    discoGameState = DiscoGameState.InProgress(
+        orderedParticipants = participants
+            .map { DiscoGameParticipantState(it.apiKey, kmpworkshop.common.Color(0, 0, 0)) }
+            .shuffled(),
+        progress = 0,
+        instructionOrder = emptyList(),
+    ).restartingInstructions(),
+)
+    .scheduling(TimedEventType.DiscoGameBackgroundTickEvent).after(0.seconds)
+    .scheduling(TimedEventType.DiscoGamePressTimeoutEvent).after(1.5.seconds)
 
 internal fun ServerState.afterDiscoGameKeyPressBy(participant: ApiKey): ServerState =
     when (val gameState = discoGameState) {
@@ -9,9 +39,9 @@ internal fun ServerState.afterDiscoGameKeyPressBy(participant: ApiKey): ServerSt
         DiscoGameState.NotStarted -> this
         is DiscoGameState.InProgress ->
             if (gameState.currentParticipantThatShouldPress() == participant)
-                if (gameState.progress >= gameState.orderedParticipants.lastIndex)
-                    copy(discoGameState = DiscoGameState.Done)
-                else copy(
+                if (gameState.progress >= gameState.orderedParticipants.lastIndex) copy(
+                    discoGameState = DiscoGameState.Done
+                ) else copy(
                     discoGameState = gameState.copy(progress = gameState.progress + 1),
                     scheduledEvents = scheduledEvents.filter { it.type !is TimedEventType.DiscoGamePressTimeoutEvent }
                 ).scheduling(TimedEventType.DiscoGamePressTimeoutEvent).after(discoGamePressTimeout)

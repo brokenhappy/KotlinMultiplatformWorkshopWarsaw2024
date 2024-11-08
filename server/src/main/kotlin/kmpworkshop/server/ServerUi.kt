@@ -34,7 +34,7 @@ import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
-internal fun ServerUi(serverState: MutableStateFlow<ServerState>) {
+internal fun ServerUi(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopEvent) -> Unit) {
     val state by produceState(initialValue = ServerState()) {
         serverState.collect { value = it }
     }
@@ -42,22 +42,22 @@ internal fun ServerUi(serverState: MutableStateFlow<ServerState>) {
 
     ServerUi(state, onStateChange = { stateUpdater ->
         scope.launch(Dispatchers.Default) { serverState.update { stateUpdater(it) } }
-    })
+    }, onEvent = onEvent)
 }
 
 @Composable
-fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit, onEvent: (WorkshopEvent) -> Unit) {
     Column {
         // TODO: Start first pressive tick event when switching to Pressive game!
-        StageTopBar(state.currentStage, onStageChange = { newStage -> onStateChange { it.copy(currentStage = newStage) } })
+        StageTopBar(state.currentStage, onEvent)
         when (state.currentStage) {
-            WorkshopStage.Registration -> Registration(state, onStateChange)
-            WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onStateChange)
-            WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onStateChange)
-            WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onStateChange)
-            WorkshopStage.SliderGameStage -> SliderGame(state, onStateChange)
-            WorkshopStage.PressiveGameStage -> PressiveGame(state, onStateChange)
-            WorkshopStage.DiscoGame -> DiscoGame(state, onStateChange)
+            WorkshopStage.Registration -> Registration(state, onEvent)
+            WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onEvent)
+            WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onEvent)
+            WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onEvent)
+            WorkshopStage.SliderGameStage -> SliderGame(state, onEvent)
+            WorkshopStage.PressiveGameStage -> PressiveGame(state, onEvent)
+            WorkshopStage.DiscoGame -> DiscoGame(state, onEvent)
         }
     }
 }
@@ -65,7 +65,7 @@ fun ServerUi(state: ServerState, onStateChange: ((ServerState) -> ServerState) -
 @Composable
 private fun DiscoGame(
     state: ServerState,
-    onStateChange: ((ServerState) -> ServerState) -> Unit
+    onEvent: (WorkshopEvent) -> Unit,
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
         TopButton(
@@ -75,14 +75,13 @@ private fun DiscoGame(
                 DiscoGameState.NotStarted -> "Start game"
             },
             onClick = {
-                onStateChange {
+                onEvent(
                     when (state.discoGameState) {
-                        is DiscoGameState.InProgress -> it.copy(discoGameState = DiscoGameState.NotStarted)
-                        DiscoGameState.Done,
-                        DiscoGameState.NotStarted -> it.startingDiscoGame()
+                        is DiscoGameState.InProgress -> DiscoGameEvent.Stop
+                        DiscoGameState.Done -> DiscoGameEvent.Restart
+                        DiscoGameState.NotStarted -> DiscoGameEvent.Start
                     }
-
-                }
+                )
             },
         )
     }
@@ -108,8 +107,6 @@ private fun DiscoGame(
                             Spacer(modifier = Modifier.weight((gameState.width - row.size).toFloat()))
                         }
                     }
-                    // TODO: Progress bar
-                    // TODO: Countdown bar
                 }
         }
     }
@@ -118,18 +115,15 @@ private fun DiscoGame(
 private fun kmpworkshop.common.Color.toComposeColor(): Color = Color(red, green, blue)
 
 @Composable
-private fun PressiveGame(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+private fun PressiveGame(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
     Column(modifier = Modifier.padding(16.dp)) {
-        TopButton("Start First game", onClick = { onStateChange { it.startingFirstPressiveGame() } })
+        TopButton("Start First game", onClick = { onEvent(PressiveGameEvent.StartFirst) })
         TopButton(
             "Start Second game",
             enabled = state.participants.size % 2 == 0,
-            onClick = { onStateChange { it.startingSecondPressiveGame() } },
+            onClick = { onEvent(PressiveGameEvent.StartSecond) },
         )
-        TopButton(
-            "Start Third game",
-            onClick = { onStateChange { it.startingThirdPressiveGame() } },
-        )
+        TopButton("Start Third game", onClick = { onEvent(PressiveGameEvent.StartThird) })
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
@@ -214,78 +208,22 @@ private fun PressiveGameState.FirstGameDone.asSubmissions(participants: List<Par
 )
 
 @Composable
-private fun SliderGame(state: ServerState, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+private fun SliderGame(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
     // TODO: Names don't line up with sliders.
     when (val gameState = state.sliderGameState) {
         SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Start game") { onStateChange { it.startingNewSliderGame() } }
+            TopButton("Start game") { onEvent(SliderGameEvent.Start) }
         }
         is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Stop game") { onStateChange { it.copy(sliderGameState = SliderGameState.Done(gameState)) } }
-            UninteractiveSliderGame(gameState, getParticipant = { it -> state.getParticipantBy(it) })
+            TopButton("Stop game") { onEvent(SliderGameEvent.Finished(gameState)) }
+            UninteractiveSliderGame(gameState, getParticipant = { state.getParticipantBy(it) })
         }
         is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Restart game") { onStateChange { it.startingNewSliderGame() } }
-            UninteractiveSliderGame(gameState.lastState, getParticipant = { it -> state.getParticipantBy(it) })
+            TopButton("Restart game") { onEvent(SliderGameEvent.Restart) }
+            UninteractiveSliderGame(gameState.lastState, getParticipant = { state.getParticipantBy(it) })
         }
     }
 }
-
-private fun ServerState.startingNewSliderGame(): ServerState = copy(sliderGameState = newSliderGame(participants.map { it.apiKey }))
-
-private fun ServerState.startingFirstPressiveGame(): ServerState =
-    copy(pressiveGameState = PressiveGameState.FirstGameInProgress(
-        startTime = Clock.System.now(),
-        states = participants.associate { participant ->
-            Pair(
-                participant.apiKey.stringRepresentation,
-                newFirstPressiveGameState(justFailed = false),
-            )
-        }
-    ))
-
-fun ServerState.startingDiscoGame(): ServerState = copy(
-    discoGameState = DiscoGameState.InProgress(
-        orderedParticipants = participants
-            .map { DiscoGameParticipantState(it.apiKey, kmpworkshop.common.Color(0, 0, 0)) }
-            .shuffled(),
-        progress = 0,
-        instructionOrder = emptyList(),
-    ).restartingInstructions(),
-)
-    .scheduling(TimedEventType.DiscoGameBackgroundTickEvent).after(0.seconds)
-    .scheduling(TimedEventType.DiscoGamePressTimeoutEvent).after(1.5.seconds)
-
-
-private fun ServerState.startingSecondPressiveGame(): ServerState =
-    copy(pressiveGameState = PressiveGameState.SecondGameInProgress(
-        order = participants.shuffled().map { it.apiKey },
-        progress = 0,
-        states = participants
-            .zip(
-                binaryMoreCodeIdentifiers(count = participants.size)
-            )
-            .associate { (participant, code) ->
-                Pair(
-                    participant.apiKey.stringRepresentation,
-                    SecondPressiveGameParticipantState(
-                        PressivePairingState.InProgress(""),
-                        participant.apiKey,
-                        personalId = code,
-                        isBeingCalled = false,
-                    ),
-                )
-            }
-    ))
-
-fun ServerState.startingThirdPressiveGame(): ServerState =
-    copy(
-        pressiveGameState = PressiveGameState.ThirdGameInProgress(
-            order = participants.shuffled().map { it.apiKey },
-            progress = 0,
-            participantThatIsBeingRung = null,
-        )
-    ).scheduling(TimedEventType.PressiveGameTickEvent).after(0.seconds)
 
 // @TestOnly public!!!
 fun binaryMoreCodeIdentifiers(count: Int, random: Random = Random): List<String> = count
@@ -376,42 +314,14 @@ private fun TopButton(text: String, enabled: Boolean = true, onClick: () -> Unit
     }
 }
 
-private fun newSliderGame(participants: List<ApiKey>): SliderGameState.InProgress =
-    newSliderGame(participants, Random.nextDouble(1.0 - PegWidth * 3))
-
-private fun newSliderGame(participants: List<ApiKey>, pegPosition: Double): SliderGameState.InProgress =
-    SliderGameState.InProgress(
-        participantStates = participants.associate {
-            it.stringRepresentation to generateSequence {
-                SliderState(gapOffset = Random.nextDouble(1.0 - SliderGapWidth * 3), position = 0.5)
-            }.first { !it.letsThroughPegPositionedAt(pegPosition) }
-        }.toSortedMap(),
-        pegPosition = pegPosition,
-        pegLevel = -1,
-    )
-
-internal fun SliderState.letsThroughPegPositionedAt(pegPosition: Double): Boolean =
-    position in positionRangeInWhichPegWouldFallThrough(pegPosition)
-
-internal fun SliderState.positionRangeInWhichPegWouldFallThrough(pegPosition: Double): ClosedFloatingPointRange<Double> =
-    ((pegPosition - gapOffset + 1.0) / 2)
-        .let { end -> (end - (SliderGapWidth - PegWidth) * 3 / 2)..end }
-
 @Composable
-private fun Puzzle(state: ServerState, puzzleName: String, onStateChange: ((ServerState) -> ServerState) -> Unit) {
+private fun Puzzle(state: ServerState, puzzleName: String, onEvent: (WorkshopEvent) -> Unit) {
     val puzzleState = state.puzzleStates[puzzleName] ?: PuzzleState.Unopened
     when (puzzleState) {
         PuzzleState.Unopened -> {
             Row {
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = {
-                    onStateChange {
-                        it.copy(puzzleStates =  it.puzzleStates + (puzzleName to PuzzleState.Opened(
-                            startTime = Clock.System.now(),
-                            submissions = emptyMap()
-                        )))
-                    }
-                }) {
+                Button(onClick = { onEvent(PuzzleStartEvent(puzzleName, Clock.System.now())) }) {
                     Text("Open puzzle!")
                 }
                 Spacer(modifier = Modifier.weight(1f))
@@ -459,10 +369,10 @@ private fun formatDuration(duration: Duration): String = when {
 }
 
 @Composable
-private fun StageTopBar(stage: WorkshopStage, onStageChange: (WorkshopStage) -> Unit) {
+private fun StageTopBar(stage: WorkshopStage, onEvent: (WorkshopEvent) -> Unit) {
     Row(modifier = Modifier.padding(16.dp)) {
         Row {
-            MoveStageButton(stage, onStageChange, -1, Key.DirectionLeft) {
+            MoveStageButton(stage, onEvent, -1, Key.DirectionLeft) {
                 Text("<")
             }
             Spacer(modifier = Modifier.weight(1f))
@@ -478,14 +388,14 @@ private fun StageTopBar(stage: WorkshopStage, onStageChange: (WorkshopStage) -> 
                     onDismissRequest = { expanded = false },
                 ) {
                     WorkshopStage.entries.forEach {
-                        DropdownMenuItem(onClick = { expanded = false; onStageChange(it) }) {
+                        DropdownMenuItem(onClick = { expanded = false; onEvent(StageChangeEvent(it)) }) {
                             Text(it.kotlinFile)
                         }
                     }
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
-            MoveStageButton(stage, onStageChange, 1, Key.DirectionRight) {
+            MoveStageButton(stage, onEvent, 1, Key.DirectionRight) {
                 Text(">")
             }
         }
@@ -500,14 +410,14 @@ private fun StageTopBar(stage: WorkshopStage, onStageChange: (WorkshopStage) -> 
 @Composable
 private fun MoveStageButton(
     stage: WorkshopStage,
-    onStageChange: (WorkshopStage) -> Unit,
+    onEvent: (WorkshopEvent) -> Unit,
     offset: Int,
     key: Key, // TODO: Make work?
-    content: @Composable RowScope.() -> Unit
+    content: @Composable RowScope.() -> Unit,
 ) {
     Button(
         enabled = stage.moving(offset) != null,
-        onClick = { onStageChange(stage.moving(offset)!!) },
+        onClick = { onEvent(StageChangeEvent(stage.moving(offset)!!)) },
         content = content,
     )
 }
@@ -518,7 +428,7 @@ private fun WorkshopStage.moving(offset: Int): WorkshopStage? =
 @Composable
 private fun Registration(
     state: ServerState,
-    onStateChange: ((ServerState) -> ServerState) -> Unit
+    onEvent: (WorkshopEvent) -> Unit,
 ) {
     Column(modifier = Modifier.padding(16.dp).scrollable(rememberScrollState(), orientation = Vertical)) {
         BasicText(text = "Number of verified participants: ${state.participants.size}")
@@ -530,7 +440,7 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onStateChange { it.deactivateParticipant(participant) } }) {
+                Button(onClick = { onEvent(ParticipantDeactivationEvent(participant)) }) {
                     Text("Deactivate")
                 }
             }
@@ -543,10 +453,10 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onStateChange { it.activateParticipant(participant) } }) {
+                Button(onClick = { onEvent(ParticipantReactivationEvent(participant)) }) {
                     Text("Activate")
                 }
-                Button(onClick = { onStateChange { it.removeParticipant(participant) } }) {
+                Button(onClick = { onEvent(ParticipantRemovalEvent(participant)) }) {
                     Text("Delete")
                 }
             }
@@ -559,64 +469,10 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onStateChange { it.copy(unverifiedParticipants = it.unverifiedParticipants - participant) } }) {
+                Button(onClick = { onEvent(ParticipantRejectionEvent(participant)) }) {
                     Text("Reject")
                 }
             }
         }
     }
 }
-
-private fun ServerState.deactivateParticipant(participant: Participant): ServerState = copy(
-    participants = participants - participant,
-    deactivatedParticipants = deactivatedParticipants + participant,
-    puzzleStates = puzzleStates.mapValues { (_, puzzleState) ->
-        when (puzzleState) {
-            PuzzleState.Unopened -> puzzleState
-            is PuzzleState.Opened -> puzzleState
-                .copy(submissions = puzzleState.submissions - participant.apiKey.stringRepresentation)
-        }
-    },
-    sliderGameState = when (sliderGameState) {
-        is SliderGameState.NotStarted -> sliderGameState
-        is SliderGameState.InProgress -> sliderGameState.removeParticipant(participant)
-        is SliderGameState.Done -> sliderGameState.copy(
-            lastState = sliderGameState.lastState.removeParticipant(participant)
-        )
-    },
-    discoGameState = when (discoGameState) {
-        DiscoGameState.Done,
-        DiscoGameState.NotStarted -> discoGameState
-        is DiscoGameState.InProgress -> discoGameState.copy(
-            orderedParticipants = discoGameState.orderedParticipants.filterNot { it.participant == participant.apiKey },
-            instructionOrder = discoGameState.instructionOrder.filterNot { it.participant == participant.apiKey },
-        )
-    },
-)
-
-private fun ServerState.removeParticipant(participant: Participant): ServerState = copy(
-    deactivatedParticipants = deactivatedParticipants - participant,
-)
-
-private fun ServerState.activateParticipant(participant: Participant): ServerState = copy(
-    participants = participants + participant,
-    deactivatedParticipants = deactivatedParticipants - participant,
-    discoGameState = when (val gameState = discoGameState) {
-        DiscoGameState.Done,
-        DiscoGameState.NotStarted -> gameState
-        is DiscoGameState.InProgress -> gameState.copy(
-            orderedParticipants = gameState.orderedParticipants
-                + DiscoGameParticipantState(participant.apiKey, color = kmpworkshop.common.Color(0, 0, 0)),
-        ).let {
-            it.copy(
-                instructionOrder = it.instructionOrder
-                    + it.createInstructionThatInstructsFrom(participant.apiKey)
-                    + it.createInstructionThatTargets(participant.apiKey)
-            )
-        }
-    },
-)
-
-private fun SliderGameState.InProgress.removeParticipant(participant: Participant): SliderGameState.InProgress = copy(
-    participantStates = participantStates - participant.apiKey.stringRepresentation
-)

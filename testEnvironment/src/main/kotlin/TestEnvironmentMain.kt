@@ -11,12 +11,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import kmpworkshop.client.AdaptingBackground
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopServer
 import kmpworkshop.server.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -31,17 +32,21 @@ suspend fun main(): Unit = coroutineScope {
             Participant("Jobber", ApiKey("JobberKey")),
         ),
 //        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
-        currentStage = WorkshopStage.DiscoGame,
+        currentStage = WorkshopStage.SliderGameStage,
     ))
 
+    val eventBus = Channel<WorkshopEvent>()
     launch(Dispatchers.Default) {
-        performScheduledEvents(serverState)
+        performScheduledEvents(serverState, eventBus)
+    }
+    launch(Dispatchers.Default) {
+        eventBus.consumeEach { event -> serverState.update { it.after(event) } }
     }
 
     application {
         Window(onCloseRequest = ::exitApplication, title = "Test environment") {
             androidx.compose.material.MaterialTheme {
-                CanvasScreen(serverState)
+                CanvasScreen(serverState, onEvent = { launch { eventBus.send(it) } })
             }
         }
     }
@@ -105,7 +110,7 @@ fun ResizableDraggableItem(
 }
 
 @Composable
-fun CanvasScreen(serverState: MutableStateFlow<ServerState>) {
+fun CanvasScreen(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopEvent) -> Unit) {
     val state by produceState(initialValue = ServerState()) {
         serverState.collect { value = it }
     }
@@ -119,7 +124,7 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>) {
         ResizableDraggableItem(initialWidth = 500.dp, initialHeight = 750.dp) {
             ServerUi(state, onStateChange = { stateUpdater ->
                 scope.launch(Dispatchers.Default) { serverState.update { stateUpdater(it) } }
-            })
+            }, onEvent)
         }
         state.participants.forEachIndexed { index, participant ->
             val server = remember { workshopServer(GlobalScope.coroutineContext, serverState, participant.apiKey) }
@@ -137,5 +142,5 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>) {
 
 @Composable
 fun FunctionUnderTest(server: WorkshopServer) {
-    DiscoGameSolution(server)
+    SliderGameSolution(server)
 }
