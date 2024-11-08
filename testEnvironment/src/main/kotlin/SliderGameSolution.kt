@@ -15,8 +15,7 @@ internal fun SliderGameSolution(server: WorkshopServer) {
     var sliderValue by remember { mutableStateOf(0.0f) }
 
     LaunchedEffect(sliderValue) {
-        val result = suggestSliderPosition(server, sliderValue.toDouble())
-        println("Result: $result")
+        suggestSliderPosition(server, sliderValue.toDouble())
     }
 
     Slider(sliderValue, onValueChange = { sliderValue = it }, valueRange = 0.0f..1.0f)

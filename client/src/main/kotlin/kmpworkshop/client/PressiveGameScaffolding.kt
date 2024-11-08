@@ -18,9 +18,7 @@ import kotlinx.rpc.streamScoped
 private val pressEvents = MutableSharedFlow<PressiveGamePressType>()
 
 fun getFlowOfPressiveGameHints(): Flow<String> = channelFlow {
-    streamScoped {
-        workshopService.asServer(getApiKeyFromEnvironment()).playPressiveGame(pressEvents).collect { send(it) }
-    }
+    workshopService.asServer(getApiKeyFromEnvironment()).playPressiveGame(pressEvents).collect { send(it) }
 }
 
 @Composable

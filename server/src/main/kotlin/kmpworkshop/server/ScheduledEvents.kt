@@ -3,9 +3,15 @@ package kmpworkshop.server
 import kmpworkshop.common.Color
 import kmpworkshop.server.TimedEventType.PressiveGameTickEvent
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.channels.consume
+import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -18,17 +24,22 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.use
 
-suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>): Nothing {
-    serverState
-        .map { it.scheduledEvents.minByOrNull { it.time } }
-        .distinctUntilChangedBy { it?.time }
-        .collectLatest { firstScheduledEvent ->
-            if (firstScheduledEvent == null) return@collectLatest
-            delayUntil(firstScheduledEvent.time)
-            serverState.update {
-                it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
-            }
+suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<WorkshopEvent>): Nothing {
+    coroutineScope {
+        launch {
+            eventBus.consumeEach { event -> serverState.update { it.after(event) } }
         }
+        serverState
+            .map { it.scheduledEvents.minByOrNull { it.time } }
+            .distinctUntilChangedBy { it?.time }
+            .collectLatest { firstScheduledEvent ->
+                if (firstScheduledEvent == null) return@collectLatest
+                delayUntil(firstScheduledEvent.time)
+                serverState.update {
+                    it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
+                }
+            }
+    }
     error("Should not be reached")
 }
 

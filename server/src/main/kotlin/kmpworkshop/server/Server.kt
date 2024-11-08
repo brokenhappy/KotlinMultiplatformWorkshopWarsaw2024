@@ -5,7 +5,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.common.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -17,12 +17,12 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import java.io.File
 import java.util.*
-import javax.sound.sampled.AudioSystem
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.seconds
 
 fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState())
+    val eventBus = Channel<WorkshopEvent>(capacity = Channel.UNLIMITED)
     launch(Dispatchers.Default) {
         serverState.persisting(File(getEnvironment()!!["server-database-file"]!!))
     }
@@ -32,12 +32,12 @@ fun main(): Unit = runBlocking {
         }
     }
     launch(Dispatchers.Default) {
-        performScheduledEvents(serverState)
+        performScheduledEvents(serverState, eventBus)
     }
     application {
         Window(onCloseRequest = ::exitApplication, title = "KMP Workshop") {
             MaterialTheme {
-                ServerUi(serverState)
+                ServerUi(serverState, onEvent = { launch { eventBus.send(it) } })
             }
         }
     }
