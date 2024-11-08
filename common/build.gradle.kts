@@ -1,9 +1,16 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+repositories {
+    google()
+}
+
 plugins {
-    kotlin("jvm") version "2.0.10"
-    kotlin("plugin.serialization") version "2.0.10"
-    id("io.ktor.plugin") version "2.3.12"
-    id("com.google.devtools.ksp") version "2.0.10-1.0.24"
-    id("org.jetbrains.kotlinx.rpc.plugin") version "0.2.4"
+    kotlin("multiplatform")
+    kotlin("plugin.serialization")
+    id("com.android.library")
+    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlinx.rpc.plugin")
 }
 
 group = "com.woutwerkman"
@@ -13,22 +20,37 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    implementation("io.ktor:ktor-client-cio-jvm")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
-    implementation("io.ktor:ktor-server-netty-jvm:2.3.12")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
-    implementation("ch.qos.logback:logback-classic:1.5.6")
-    testImplementation(kotlin("test"))
+android {
+    namespace = "com.woutwerkman.shared"
+    compileSdk = 34
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    defaultConfig {
+        minSdk = 24
+    }
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
 kotlin {
+    jvm {
+    }
+    androidTarget {
+        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
+    }
+    sourceSets {
+        commonMain.dependencies {
+            implementation("io.ktor:ktor-client-core")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
+        }
+    }
     jvmToolchain(17)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-receivers")

@@ -20,8 +20,8 @@ internal fun prepareApiKey(apiKeyString: String) {
     val file = File("../common/src/main/resources/secrets.ini")
     file.createNewFile()
     file.readLines()
-        .filterNot { it.filterNot { it.isWhitespace() }.startsWith("client-api-key=") }
-        .let { listOf("client-api-key = \"$apiKeyString\"") + it }
+        .filterNot { it.filterNot { it.isWhitespace() }.startsWith("const val clientApiKey=") }
+        .let { listOf("const val clientApiKey = \"$apiKeyString\"") + it }
         .joinToString("\n")
         .let { file.writeText(it) }
 }

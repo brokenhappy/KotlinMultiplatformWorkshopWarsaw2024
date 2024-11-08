@@ -1,0 +1,15 @@
+{
+    "configurations": [
+
+        {
+            "name": "Server",
+            "type": "gradle",
+            "workingDir": "$PROJECT_DIR$",
+            "tasks": ["run"],
+            "args": ["-DmainClass=kmpworkshop.server.ServerKt", "--quiet", "-p", "$PROJECT_DIR$/server"],
+            "initScripts": {
+                "flmapper": "ext.mapPath = { path -> path }"
+            }
+        }
+    ]
+}
