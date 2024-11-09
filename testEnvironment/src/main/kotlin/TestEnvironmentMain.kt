@@ -122,9 +122,7 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopE
             .background(Color.LightGray)
     ) {
         ResizableDraggableItem(initialWidth = 500.dp, initialHeight = 750.dp) {
-            ServerUi(state, onStateChange = { stateUpdater ->
-                scope.launch(Dispatchers.Default) { serverState.update { stateUpdater(it) } }
-            }, onEvent)
+            ServerUi(state, onEvent)
         }
         state.participants.forEachIndexed { index, participant ->
             val server = remember { workshopServer(GlobalScope.coroutineContext, serverState, participant.apiKey) }
@@ -142,5 +140,5 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopE
 
 @Composable
 fun FunctionUnderTest(server: WorkshopServer) {
-    SliderGameSolution(server)
+    DiscoGameSolution(server)
 }
