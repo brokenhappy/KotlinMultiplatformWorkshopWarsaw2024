@@ -85,7 +85,7 @@ internal fun <T : Any, R : Any> checkCodePuzzle(
     }
 }
 
-private class DoneWithPuzzleException: Throwable("", null, false, false)
+private class DoneWithPuzzleException: Throwable("")
 
 private fun accidentalChangesMadeError(): Nothing =
     error("You accidentally made changes to the puzzle types or scaffolding.\nPlease revert those changes yourself or ask the workshop host for help!")
