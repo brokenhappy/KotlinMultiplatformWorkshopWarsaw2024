@@ -24,11 +24,21 @@ fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<WorkshopEvent>(capacity = Channel.UNLIMITED)
     launch(Dispatchers.Default) {
-        serverState.persisting(File(serverBackupFile))
+        try {
+            serverState.persisting(File(serverBackupFile!!))
+        } catch (t: Throwable) {
+            t.printStackTrace()
+            throw t
+        }
     }
     launch(Dispatchers.Default) {
-        serveSingleService<WorkshopApiService> { coroutineContext ->
-            workshopService(coroutineContext, serverState)
+        try {
+            serveSingleService<WorkshopApiService> { coroutineContext ->
+                workshopService(coroutineContext, serverState)
+            }
+        } catch (t: Throwable) {
+            t.printStackTrace()
+            throw t
         }
     }
     launch(Dispatchers.Default) {

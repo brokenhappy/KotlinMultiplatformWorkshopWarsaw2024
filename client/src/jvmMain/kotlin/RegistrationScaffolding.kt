@@ -74,7 +74,7 @@ private fun prepareApiKey(apiKeyString: String) {
     file.createNewFile()
     file.readLines()
         .filterNot { it.startsWith("val clientApiKey: String? =") }
-        .plus("const val clientApiKey = \"$apiKeyString\"")
+        .plus("val clientApiKey: String? = \"$apiKeyString\"")
         .joinToString("\n")
         .let { file.writeText(it) }
 }

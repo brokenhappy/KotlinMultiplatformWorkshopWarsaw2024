@@ -27,16 +27,28 @@ import kotlin.use
 suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<WorkshopEvent>): Nothing {
     coroutineScope {
         launch {
-            eventBus.consumeEach { event -> serverState.update { it.after(event) } }
+            for (event in eventBus) {
+                try {
+                    serverState.update { it.after(event) }
+                } catch (t: Throwable) {
+                    t.printStackTrace()
+                    throw t
+                }
+            }
         }
         serverState
             .map { it.scheduledEvents.minByOrNull { it.time } }
             .distinctUntilChangedBy { it?.time }
             .collectLatest { firstScheduledEvent ->
-                if (firstScheduledEvent == null) return@collectLatest
-                delayUntil(firstScheduledEvent.time)
-                serverState.update {
-                    it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
+                try {
+                    if (firstScheduledEvent == null) return@collectLatest
+                    delayUntil(firstScheduledEvent.time)
+                    serverState.update {
+                        it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
+                    }
+                } catch (t: Throwable) {
+                    t.printStackTrace()
+                    throw t
                 }
             }
     }
