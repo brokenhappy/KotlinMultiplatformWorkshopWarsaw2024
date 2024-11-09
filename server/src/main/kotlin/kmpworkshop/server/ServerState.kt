@@ -30,10 +30,14 @@ data class TimedEvent(
 )
 
 @Serializable
-sealed class TimedEventType() {
+sealed class TimedEventType {
+    @Serializable
     data object PressiveGameTickEvent: TimedEventType()
+    @Serializable
     data object DiscoGameBackgroundTickEvent: TimedEventType()
+    @Serializable
     data object DiscoGamePressTimeoutEvent: TimedEventType()
+    @Serializable
     data object PlaySuccessSound: TimedEventType()
 }
 
