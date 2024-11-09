@@ -56,16 +56,30 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "ComposeApp"
+            isStatic = true
+        }
+    }
     sourceSets {
         commonMain.dependencies {
             implementation("io.ktor:ktor-client-core:2.3.12")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
-            implementation(compose.desktop.currentOs)
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material)
+            implementation(compose.ui)
             implementation(project(":common"))
         }
         jvmMain.dependencies {
+            implementation(compose.desktop.currentOs)
             implementation("io.ktor:ktor-client-cio:2.3.12")
         }
         androidMain.dependencies {
@@ -73,9 +87,18 @@ kotlin {
             implementation(compose.preview)
             implementation("androidx.activity:activity-compose:1.9.3")
         }
+        iosMain.dependencies {
+            implementation("io.ktor:ktor-client-darwin:2.3.12")
+        }
     }
     jvmToolchain(17)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-receivers")
+    }
+}
+
+compose.desktop {
+    application {
+        mainClass = "PressiveGameClientDesktopKt"
     }
 }

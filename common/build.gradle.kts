@@ -33,8 +33,10 @@ android {
 }
 
 kotlin {
-    jvm {
-    }
+    jvm()
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
@@ -46,8 +48,8 @@ kotlin {
             implementation("io.ktor:ktor-client-core")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server")
+//            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server")
+//            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
         }
     }
