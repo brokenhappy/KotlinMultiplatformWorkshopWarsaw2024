@@ -12,6 +12,10 @@ plugins {
 group = "com.woutwerkman"
 version = "unspecified"
 
+application {
+    mainClass.set("kmpworkshop.server.ServerKt")
+}
+
 repositories {
     mavenCentral()
     google()
