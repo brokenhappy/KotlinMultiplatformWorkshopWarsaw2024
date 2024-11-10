@@ -1,3 +1,5 @@
+@file:Suppress("ReplaceToWithInfixForm")
+
 package kmpworkshop.server
 
 import androidx.compose.material.MaterialTheme
@@ -118,7 +120,7 @@ private fun workshopService(
         var puzzleIndex = 0
         var lastInput: JsonElement? = null
         try {
-            (answers as Flow<JsonElement?>).onStart { emit(null) }.collect { answer ->
+            answers.onStart<JsonElement?> { emit(null) }.collect { answer ->
                 if (answer != null) {
                     val expected = puzzle.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex)
                     if (answer != expected) {
