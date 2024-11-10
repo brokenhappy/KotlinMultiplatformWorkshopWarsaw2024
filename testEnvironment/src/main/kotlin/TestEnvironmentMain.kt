@@ -14,16 +14,13 @@ import androidx.compose.ui.window.application
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopServer
 import kmpworkshop.server.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
-suspend fun main(): Unit = coroutineScope {
+fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState(
         participants = listOf(
             Participant("John", ApiKey("JohnKey")),
