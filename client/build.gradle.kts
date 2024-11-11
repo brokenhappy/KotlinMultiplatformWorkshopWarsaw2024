@@ -7,7 +7,6 @@ plugins {
     kotlin("plugin.serialization")
     id("com.android.application")
 //    id("io.ktor.plugin")
-    id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
@@ -68,10 +67,10 @@ kotlin {
     }
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-core:2.3.12")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
+            implementation("io.ktor:ktor-client-core:3.0.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.4.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.4.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.4.0")
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material)
@@ -80,10 +79,10 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
-            implementation("io.ktor:ktor-client-cio:2.3.12")
+            implementation("io.ktor:ktor-client-cio:3.0.1")
         }
         androidMain.dependencies {
-            implementation("io.ktor:ktor-client-cio:2.3.12")
+            implementation("io.ktor:ktor-client-cio:3.0.1")
             implementation(compose.preview)
             implementation("androidx.activity:activity-compose:1.9.3")
         }

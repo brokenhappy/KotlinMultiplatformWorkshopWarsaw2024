@@ -2,7 +2,6 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("io.ktor.plugin")
-    id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin") // Don't ask my why I need all of this, I'm just trying to make my build pass okay? :((
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")

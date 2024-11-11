@@ -8,18 +8,18 @@ import io.ktor.server.routing.routing
 import kmpworkshop.common.WorkshopApiService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.rpc.RPC
-import kotlinx.rpc.serialization.json
-import kotlinx.rpc.transport.ktor.server.RPC
-import kotlinx.rpc.transport.ktor.server.rpc
+import kotlinx.rpc.RemoteService
+import kotlinx.rpc.krpc.ktor.server.RPC
+import kotlinx.rpc.krpc.ktor.server.rpc
+import kotlinx.rpc.krpc.serialization.json.json
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
-suspend inline fun <reified Service : RPC> serveSingleService(
+suspend inline fun <reified Service : RemoteService> serveSingleService(
     noinline serviceFactory: (CoroutineContext) -> Service,
 ): Nothing = serveSingleService(Service::class, serviceFactory)
 
-suspend fun <Service : RPC> serveSingleService(
+suspend fun <Service : RemoteService> serveSingleService(
     serviceKClass: KClass<Service>,
     serviceFactory: (CoroutineContext) -> Service,
 ): Nothing {
@@ -39,7 +39,7 @@ suspend fun <Service : RPC> serveSingleService(
         }
         println("Server running")
     }.apply { start(wait = true) }
-        .stopServerOnCancellation()
+        .run { engine.stopServerOnCancellation(application) }
         .use { awaitCancellation() }
 }
 

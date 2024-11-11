@@ -2,12 +2,14 @@ package kmpworkshop.common
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.rpc.RPC
-import kotlinx.rpc.streamScoped
+import kotlinx.rpc.RemoteService
+import kotlinx.rpc.annotations.Rpc
+import kotlinx.rpc.krpc.streamScoped
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-interface WorkshopApiService : RPC {
+@Rpc
+interface WorkshopApiService : RemoteService {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
     suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>

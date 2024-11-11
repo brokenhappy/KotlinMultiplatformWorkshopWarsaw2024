@@ -9,7 +9,6 @@ plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
     id("com.android.library")
-    id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")
 }
 
@@ -45,12 +44,12 @@ kotlin {
     }
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-core")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
+            implementation("io.ktor:ktor-client-core:3.0.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.4.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.4.0")
 //            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server")
 //            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.4.0")
         }
     }
     jvmToolchain(17)
