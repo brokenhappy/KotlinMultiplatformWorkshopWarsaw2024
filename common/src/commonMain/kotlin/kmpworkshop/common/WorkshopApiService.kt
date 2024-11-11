@@ -57,15 +57,15 @@ enum class PressiveGamePressType {
 }
 
 @Serializable
-enum class DiscoGameInstruction(val dx: Int, val dy: Int) {
-    Left(-1, 0),
-    LeftUp(-1, -1),
-    Up(0, -1),
-    RightUp(1, -1),
-    Right(1, 0),
-    RightDown(1, 1),
-    Down(0, 1),
-    LeftDown(-1, 1),
+enum class DiscoGameInstruction(val char: Char, val dx: Int, val dy: Int) {
+    Left('←', -1, 0),
+    LeftUp('↖', -1, -1),
+    Up('↑', 0, -1),
+    RightUp('↗', 1, -1),
+    Right('→', 1, 0),
+    RightDown('↘', 1, 1),
+    Down('↓', 0, 1),
+    LeftDown('↙', -1, 1),
 }
 
 @Serializable
