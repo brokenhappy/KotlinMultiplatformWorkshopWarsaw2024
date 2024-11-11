@@ -102,7 +102,7 @@ private fun ServerState.after(event: TimedEventType): ServerState = when (event)
 }
 
 val discoColors = listOf(
-    Color(0, 0, 0),
+    Color(128, 128, 128),
     Color(255, 0, 0),
     Color(0, 255, 0),
     Color(0, 0, 255),
