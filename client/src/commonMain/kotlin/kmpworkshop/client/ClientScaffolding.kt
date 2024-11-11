@@ -4,11 +4,11 @@ import io.ktor.client.*
 import io.ktor.http.*
 import kmpworkshop.common.WorkshopApiService
 import kotlinx.coroutines.runBlocking
-import kotlinx.rpc.serialization.json
-import kotlinx.rpc.transport.ktor.client.KtorRPCClient
-import kotlinx.rpc.transport.ktor.client.installRPC
-import kotlinx.rpc.transport.ktor.client.rpc
-import kotlinx.rpc.transport.ktor.client.rpcConfig
+import kotlinx.rpc.krpc.ktor.client.KtorRPCClient
+import kotlinx.rpc.krpc.ktor.client.installRPC
+import kotlinx.rpc.krpc.ktor.client.rpc
+import kotlinx.rpc.krpc.ktor.client.rpcConfig
+import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 
 // This is a hacky solution just so I can keep things simple for the scope of the workshop.

@@ -6,7 +6,7 @@ import kmpworkshop.common.clientApiKey
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
-import kotlinx.rpc.streamScoped
+import kotlinx.rpc.krpc.streamScoped
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
