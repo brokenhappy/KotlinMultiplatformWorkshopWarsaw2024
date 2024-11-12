@@ -18,6 +18,7 @@ fun MainViewController() = ComposeUIViewController {
         override fun backgroundColors(): Flow<Color> = server.discoGameBackground().map { it.toComposeColor() }
         override fun instructions(): Flow<DiscoGameInstruction?> = server.discoGameInstructions(pressEvents)
         override suspend fun submitGuess() {
+            println("Pressing!")
             pressEvents.tryEmit(Unit)
         }
     })

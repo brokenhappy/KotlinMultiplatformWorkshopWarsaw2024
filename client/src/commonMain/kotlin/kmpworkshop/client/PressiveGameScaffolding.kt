@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import kmpworkshop.common.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,7 +25,7 @@ internal fun AdaptingBackground(content: @Composable () -> Unit) {
 
 @Composable
 fun AdaptingBackground(server: WorkshopServer, content: @Composable () -> Unit) {
-    val background = produceState(null as Color?) {
+    val background = produceState(null as SerializableColor?) {
         server.pressiveGameBackground().collect { value = it }
     }
     Box(
@@ -41,8 +42,7 @@ private fun <T : Any> Modifier.applyIfNotNull(
     function: Modifier.(T) -> Modifier
 ): Modifier = value?.let { function(it) } ?: this
 
-fun Color.toComposeColor(): androidx.compose.ui.graphics.Color =
-    androidx.compose.ui.graphics.Color(red, green, blue)
+fun SerializableColor.toComposeColor(): Color = Color(red, green, blue)
 
 suspend fun doSinglePress(): Unit = pressEvents.emit(PressiveGamePressType.SinglePress)
 suspend fun doDoublePress(): Unit = pressEvents.emit(PressiveGamePressType.DoublePress)

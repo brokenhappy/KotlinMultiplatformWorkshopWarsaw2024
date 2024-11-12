@@ -9,12 +9,11 @@ import kotlinx.coroutines.flow.map
 
 fun main() {
     WorkshopApp("Disco Game Client") { server ->
-        val pressEvents = MutableSharedFlow<Unit>()
         DiscoGame(object: DiscoGameServer {
             override fun backgroundColors(): Flow<Color> = server.discoGameBackground().map { it.toComposeColor() }
-            override fun instructions(): Flow<DiscoGameInstruction?> = server.discoGameInstructions(pressEvents)
+            override fun instructions(): Flow<DiscoGameInstruction?> = server.discoGameInstructions()
             override suspend fun submitGuess() {
-                pressEvents.tryEmit(Unit)
+                server.discoGamePress()
             }
         })
     }

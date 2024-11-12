@@ -1,28 +1,22 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.Color
+import kmpworkshop.common.DiscoGameInstruction
+import kmpworkshop.common.SerializableColor
 import kmpworkshop.server.TimedEventType.PressiveGameTickEvent
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.channels.consume
-import kotlinx.coroutines.channels.consumeEach
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.consumeAsFlow
-import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import javax.sound.sampled.AudioSystem
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import javax.sound.sampled.*
+import kotlin.random.Random
+import kotlin.random.nextInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import kotlin.use
 
 suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<WorkshopEvent>): Nothing {
     coroutineScope {
@@ -61,17 +55,19 @@ internal fun InProgressScheduling.after(delay: Duration): ServerState = stateWit
 )
 internal fun ServerState.scheduling(event: TimedEventType): InProgressScheduling = InProgressScheduling(this, event)
 
-internal val discoGamePressTimeout = 2.5.seconds
+internal val secondDiscoGamePressTimeout = 2.5.seconds
 private val danceFloorChangeInterval = 0.5.seconds
+private val firstDiscoGamePrivateTickTimeout = 1.5.seconds
+private val firstDiscoGamePublicTickTimeout = 10.seconds
 
 private fun ServerState.after(event: TimedEventType): ServerState = when (event) {
-    PressiveGameTickEvent -> when (val state = pressiveGameState) {
+    is PressiveGameTickEvent -> when (val state = pressiveGameState) {
         is PressiveGameState.FirstGameDone,
         is PressiveGameState.FirstGameInProgress,
-        PressiveGameState.NotStarted,
-        PressiveGameState.SecondGameDone,
+        is PressiveGameState.NotStarted,
+        is PressiveGameState.SecondGameDone,
         is PressiveGameState.SecondGameInProgress,
-        PressiveGameState.ThirdGameDone -> this
+        is PressiveGameState.ThirdGameDone -> this
         is PressiveGameState.ThirdGameInProgress -> copy(
             pressiveGameState = state.copy(
                 participantThatIsBeingRung = when (val current = state.participantThatIsBeingRung) {
@@ -81,35 +77,86 @@ private fun ServerState.after(event: TimedEventType): ServerState = when (event)
             )
         ).scheduling(PressiveGameTickEvent).after(delayForNextEvent(state))
     }
-    TimedEventType.DiscoGameBackgroundTickEvent -> when (val state = discoGameState) {
-        DiscoGameState.Done,
-        DiscoGameState.NotStarted -> this
-        is DiscoGameState.InProgress -> copy(
+    is TimedEventType.SecondDiscoGameBackgroundTickEvent -> when (val state = discoGameState) {
+        is DiscoGameState.Second.Done,
+        is DiscoGameState.First,
+        is DiscoGameState.NotStarted -> this
+        is DiscoGameState.Second.InProgress -> copy(
             discoGameState = state.copy(
                 orderedParticipants = state
                     .orderedParticipants
                     .map { it.copy(color = discoColors.random()) }
             ),
-        ).scheduling(TimedEventType.DiscoGameBackgroundTickEvent).after(danceFloorChangeInterval)
+        ).scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent).after(danceFloorChangeInterval)
     }
-    TimedEventType.DiscoGamePressTimeoutEvent -> when (val state = discoGameState) {
-        DiscoGameState.Done,
-        DiscoGameState.NotStarted -> this
-        is DiscoGameState.InProgress -> copy(discoGameState = state.restartingInstructions())
-            .scheduling(TimedEventType.DiscoGamePressTimeoutEvent).after(discoGamePressTimeout)
+    is TimedEventType.SecondDiscoGamePressTimeoutEvent -> when (val state = discoGameState) {
+        is DiscoGameState.Second.Done,
+        is DiscoGameState.First,
+        is DiscoGameState.NotStarted -> this
+        is DiscoGameState.Second.InProgress -> copy(discoGameState = state.restartingInstructions())
+            .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent).after(secondDiscoGamePressTimeout)
+
+    }
+    is TimedEventType.FirstDiscoGamePrivateTickEvent -> {
+        val random = Random(event.randomSeed)
+        when (val state = discoGameState) {
+            is DiscoGameState.First.Done,
+            is DiscoGameState.Second,
+            is DiscoGameState.NotStarted -> this
+            is DiscoGameState.First.InProgress -> copy(discoGameState = state.privateTick(random))
+                .scheduling(TimedEventType.FirstDiscoGamePrivateTickEvent(random.nextLong())).after(firstDiscoGamePrivateTickTimeout)
+        }
+    }
+    is TimedEventType.FirstDiscoGameTargetTickEvent -> {
+        val random = Random(event.randomSeed)
+        when (val state = discoGameState) {
+            is DiscoGameState.First.Done,
+            is DiscoGameState.Second,
+            is DiscoGameState.NotStarted -> this
+            is DiscoGameState.First.InProgress -> copy(discoGameState = state.targetTick(random))
+                .scheduling(TimedEventType.FirstDiscoGameTargetTickEvent(random.nextLong())).after(firstDiscoGamePublicTickTimeout)
+        }
     }
     is TimedEventType.PlaySuccessSound -> this.also { GlobalScope.launch { playSuccessSound() } }
+    is TimedEventType.PlayIncrementSound -> this.also { GlobalScope.launch { playProgressSound(event.pitch) } }
+    is TimedEventType.PlayProgressLossSound -> this.also { GlobalScope.launch { playFailSound() } }
 }
 
-val discoColors = listOf(
-    Color(128, 128, 128),
-    Color(255, 0, 0),
-    Color(0, 255, 0),
-    Color(0, 0, 255),
-    Color(0, 255, 255),
-    Color(255, 0, 255),
-    Color(255, 255, 0),
-    Color(255, 255, 255),
+private fun DiscoGameState.First.InProgress.targetTick(random: Random): DiscoGameState = copy(target = target.nextRandom(random))
+
+internal fun ColorAndInstructionWithPrevious.nextRandom(random: Random) = ColorAndInstructionWithPrevious(
+    current = randomColorAndInstruction(random),
+    previous = current,
+)
+
+private fun DiscoGameState.First.InProgress.privateTick(random: Random): DiscoGameState = copy(
+    states = states.mapValues { (_, value) ->
+        when (value) {
+            is FirstDiscoGameParticipantState.Done -> value
+            is FirstDiscoGameParticipantState.InProgress -> value.copy(
+                colorAndInstructionState =
+                    if (random.nextDouble() < .25) target
+                    else value.colorAndInstructionState.nextRandom(random)
+            )
+        }
+    },
+)
+
+fun randomColorAndInstruction(random: Random): ColorAndInstruction = ColorAndInstruction(
+    color = discoColors.random(random),
+    (DiscoGameInstruction.entries + null).random(random)
+)
+
+
+private val discoColors = listOf(
+    SerializableColor(80, 80, 80),
+    SerializableColor(255, 0, 0),
+    SerializableColor(0, 255, 0),
+    SerializableColor(0, 0, 255),
+    SerializableColor(0, 255, 255),
+    SerializableColor(255, 0, 255),
+    SerializableColor(255, 255, 0),
+    SerializableColor(255, 255, 255),
 )
 
 private fun delayForNextEvent(lastState: PressiveGameState.ThirdGameInProgress): Duration = when {
@@ -125,9 +172,57 @@ private suspend fun delayUntil(time: Instant) {
 
 private suspend fun playSuccessSound() {
     AudioSystem.getClip().use { clip ->
-        clip.open(AudioSystem.getAudioInputStream((object {})::class.java.getResourceAsStream("/success.wav")))
-        clip.start()
-        clip.drain()
-        delay(3.seconds)
+        AudioSystem
+            .getAudioInputStream((object {})::class.java.getResourceAsStream("/success.wav"))
+            .playIn(clip)
     }
+}
+
+private suspend fun playFailSound() {
+    AudioSystem.getClip().use { clip ->
+        AudioSystem
+            .getAudioInputStream((object {})::class.java.getResourceAsStream("/fail.wav"))
+            .playIn(clip)
+    }
+}
+
+/** [progress] is a number between 0 and 1 and effects the pitch of the sound */
+private suspend fun playProgressSound(progress: Double) {
+    AudioSystem.getClip().use { clip ->
+        AudioSystem
+            .getAudioInputStream((object {})::class.java.getResourceAsStream("/boop.wav"))
+            .changePitch(progress)
+            .playIn(clip)
+    }
+}
+
+private suspend fun AudioInputStream.playIn(clip: Clip) {
+    clip.open(this)
+    clip.start()
+    clip.drain()
+    delay(3.seconds)
+}
+
+private suspend fun AudioInputStream.changePitch(progress: Double): AudioInputStream {
+    val originalFormat = format
+    val audioBytes = readAsWavByteArray()
+    return AudioInputStream(
+        ByteArrayInputStream(audioBytes),
+        AudioFormat(
+            /* sampleRate = */ originalFormat.sampleRate * (0.5 + progress.coerceIn(.0..1.0)).toFloat(),
+            /* sampleSizeInBits = */ originalFormat.sampleSizeInBits,
+            /* channels = */ originalFormat.channels,
+            /* signed = */ true,
+            /* bigEndian = */ originalFormat.isBigEndian
+        ),
+        audioBytes.size.toLong(),
+    )
+}
+
+private suspend fun AudioInputStream.readAsWavByteArray(): ByteArray {
+    val byteArrayOutputStream = ByteArrayOutputStream()
+    withContext(Dispatchers.IO) {
+        AudioSystem.write(this@readAsWavByteArray, AudioFileFormat.Type.WAVE, byteArrayOutputStream)
+    }
+    return byteArrayOutputStream.toByteArray()
 }
