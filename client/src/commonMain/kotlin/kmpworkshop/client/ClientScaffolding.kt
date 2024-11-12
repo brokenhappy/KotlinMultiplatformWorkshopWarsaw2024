@@ -1,8 +1,16 @@
 package kmpworkshop.client
 
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import io.ktor.client.*
 import io.ktor.http.*
-import kmpworkshop.common.WorkshopApiService
+import kmpworkshop.common.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.rpc.serialization.json
 import kotlinx.rpc.transport.ktor.client.KtorRPCClient
@@ -41,4 +49,41 @@ private fun createService(): WorkshopApiService = runBlocking {
     }
 
     client.withService<WorkshopApiService>()
+}
+
+@Composable
+fun ClientEntryPoint() {
+    ClientEntryPoint(
+        server = remember {
+            workshopService.asServer(ApiKey(clientApiKey ?: error("You need to finish registration first!")))
+        },
+    )
+}
+
+@Composable
+fun ClientEntryPoint(server: WorkshopServer) {
+    val stage by remember { server.currentStage() }.collectAsState(initial = WorkshopStage.SliderGameStage)
+    when (stage) {
+        WorkshopStage.Registration -> Text("""
+                    The host went back to the Registration phase.
+                    Most likely the host is configuring something.
+                    A moment of patience please.
+                    
+                    (Maybe you can take these seconds to help your peers? :) )
+                """.trimIndent())
+        WorkshopStage.PalindromeCheckTask,
+        WorkshopStage.FindMinimumAgeOfUserTask,
+        WorkshopStage.FindOldestUserTask -> Text("""
+                    Hmm, we went back to one of the non UI tasks...
+                """.trimIndent())
+        WorkshopStage.SliderGameStage -> SliderGameClient()
+        WorkshopStage.PressiveGameStage -> AdaptingBackground { PressiveGame() }
+        WorkshopStage.DiscoGame -> DiscoGame(object: DiscoGameServer {
+            override fun backgroundColors(): Flow<Color> = server.discoGameBackground().map { it.toComposeColor() }
+            override fun instructions(): Flow<DiscoGameInstruction?> = server.discoGameInstructions()
+            override suspend fun submitGuess() {
+                server.discoGamePress()
+            }
+        })
+    }
 }

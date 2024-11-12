@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonElement
 interface WorkshopApiService : RPC {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
+    suspend fun currentStage(): Flow<WorkshopStage>
     suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
     suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
@@ -21,6 +22,7 @@ interface WorkshopApiService : RPC {
 }
 
 interface WorkshopServer {
+    fun currentStage(): Flow<WorkshopStage>
     fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(suggestedRatio: Double): SlideResult
     fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
@@ -31,6 +33,7 @@ interface WorkshopServer {
 }
 
 fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
+    override fun currentStage(): Flow<WorkshopStage> = decoupledRpcFlow { this@asServer.currentStage() }
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
         decoupledRpcFlow { this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers) }
     override suspend fun setSlider(suggestedRatio: Double): SlideResult =
@@ -52,6 +55,20 @@ fun <T> decoupledRpcFlow(rpcFlow: suspend () -> Flow<T>): Flow<T> = channelFlow 
     streamScoped {
         rpcFlow().collect { send(it) }
     }
+}
+
+@Serializable
+enum class WorkshopStage(val kotlinFile: String) {
+    Registration("Registration.kt"),
+    PalindromeCheckTask("PalindromeCheck.kt"),
+    FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
+    FindOldestUserTask("OldestUserFinding.kt"),
+    // TODO: Handle deletion of user!
+    // TODO: Test scroll ability with 30 users!
+    SliderGameStage("SliderGameClient.kt"),
+    // TODO: Handle deletion of user!
+    PressiveGameStage("PressiveGameClient.kt"),
+    DiscoGame("DiscoGameClient.kt"),
 }
 
 @Serializable

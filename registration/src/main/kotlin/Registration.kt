@@ -1,5 +1,3 @@
-fun main() {
+fun doRegistration() {
     printFirstHint()
 }
-
-

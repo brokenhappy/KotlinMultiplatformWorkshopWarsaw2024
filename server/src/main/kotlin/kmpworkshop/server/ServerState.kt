@@ -60,22 +60,6 @@ sealed class PuzzleState {
 typealias ApiKeyString = String // Because ApiKey is not serializable when used as a Map key
 
 @Serializable
-enum class WorkshopStage(val kotlinFile: String) {
-    Registration("Registration.kt"),
-    PalindromeCheckTask("PalindromeCheck.kt"),
-    FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
-    FindOldestUserTask("OldestUserFinding.kt"),
-    // TODO: Handle deletion of user!
-    // TODO: Test scroll ability with 30 users!
-    SliderGameStage("SliderGameClient.kt"),
-    // TODO: Handle deletion of user!
-    PressiveGameStage("PressiveGameClient.kt"),
-    // TODO: Handle deletion of user!
-    // TODO: Test "feasibleness" with 30 users
-    DiscoGame("DiscoGameClient.kt"),
-}
-
-@Serializable
 sealed class DiscoGameState {
     @Serializable
     data object NotStarted : DiscoGameState()

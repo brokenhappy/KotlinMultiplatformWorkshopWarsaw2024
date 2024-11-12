@@ -98,6 +98,8 @@ private fun workshopService(
                 .to(NameVerificationResult.Success)
         }
 
+    override suspend fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
+
     override suspend fun doPuzzleSolveAttempt(
         key: ApiKey,
         puzzleName: String,
