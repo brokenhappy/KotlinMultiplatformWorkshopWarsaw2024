@@ -163,7 +163,7 @@ private fun workshopService(
             if (oldState.participantFor(key) == null) oldState to SlideResult.InvalidApiKey
             else {
                 (oldState.sliderGameState as? SliderGameState.InProgress)?.let { oldGameState ->
-                    oldGameState.moveSlider(key, suggestedRatio).withGravityApplied()
+                    oldGameState.moveSlider(key, suggestedRatio.coerceIn(.0..1.0)).withGravityApplied()
                         .let {
                             oldState.copy(sliderGameState = it)
                                 .applyIf({ it.sliderGameState is SliderGameState.Done }) {
