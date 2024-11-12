@@ -1,17 +1,25 @@
 import kmpworkshop.client.workshopService
-import kmpworkshop.common.*
+import kmpworkshop.common.ApiKey
+import kmpworkshop.common.ApiKeyRegistrationResult
+import kmpworkshop.common.NameVerificationResult
+import kmpworkshop.common.clientApiKey
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
 fun main() {
-    doRegistration()
+    try {
+        println("\u001B[92mTHIS IS THE START OF THE APP OUTPUT ########################################################################################################\u001B[0m")
+        doRegistration()
+    } finally {
+        println("\u001B[92mTHIS IS THE \u001B[91mEND\u001B[0m\u001B[92m OF THE APP OUTPUT ########################################################################################################\u001B[0m")
+    }
 }
 
 internal fun printFirstHint() {
     println("""
         Welcome to the workshop! To start, you have to tell me the name that you will be using for the rest of the sessions!
     """.trimIndent())
-    requestNameAndSuggestFollowup()
+    suggestRunningCode()
 }
 
 internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: String) {
@@ -22,14 +30,14 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
                 Let's restart!
                 
             """.trimIndent())
-            requestNameAndSuggestFollowup()
+            suggestRunningCode()
         }
         ApiKeyRegistrationResult.NameTooComplex -> {
             println("""
                 Sorry, I don't properly handle all names.
                 Please pick a name that matches `[A-z 0-9]{1,20}`
             """.trimIndent())
-            requestNameAndSuggestFollowup()
+            suggestRunningCode()
         }
         is ApiKeyRegistrationResult.Success -> {
             prepareApiKey(result.key.stringRepresentation)
@@ -61,16 +69,24 @@ internal fun verifyMyApiKey() {
     )
 }
 
-private fun requestNameAndSuggestFollowup() {
+private fun suggestRunningCode() {
     println("""
-        To proceed, run the following kotlin code:
-        
-        ```kotlin
-        fun doRegistration() {
-            registerMyselfByNameThatIWillUseForTheRestOfTheSessions("<your name here!>") // (Sorry, please use ASCII characters)
-        }
-        ```
-    """.trimIndent())
+        |To proceed take the following steps:
+        | 1. Insert the following code into Registration.kt
+        |```kotlin
+        |fun doRegistration() {
+        |    registerMyselfByNameThatIWillUseForTheRestOfTheSessions("<your name here!>") // (Sorry, please use ASCII characters)
+        |}
+        |```
+        | 2. Replace `<your name here!>` with your name.
+        | 3. Run the code again by either:
+        |    - Clicking the green triangle in the top right corner of your IDE
+        |    - Use shortcut ${
+                 if ("win" !in System.getProperty("os.name").lowercase()) "Ctrl + R (Default MacOs Shortcut)" 
+                 else "Ctrl+F10 (Default Windows/Linux shortcut)"
+             }
+        |    - If this wasn't clear, you wouldn't be the only one! Please ask the workshop host for help, or ask someone around you.
+    """.trimMargin())
 }
 
 private fun prepareApiKey(apiKeyString: String) {
