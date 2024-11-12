@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @Composable
-fun DiscoGameSolution(server: WorkshopServer) {
+internal fun DiscoGameSolution(server: WorkshopServer) {
     Box {
         DiscoGameBackground(server)
         DiscoGameInput(server)
@@ -21,7 +21,7 @@ fun DiscoGameSolution(server: WorkshopServer) {
 }
 
 @Composable
-fun DiscoGameBackground(server: WorkshopServer) {
+private fun DiscoGameBackground(server: WorkshopServer) {
     val background by remember {
         server.discoGameBackground().map { it.toComposeColor() }
     }.collectAsState(initial = Color(0, 0, 0))
@@ -29,13 +29,12 @@ fun DiscoGameBackground(server: WorkshopServer) {
 }
 
 @Composable
-fun DiscoGameInput(server: WorkshopServer) {
-    val pressEvents = remember { MutableSharedFlow<Unit>() }
-    val instruction by remember { server.discoGameInstructions(pressEvents) }.collectAsState(initial = null)
+private fun DiscoGameInput(server: WorkshopServer) {
+    val instruction by remember { server.discoGameInstructions() }.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     Column {
         Text((instruction?.char ?: '·').toString(), fontSize = 100.sp)
-        Button(onClick = { scope.launch { pressEvents.emit(Unit) } }) {
+        Button(onClick = { scope.launch { server.discoGamePress() } }) {
             Text("Press me!")
         }
     }

@@ -207,51 +207,56 @@ private fun workshopService(
                 .collect { send(it) }
         }
 
-    override suspend fun discoGameInstructions(key: ApiKey, pressEvents: Flow<Unit>): Flow<DiscoGameInstruction?> =
-        channelFlow {
-            launch {
-                pressEvents.collect {
-                    serverState.update {
-                        it.afterDiscoGameKeyPressBy(key)
+    override suspend fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?> =
+        serverState
+            .map { it.discoGameState }
+            .map { gameState ->
+                when (gameState) {
+                    is DiscoGameState.Second.Done,
+                    is DiscoGameState.First.Done,
+                    is DiscoGameState.NotStarted -> null
+                    is DiscoGameState.Second.InProgress -> gameState
+                        .instructionOrder
+                        .getOrNull(gameState.progress)
+                        ?.takeIf { it.participant == key }
+                        ?.instruction
+                    is DiscoGameState.First.InProgress -> when (val state = gameState.states[key.stringRepresentation]) {
+                        null,
+                        is FirstDiscoGameParticipantState.Done -> null
+                        is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.instruction
                     }
                 }
             }
+            .distinctUntilChanged()
 
-            serverState
-                .map { it.discoGameState }
-                .map { gameState ->
-                    when (gameState) {
-                        DiscoGameState.Done,
-                        DiscoGameState.NotStarted -> null
-                        is DiscoGameState.InProgress -> gameState
-                            .instructionOrder
-                            .getOrNull(gameState.progress)
-                            ?.takeIf { it.participant == key }
-                            ?.instruction
-                    }
-                }
-                .distinctUntilChanged()
-                .collect { send(it) }
-        }
+    override suspend fun discoGamePress(key: ApiKey) {
+        serverState.update { it.afterDiscoGameKeyPressBy(key) }
+    }
 
-    override suspend fun discoGameBackground(key: ApiKey): Flow<Color> = serverState
+    override suspend fun discoGameBackground(key: ApiKey): Flow<SerializableColor> = serverState
         .map { it.discoGameState }
-        .map {
-            when (it) {
-                DiscoGameState.Done,
-                DiscoGameState.NotStarted -> null
-                is DiscoGameState.InProgress -> it
+        .map { gameState ->
+            when (gameState) {
+                is DiscoGameState.Second.Done,
+                is DiscoGameState.First.Done,
+                is DiscoGameState.NotStarted -> null
+                is DiscoGameState.Second.InProgress -> gameState
                     .orderedParticipants
                     .firstOrNull { it.participant == key }
                     ?.color
+                is DiscoGameState.First.InProgress -> when (val state = gameState.states[key.stringRepresentation]) {
+                    null,
+                    is FirstDiscoGameParticipantState.Done -> null
+                    is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.color
+                }
             }
         }
-        .map { it ?: Color(0, 0, 0) }
+        .map { it ?: SerializableColor(0, 0, 0) }
 
-    override suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?> = serverState
+    override suspend fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?> = serverState
         .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
         .distinctUntilChanged()
-        .map { isBeingRung -> Color(0, 0, 0).takeIf { isBeingRung } }
+        .map { isBeingRung -> SerializableColor(0, 0, 0).takeIf { isBeingRung } }
 
     override val coroutineContext = coroutineContext
 }
@@ -280,6 +285,9 @@ private fun SliderGameState.InProgress.moveSlider(key: ApiKey, ratio: Double): S
         )).toSortedMap()
     )
 }
+
+fun <V> Map<ApiKeyString, V>.updateNotNull(key: ApiKey, value: (V) -> V): Map<ApiKeyString, V> =
+    this[key.stringRepresentation]?.let(value)?.let { put(key, it) } ?: this
 
 internal const val PegWidth = 0.075
 internal const val SliderGapWidth = 0.1
@@ -358,4 +366,4 @@ private inline fun <T, R : Any> MutableStateFlow<T>.updateAndGetValue(update: (T
     return result!!
 }
 
-inline fun <T> T.applyIf(predicate: (T) -> Boolean, mapper: (T) -> T): T = if (predicate(this)) mapper(this) else this
+inline fun <T : R, R> T.applyIf(predicate: (T) -> Boolean, mapper: (T) -> R): R = if (predicate(this)) mapper(this) else this

@@ -24,6 +24,7 @@ import kmpworkshop.common.ApiKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.serialization.Serializable
 import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -64,34 +65,54 @@ private fun DiscoGame(
     Column(modifier = Modifier.padding(16.dp)) {
         TopButton(
             text = when (state.discoGameState) {
-                DiscoGameState.Done -> "Restart game"
-                is DiscoGameState.InProgress -> "Stop game"
-                DiscoGameState.NotStarted -> "Start game"
+                is DiscoGameState.First.Done -> "Restart First game"
+                is DiscoGameState.First.InProgress -> "Stop First game"
+                is DiscoGameState.NotStarted,
+                is DiscoGameState.Second -> "Start First game"
             },
             onClick = {
                 onEvent(
                     when (state.discoGameState) {
-                        is DiscoGameState.InProgress -> DiscoGameEvent.Stop
-                        DiscoGameState.Done -> DiscoGameEvent.Restart
-                        DiscoGameState.NotStarted -> DiscoGameEvent.Start
+                        is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst
+                        is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(Clock.System.now(), Random.nextLong())
+                        is DiscoGameState.NotStarted,
+                        is DiscoGameState.Second -> DiscoGameEvent.StartFirst(Clock.System.now(), Random.nextLong())
+                    }
+                )
+            },
+        )
+        TopButton(
+            text = when (state.discoGameState) {
+                is DiscoGameState.Second.Done -> "Restart Second game"
+                is DiscoGameState.Second.InProgress -> "Stop Second game"
+                is DiscoGameState.NotStarted,
+                is DiscoGameState.First -> "Start Second game"
+            },
+            onClick = {
+                onEvent(
+                    when (state.discoGameState) {
+                        is DiscoGameState.Second.InProgress -> DiscoGameEvent.StopSecond
+                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond
+                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond
+                        is DiscoGameState.First -> DiscoGameEvent.StartSecond
                     }
                 )
             },
         )
     }
     when (val gameState = state.discoGameState) {
-        DiscoGameState.Done -> Text("Game finished!")
-        DiscoGameState.NotStarted -> Text("Game has not started yet!")
-        is DiscoGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
+        is DiscoGameState.Second.Done -> Text("Second game finished!")
+        is DiscoGameState.NotStarted -> Text("Second game has not started yet!")
+        is DiscoGameState.Second.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
             BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
             state
                 .scheduledEvents
-                .firstOrNull { it.type is TimedEventType.DiscoGamePressTimeoutEvent }
+                .firstOrNull { it.type is TimedEventType.SecondDiscoGamePressTimeoutEvent }
                 ?.let { CountDownProgressBar(it.time) }
                 ?: BigProgressBar(0f)
             gameState
                 .orderedParticipants
-                .chunked(gameState.width)
+                .chunked(gameState.width.takeIf { it > 0 } ?: 1)
                 .forEach { row ->
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         for ((_, color) in row) {
@@ -103,10 +124,21 @@ private fun DiscoGame(
                     }
                 }
         }
+        is DiscoGameState.First.Done -> Submissions(gameState.submissions)
+        is DiscoGameState.First.InProgress -> Column {
+            Box {
+                Text(
+                    (gameState.target.current.instruction?.char ?: '·').toString(),
+                    modifier = Modifier.background(color = gameState.target.current.color.toComposeColor()),
+                    fontSize = 250.sp,
+                )
+            }
+            Submissions(gameState.toSubmissionsIn(state))
+        }
     }
 }
 
-private fun kmpworkshop.common.Color.toComposeColor(): Color = Color(red, green, blue)
+private fun kmpworkshop.common.SerializableColor.toComposeColor(): Color = Color(red, green, blue)
 
 @Composable
 private fun PressiveGame(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
@@ -150,7 +182,7 @@ private fun CountDownProgressBar(time: Instant) {
         fun frameNanosToInstant(frameNanos: Long): Instant = startInstant + (frameNanos - startNanos).nanoseconds
         while (true) {
             withFrameNanos { frameTimeNanos ->
-                progress = ((time - frameNanosToInstant(frameTimeNanos)) / discoGamePressTimeout).toFloat().coerceIn(0f, 1f)
+                progress = ((time - frameNanosToInstant(frameTimeNanos)) / secondDiscoGamePressTimeout).toFloat().coerceIn(0f, 1f)
             }
         }
     }
@@ -330,7 +362,7 @@ private fun ServerState.getParticipantBy(key: ApiKey): Participant = participant
 @Composable
 private fun Submissions(submissions: Submissions) {
     Column(modifier = Modifier.padding(16.dp).scrollable(rememberScrollState(), orientation = Vertical)) {
-        BasicText(text = "Number of completions: ${submissions.completedSubmissions.size}")
+        BasicText(text = "Number of completions: ${submissions.completedSubmissions.size}/${submissions.participants.size}")
         for ((apiKey, timeOfCompletion) in submissions.completedSubmissions.entries.sortedBy { it.value }) {
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = submissions.participants.first { it.apiKey == apiKey }.name)
@@ -344,7 +376,8 @@ private fun Submissions(submissions: Submissions) {
     }
 }
 
-private data class Submissions(
+@Serializable
+data class Submissions(
     val startTime: Instant,
     val participants: List<Participant>,
     val completedSubmissions: Map<ApiKey, Instant>,
@@ -447,7 +480,7 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent(ParticipantReactivationEvent(participant)) }) {
+                Button(onClick = { onEvent(ParticipantReactivationEvent(participant, Random.nextLong())) }) {
                     Text("Activate")
                 }
                 Button(onClick = { onEvent(ParticipantRemovalEvent(participant)) }) {

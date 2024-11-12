@@ -2,6 +2,7 @@ package kmpworkshop.common
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.rpc.RPC
 import kotlinx.rpc.streamScoped
 import kotlinx.serialization.Serializable
@@ -13,18 +14,20 @@ interface WorkshopApiService : RPC {
     suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
     suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
-    suspend fun pressiveGameBackground(key: ApiKey): Flow<Color?>
-    suspend fun discoGameInstructions(key: ApiKey, pressEvents: Flow<Unit>): Flow<DiscoGameInstruction?>
-    suspend fun discoGameBackground(key: ApiKey): Flow<Color>
+    suspend fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?>
+    suspend fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?>
+    suspend fun discoGameBackground(key: ApiKey): Flow<SerializableColor>
+    suspend fun discoGamePress(key: ApiKey)
 }
 
 interface WorkshopServer {
     fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(suggestedRatio: Double): SlideResult
     fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
-    fun pressiveGameBackground(): Flow<Color?>
-    fun discoGameInstructions(pressEvents: Flow<Unit>): Flow<DiscoGameInstruction?>
-    fun discoGameBackground(): Flow<Color>
+    fun pressiveGameBackground(): Flow<SerializableColor?>
+    fun discoGameInstructions(): Flow<DiscoGameInstruction?>
+    fun discoGameBackground(): Flow<SerializableColor>
+    suspend fun discoGamePress()
 }
 
 fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
@@ -34,12 +37,15 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
         this@asServer.setSlider(apiKey, suggestedRatio)
     override fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String> =
         decoupledRpcFlow { this@asServer.playPressiveGame(apiKey, pressEvents) }
-    override fun pressiveGameBackground(): Flow<Color?> =
+    override fun pressiveGameBackground(): Flow<SerializableColor?> =
         decoupledRpcFlow { this@asServer.pressiveGameBackground(apiKey) }
-    override fun discoGameInstructions(buttonPressEvents: Flow<Unit>): Flow<DiscoGameInstruction?> =
-        decoupledRpcFlow { this@asServer.discoGameInstructions(apiKey, buttonPressEvents) }
-    override fun discoGameBackground(): Flow<Color> =
+    override fun discoGameInstructions(): Flow<DiscoGameInstruction?> =
+        decoupledRpcFlow { this@asServer.discoGameInstructions(apiKey) }
+    override fun discoGameBackground(): Flow<SerializableColor> =
         decoupledRpcFlow { this@asServer.discoGameBackground(apiKey) }
+    override suspend fun discoGamePress() {
+        this@asServer.discoGamePress(apiKey)
+    }
 }
 
 fun <T> decoupledRpcFlow(rpcFlow: suspend () -> Flow<T>): Flow<T> = channelFlow {
@@ -49,7 +55,7 @@ fun <T> decoupledRpcFlow(rpcFlow: suspend () -> Flow<T>): Flow<T> = channelFlow 
 }
 
 @Serializable
-data class Color(val red: Int, val green: Int, val blue: Int)
+data class SerializableColor(val red: Int, val green: Int, val blue: Int)
 
 @Serializable
 enum class PressiveGamePressType {

@@ -1,33 +1,32 @@
 package kmpworkshop.client
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.Button
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import kmpworkshop.common.DiscoGameInstruction
-import kmpworkshop.common.WorkshopServer
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 @Composable
 fun DiscoGame(server: DiscoGameServer) {
-    val background by remember { server.backgroundColors() }.collectAsState(initial = Color.White)
-    val instruction by remember { server.instructions() }.collectAsState(initial = null)
-    val scope = rememberCoroutineScope()
+    val background = remember { server.backgroundColors() }.collectAsState(initial = Color.White)
+    val instruction = remember { server.instructions() }.collectAsState(initial = null)
 
-    Box {
-        Spacer(modifier = Modifier.fillMaxSize().background(color = background))
-        Column {
-            Text((instruction?.char ?: '·').toString(), fontSize = 100.sp)
-            Button(onClick = { scope.launch { server.submitGuess() } }) {
-                Text("Press me!")
-            }
+    Column {
+        Text("Elements in a Column")
+        Text("Are painted under and above each other")
+        Box {
+            Text("Elements in a Box")
+            Text("Are painted on top of each other", fontSize = 30.sp)
+        }
+        Row {
+            Text("Elements in a Row")
+            Text("Are painted next to each other")
         }
     }
 }

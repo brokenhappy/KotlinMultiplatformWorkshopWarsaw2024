@@ -1,7 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
-import kmpworkshop.common.Color
+import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.DiscoGameInstruction
 import kmpworkshop.common.PressiveGamePressType
 import kotlinx.datetime.Instant
@@ -34,11 +34,19 @@ sealed class TimedEventType {
     @Serializable
     data object PressiveGameTickEvent: TimedEventType()
     @Serializable
-    data object DiscoGameBackgroundTickEvent: TimedEventType()
+    data class FirstDiscoGameTargetTickEvent(val randomSeed: Long): TimedEventType()
     @Serializable
-    data object DiscoGamePressTimeoutEvent: TimedEventType()
+    data class FirstDiscoGamePrivateTickEvent(val randomSeed: Long): TimedEventType()
+    @Serializable
+    data object SecondDiscoGameBackgroundTickEvent: TimedEventType()
+    @Serializable
+    data object SecondDiscoGamePressTimeoutEvent: TimedEventType()
     @Serializable
     data object PlaySuccessSound: TimedEventType()
+    @Serializable
+    data class PlayIncrementSound(val pitch: Double): TimedEventType()
+    @Serializable
+    data object PlayProgressLossSound: TimedEventType()
 }
 
 @Serializable
@@ -72,17 +80,45 @@ sealed class DiscoGameState {
     @Serializable
     data object NotStarted : DiscoGameState()
     @Serializable
-    data class InProgress(
-        val orderedParticipants: List<DiscoGameParticipantState>,
-        val progress: Int,
-        val instructionOrder: List<DiscoGameInstructionRequest>,
-    ) : DiscoGameState()
+    sealed class Second : DiscoGameState() {
+        @Serializable
+        data class InProgress(
+            val orderedParticipants: List<SecondDiscoGameParticipantState>,
+            val progress: Int,
+            val instructionOrder: List<DiscoGameInstructionRequest>,
+        ) : Second()
+        @Serializable
+        data object Done : Second()
+    }
     @Serializable
-    data object Done : DiscoGameState()
+    sealed class First : DiscoGameState() {
+        @Serializable
+        data class InProgress(
+            val startTime: Instant,
+            val states: Map<ApiKeyString, FirstDiscoGameParticipantState>,
+            val target: ColorAndInstructionWithPrevious,
+        ) : First()
+        @Serializable
+        data class Done(val submissions: Submissions) : First()
+    }
 }
 
 @Serializable
-data class DiscoGameParticipantState(val participant: ApiKey, val color: Color)
+data class SecondDiscoGameParticipantState(val participant: ApiKey, val color: SerializableColor)
+@Serializable
+sealed class FirstDiscoGameParticipantState {
+    @Serializable
+    data class InProgress(
+        val colorAndInstructionState: ColorAndInstructionWithPrevious,
+        val completionCount: Int,
+    ) : FirstDiscoGameParticipantState()
+    @Serializable
+    data class Done(val finishTime: Instant) : FirstDiscoGameParticipantState()
+}
+@Serializable
+data class ColorAndInstruction(val color: SerializableColor, val instruction: DiscoGameInstruction?)
+@Serializable
+data class ColorAndInstructionWithPrevious(val current: ColorAndInstruction, val previous: ColorAndInstruction)
 
 @Serializable
 data class DiscoGameInstructionRequest(val participant: ApiKey, val instruction: DiscoGameInstruction)

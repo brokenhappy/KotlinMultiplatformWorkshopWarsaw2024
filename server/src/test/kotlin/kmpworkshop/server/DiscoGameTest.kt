@@ -1,7 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
-import kmpworkshop.common.Color
+import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.DiscoGameInstruction.*
 import org.junit.jupiter.api.Test
 
@@ -13,12 +13,12 @@ class DiscoGameTest {
         val p3 = ApiKey("p3")
         val p4 = ApiKey("p4")
         ServerState(
-            discoGameState = DiscoGameState.InProgress(
+            discoGameState = DiscoGameState.Second.InProgress(
                 orderedParticipants = listOf(
-                    DiscoGameParticipantState(p1, Color(0, 0, 0)),
-                    DiscoGameParticipantState(p2, Color(0, 0, 0)),
-                    DiscoGameParticipantState(p3, Color(0, 0, 0)),
-                    DiscoGameParticipantState(p4, Color(0, 0, 0)),
+                    SecondDiscoGameParticipantState(p1, SerializableColor(0, 0, 0)),
+                    SecondDiscoGameParticipantState(p2, SerializableColor(0, 0, 0)),
+                    SecondDiscoGameParticipantState(p3, SerializableColor(0, 0, 0)),
+                    SecondDiscoGameParticipantState(p4, SerializableColor(0, 0, 0)),
                 ),
                 progress = 0,
                 instructionOrder = listOf(
@@ -36,14 +36,14 @@ class DiscoGameTest {
             .press(p3)
             .press(p1)
             .discoGameState
-            .assertIs<DiscoGameState.Done> { "Expected game to finish" }
+            .assertIs<DiscoGameState.Second.Done> { "Expected game to finish" }
     }
 }
 
 private fun ServerState.press(key: ApiKey): ServerState = afterDiscoGameKeyPressBy(key)
-private fun ServerState.asserting(assertion: (DiscoGameState.InProgress) -> Boolean): ServerState {
+private fun ServerState.asserting(assertion: (DiscoGameState.Second.InProgress) -> Boolean): ServerState {
     discoGameState
-        .assertIs<DiscoGameState.InProgress> { "Game state is not in progress anymore but $it" }
+        .assertIs<DiscoGameState.Second.InProgress> { "Game state is not in progress anymore but $it" }
         .also { assert(assertion(it)) }
     return this
 }

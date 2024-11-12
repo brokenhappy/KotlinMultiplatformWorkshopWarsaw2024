@@ -269,5 +269,5 @@ private fun PressiveGameState.SecondGameInProgress.hangUp(ditchedPerson: ApiKey)
 )
 
 private operator fun <V> Map<ApiKeyString, V>.get(key: ApiKey): V? = this[key.stringRepresentation]
-private fun <V> Map<ApiKeyString, V>.put(key: ApiKey, value: V): Map<ApiKeyString, V> =
+internal fun <V> Map<ApiKeyString, V>.put(key: ApiKey, value: V): Map<ApiKeyString, V> =
     put(key.stringRepresentation, value)
