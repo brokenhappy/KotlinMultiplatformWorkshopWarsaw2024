@@ -1,6 +1,7 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -12,9 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.client.ClientEntryPoint
-import kmpworkshop.common.ApiKey
-import kmpworkshop.common.WorkshopServer
-import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.*
 import kmpworkshop.server.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -24,13 +23,13 @@ import kotlinx.coroutines.flow.update
 
 fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState(
-//        participants = listOf(
-//            Participant("John", ApiKey("JohnKey")),
-//            Participant("Jane", ApiKey("JaneKey")),
-//            Participant("Alice", ApiKey("AliceKey")),
-//            Participant("Jobber", ApiKey("JobberKey")),
-//        ),
-        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
+        participants = listOf(
+            Participant("John", ApiKey("JohnKey")),
+            Participant("Jane", ApiKey("JaneKey")),
+            Participant("Alice", ApiKey("AliceKey")),
+            Participant("Jobber", ApiKey("JobberKey")),
+        ),
+//        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
         currentStage = WorkshopStage.SliderGameStage,
     ))
 
@@ -43,11 +42,14 @@ fun main(): Unit = runBlocking {
     }
 
     application {
-        Window(onCloseRequest = ::exitApplication, title = "Test environment") {
-            androidx.compose.material.MaterialTheme {
-                CanvasScreen(serverState, onEvent = { launch { eventBus.send(it) } })
-            }
-        }
+        val server = remember { workshopService(coroutineContext, serverState) }
+        WorkshopWindow(
+            onCloseRequest = ::exitApplication,
+            title = "Test environment",
+            serverState = serverState,
+            onEvent = { launch { eventBus.send(it) } },
+            serverUi = { state, onEvent -> CanvasScreen(state, server, onEvent) }
+        )
     }
 }
 
@@ -109,12 +111,7 @@ fun ResizableDraggableItem(
 }
 
 @Composable
-fun CanvasScreen(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopEvent) -> Unit) {
-    val state by produceState(initialValue = ServerState()) {
-        serverState.collect { value = it }
-    }
-    val scope = rememberCoroutineScope()
-
+fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: (WorkshopEvent) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -124,7 +121,7 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopE
             ServerUi(state, onEvent)
         }
         state.participants.forEachIndexed { index, participant ->
-            val server = remember { workshopServer(GlobalScope.coroutineContext, serverState, participant.apiKey) }
+            val server = remember { service.asServer(participant.apiKey) }
             ResizableDraggableItem(
                 initialWidth = 194.dp,
                 initialHeight = 242.dp,

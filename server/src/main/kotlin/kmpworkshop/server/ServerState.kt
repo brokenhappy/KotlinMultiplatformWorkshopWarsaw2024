@@ -13,6 +13,7 @@ data class ServerState(
     val deactivatedParticipants: List<Participant> = emptyList(),
     val unverifiedParticipants: List<Participant> = emptyList(),
     val currentStage: WorkshopStage = WorkshopStage.Registration,
+    val settings: ServerSettings = ServerSettings(),
     val scheduledEvents: List<TimedEvent> = emptyList(),
     val puzzleStates: Map<String, PuzzleState> = emptyMap(),
     val sliderGameState: SliderGameState = SliderGameState.NotStarted,
@@ -143,6 +144,12 @@ data class SecondPressiveGameParticipantState(
     val key: ApiKey,
     val personalId: String,
     val isBeingCalled: Boolean,
+)
+
+@Serializable
+data class ServerSettings(
+    /** Value is `in -1..1`. Negative means darker, Positive means lighter */
+    val dimmingRatio: Float = 0f,
 )
 
 @Serializable
