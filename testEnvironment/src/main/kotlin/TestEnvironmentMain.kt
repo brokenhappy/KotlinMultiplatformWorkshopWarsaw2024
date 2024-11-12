@@ -33,12 +33,9 @@ fun main(): Unit = runBlocking {
         currentStage = WorkshopStage.SliderGameStage,
     ))
 
-    val eventBus = Channel<WorkshopEvent>()
+    val eventBus = Channel<ScheduledWorkshopEvent>()
     launch(Dispatchers.Default) {
         performScheduledEvents(serverState, eventBus)
-    }
-    launch(Dispatchers.Default) {
-        eventBus.consumeEach { event -> serverState.update { it.after(event) } }
     }
 
     application {
@@ -111,7 +108,7 @@ fun ResizableDraggableItem(
 }
 
 @Composable
-fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: (WorkshopEvent) -> Unit) {
+fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: OnEvent) {
     Box(
         modifier = Modifier
             .fillMaxSize()

@@ -2,8 +2,6 @@
 package kmpworkshop.server
 
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.Orientation.Vertical
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -24,7 +22,6 @@ import androidx.compose.ui.window.Dialog
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.WorkshopStage
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
@@ -87,7 +84,7 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
 
 
 @Composable
-fun ServerUi(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
+fun ServerUi(state: ServerState, onEvent: OnEvent) {
     Column {
         // TODO: Start first pressive tick event when switching to Pressive game!
         StageTopBar(state.currentStage, onEvent)
@@ -106,7 +103,7 @@ fun ServerUi(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
 @Composable
 private fun DiscoGame(
     state: ServerState,
-    onEvent: (WorkshopEvent) -> Unit,
+    onEvent: OnEvent,
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
         TopButton(
@@ -117,7 +114,7 @@ private fun DiscoGame(
                 is DiscoGameState.Second -> "Start First game"
             },
             onClick = {
-                onEvent(
+                onEvent.schedule(
                     when (state.discoGameState) {
                         is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst
                         is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(Clock.System.now(), Random.nextLong())
@@ -135,7 +132,7 @@ private fun DiscoGame(
                 is DiscoGameState.First -> "Start Second game"
             },
             onClick = {
-                onEvent(
+                onEvent.schedule(
                     when (state.discoGameState) {
                         is DiscoGameState.Second.InProgress -> DiscoGameEvent.StopSecond
                         is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond
@@ -196,15 +193,15 @@ private fun DiscoGame(
 private fun kmpworkshop.common.SerializableColor.toComposeColor(): Color = Color(red, green, blue)
 
 @Composable
-private fun PressiveGame(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
+private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
     Column(modifier = Modifier.padding(16.dp)) {
-        TopButton("Start First game", onClick = { onEvent(PressiveGameEvent.StartFirst) })
+        TopButton("Start First game", onClick = { onEvent.schedule(PressiveGameEvent.StartFirst) })
         TopButton(
             "Start Second game",
             enabled = state.participants.size % 2 == 0,
-            onClick = { onEvent(PressiveGameEvent.StartSecond) },
+            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond) },
         )
-        TopButton("Start Third game", onClick = { onEvent(PressiveGameEvent.StartThird) })
+        TopButton("Start Third game", onClick = { onEvent.schedule(PressiveGameEvent.StartThird) })
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
@@ -294,18 +291,18 @@ private fun PressiveGameState.FirstGameDone.asSubmissions(participants: List<Par
 )
 
 @Composable
-private fun SliderGame(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
+private fun SliderGame(state: ServerState, onEvent: OnEvent) {
     // TODO: Names don't line up with sliders.
     when (val gameState = state.sliderGameState) {
         SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Start game") { onEvent(SliderGameEvent.Start) }
+            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start) }
         }
         is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Stop game") { onEvent(SliderGameEvent.Finished(gameState)) }
+            TopButton("Stop game") { onEvent.schedule(SliderGameEvent.Finished(gameState)) }
             UninteractiveSliderGame(gameState, getParticipant = { state.getParticipantBy(it) })
         }
         is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Restart game") { onEvent(SliderGameEvent.Restart) }
+            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart) }
             UninteractiveSliderGame(gameState.lastState, getParticipant = { state.getParticipantBy(it) })
         }
     }
@@ -401,13 +398,13 @@ private fun TopButton(text: String, enabled: Boolean = true, onClick: () -> Unit
 }
 
 @Composable
-private fun Puzzle(state: ServerState, puzzleName: String, onEvent: (WorkshopEvent) -> Unit) {
+private fun Puzzle(state: ServerState, puzzleName: String, onEvent: OnEvent) {
     val puzzleState = state.puzzleStates[puzzleName] ?: PuzzleState.Unopened
     when (puzzleState) {
         PuzzleState.Unopened -> {
             Row {
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent(PuzzleStartEvent(puzzleName, Clock.System.now())) }) {
+                Button(onClick = { onEvent.schedule(PuzzleStartEvent(puzzleName, Clock.System.now())) }) {
                     Text("Open puzzle!")
                 }
                 Spacer(modifier = Modifier.weight(1f))
@@ -456,7 +453,7 @@ private fun formatDuration(duration: Duration): String = when {
 }
 
 @Composable
-private fun StageTopBar(stage: WorkshopStage, onEvent: (WorkshopEvent) -> Unit) {
+private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
     Row(modifier = Modifier.padding(16.dp)) {
         Row {
             MoveStageButton(stage, onEvent, -1, Key.DirectionLeft) {
@@ -475,7 +472,7 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: (WorkshopEvent) -> Unit) 
                     onDismissRequest = { expanded = false },
                 ) {
                     WorkshopStage.entries.forEach {
-                        DropdownMenuItem(onClick = { expanded = false; onEvent(StageChangeEvent(it)) }) {
+                        DropdownMenuItem(onClick = { expanded = false; onEvent.schedule(StageChangeEvent(it)) }) {
                             Text(it.kotlinFile)
                         }
                     }
@@ -497,14 +494,14 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: (WorkshopEvent) -> Unit) 
 @Composable
 private fun MoveStageButton(
     stage: WorkshopStage,
-    onEvent: (WorkshopEvent) -> Unit,
+    onEvent: OnEvent,
     offset: Int,
     key: Key, // TODO: Make work?
     content: @Composable RowScope.() -> Unit,
 ) {
     Button(
         enabled = stage.moving(offset) != null,
-        onClick = { onEvent(StageChangeEvent(stage.moving(offset)!!)) },
+        onClick = { onEvent.schedule(StageChangeEvent(stage.moving(offset)!!)) },
         content = content,
     )
 }
@@ -515,7 +512,7 @@ private fun WorkshopStage.moving(offset: Int): WorkshopStage? =
 @Composable
 private fun Registration(
     state: ServerState,
-    onEvent: (WorkshopEvent) -> Unit,
+    onEvent: OnEvent,
 ) {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         BasicText(text = "Number of verified participants: ${state.participants.size}")
@@ -527,7 +524,7 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent(ParticipantDeactivationEvent(participant)) }) {
+                Button(onClick = { onEvent.schedule(ParticipantDeactivationEvent(participant)) }) {
                     Text("Deactivate")
                 }
             }
@@ -540,10 +537,10 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent(ParticipantReactivationEvent(participant, Random.nextLong())) }) {
+                Button(onClick = { onEvent.schedule(ParticipantReactivationEvent(participant, Random.nextLong())) }) {
                     Text("Activate")
                 }
-                Button(onClick = { onEvent(ParticipantRemovalEvent(participant)) }) {
+                Button(onClick = { onEvent.schedule(ParticipantRemovalEvent(participant)) }) {
                     Text("Delete")
                 }
             }
@@ -556,7 +553,7 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent(ParticipantRejectionEvent(participant)) }) {
+                Button(onClick = { onEvent.schedule(ParticipantRejectionEvent(participant)) }) {
                     Text("Reject")
                 }
             }

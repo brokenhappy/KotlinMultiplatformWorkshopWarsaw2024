@@ -29,7 +29,7 @@ import kotlin.time.Duration.Companion.seconds
 
 fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState())
-    val eventBus = Channel<WorkshopEvent>(capacity = Channel.UNLIMITED)
+    val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     launch(Dispatchers.Default) {
         try {
             serverState.persisting(File(serverBackupFile!!))
@@ -67,8 +67,8 @@ fun WorkshopWindow(
     serverState: Flow<ServerState>,
     title: String,
     onCloseRequest: () -> Unit,
-    onEvent: (WorkshopEvent) -> Unit,
-    serverUi: @Composable (ServerState, onEvent: (WorkshopEvent) -> Unit) -> Unit,
+    onEvent: OnEvent,
+    serverUi: @Composable (ServerState, onEvent: OnEvent) -> Unit,
 ) {
     Window(onCloseRequest = onCloseRequest, title = title) {
         var settingsIsOpen by remember { mutableStateOf(false) }
@@ -83,7 +83,7 @@ fun WorkshopWindow(
                 SettingsDialog(
                     state.settings,
                     onDismiss = { settingsIsOpen = false },
-                    onSettingsChange = { onEvent(SettingsChangeEvent(it)) },
+                    onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
                 )
             }
             serverUi(state, onEvent)

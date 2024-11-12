@@ -18,12 +18,24 @@ import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<WorkshopEvent>): Nothing {
+suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<ScheduledWorkshopEvent>): Nothing {
     coroutineScope {
         launch {
-            for (event in eventBus) {
+            for (scheduledEvent in eventBus) {
                 try {
-                    serverState.update { it.after(event) }
+                    when (scheduledEvent) {
+                        is ScheduledWorkshopEvent.AwaitingResult -> {
+                            val result = runCatching {
+                                serverState.updateAndGet { it.after(scheduledEvent.event) }
+                            }
+                            // Launch to make sure we keep the important Event loop running.
+                            launch { scheduledEvent.continuation.resumeWith(result) }
+                        }
+                        is ScheduledWorkshopEvent.IgnoringResult -> {
+                            // TODO: If exception happens, let's rewind and report the exception!!
+                            serverState.update { it.after(scheduledEvent.event) }
+                        }
+                    }
                 } catch (t: Throwable) {
                     t.printStackTrace()
                     throw t
