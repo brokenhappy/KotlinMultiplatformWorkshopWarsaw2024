@@ -253,6 +253,7 @@ private fun workshopService(
                 }
             }
         }
+        .distinctUntilChanged()
         .map { it ?: SerializableColor(0, 0, 0) }
 
     override suspend fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?> = serverState
