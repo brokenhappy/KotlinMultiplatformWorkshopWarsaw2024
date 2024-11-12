@@ -35,7 +35,7 @@ private fun createService(): WorkshopApiService = runBlocking {
 
     val client: KtorRPCClient = ktorClient.rpc {
         url {
-            host = "10.25.210.208"
+            host = "192.168.88.14"
 //            host = "10.0.2.2"
             port = 8080
             encodedPath = WorkshopApiService::class.simpleName!!
