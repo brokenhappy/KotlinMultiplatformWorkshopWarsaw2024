@@ -1,6 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.SerializableColor
+import kmpworkshop.common.WorkshopStage
 import kotlinx.serialization.Serializable
 import kotlin.random.Random
 
