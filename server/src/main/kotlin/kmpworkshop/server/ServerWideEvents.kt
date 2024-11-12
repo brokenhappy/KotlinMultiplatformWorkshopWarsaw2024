@@ -11,6 +11,8 @@ sealed class ServerWideEvents : WorkshopEvent()
 @Serializable
 data class StageChangeEvent(val stage: WorkshopStage) : ServerWideEvents()
 @Serializable
+data class SettingsChangeEvent(val newSettings: ServerSettings) : ServerWideEvents()
+@Serializable
 data class ParticipantDeactivationEvent(val participant: Participant) : ServerWideEvents()
 @Serializable
 data class ParticipantReactivationEvent(val participant: Participant, val randomSeed: Long) : ServerWideEvents()
@@ -21,6 +23,7 @@ data class ParticipantRejectionEvent(val participant: Participant) : ServerWideE
 
 internal fun ServerState.after(event: ServerWideEvents): ServerState = when (event) {
     is StageChangeEvent -> copy(currentStage = event.stage)
+    is SettingsChangeEvent -> copy(settings = event.newSettings)
     is ParticipantDeactivationEvent -> deactivateParticipant(event.participant)
     is ParticipantReactivationEvent -> reactivateParticipant(event.participant, Random(event.randomSeed))
     is ParticipantRemovalEvent -> removeParticipant(event.participant)

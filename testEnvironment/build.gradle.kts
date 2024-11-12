@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":server"))
     implementation(project(":client"))
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server")
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
 }

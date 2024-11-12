@@ -3,6 +3,10 @@
 package kmpworkshop.server
 
 import androidx.compose.material.MaterialTheme
+import androidx.compose.runtime.*
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.common.*
@@ -20,6 +24,7 @@ import kotlinx.serialization.serializer
 import java.io.File
 import java.util.*
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.absoluteValue
 import kotlin.time.Duration.Companion.seconds
 
 fun main(): Unit = runBlocking {
@@ -47,10 +52,41 @@ fun main(): Unit = runBlocking {
         performScheduledEvents(serverState, eventBus)
     }
     application {
-        Window(onCloseRequest = ::exitApplication, title = "KMP Workshop") {
-            MaterialTheme {
-                ServerUi(serverState, onEvent = { launch { eventBus.send(it) } })
+        WorkshopWindow(
+            onCloseRequest = ::exitApplication,
+            title = "KMP Workshop",
+            onEvent = { launch { eventBus.send(it) } },
+            serverState = serverState,
+            serverUi = { state, onEvent -> ServerUi(state, onEvent) },
+        )
+    }
+}
+
+@Composable
+fun WorkshopWindow(
+    serverState: Flow<ServerState>,
+    title: String,
+    onCloseRequest: () -> Unit,
+    onEvent: (WorkshopEvent) -> Unit,
+    serverUi: @Composable (ServerState, onEvent: (WorkshopEvent) -> Unit) -> Unit,
+) {
+    Window(onCloseRequest = onCloseRequest, title = title) {
+        var settingsIsOpen by remember { mutableStateOf(false) }
+        MenuBar {
+            Menu("Edit") {
+                Item("Settings", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { settingsIsOpen = true })
             }
+        }
+        MaterialTheme {
+            val state by serverState.collectAsState(initial = ServerState())
+            if (settingsIsOpen) {
+                SettingsDialog(
+                    state.settings,
+                    onDismiss = { settingsIsOpen = false },
+                    onSettingsChange = { onEvent(SettingsChangeEvent(it)) },
+                )
+            }
+            serverUi(state, onEvent)
         }
     }
 }
@@ -61,7 +97,7 @@ fun workshopServer(
     apiKey: ApiKey,
 ): WorkshopServer = workshopService(coroutineContext, serverState).asServer(apiKey)
 
-private fun workshopService(
+public fun workshopService(
     coroutineContext: CoroutineContext,
     serverState: MutableStateFlow<ServerState>,
 ): WorkshopApiService = object : WorkshopApiService {
@@ -236,9 +272,8 @@ private fun workshopService(
     }
 
     override suspend fun discoGameBackground(key: ApiKey): Flow<SerializableColor> = serverState
-        .map { it.discoGameState }
-        .map { gameState ->
-            when (gameState) {
+        .map { serverState ->
+            when (val gameState = serverState.discoGameState) {
                 is DiscoGameState.Second.Done,
                 is DiscoGameState.First.Done,
                 is DiscoGameState.NotStarted -> null
@@ -251,10 +286,9 @@ private fun workshopService(
                     is FirstDiscoGameParticipantState.Done -> null
                     is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.color
                 }
-            }
+            }.let { it ?: SerializableColor(0, 0, 0) }.applyingDimming(serverState.settings.dimmingRatio)
         }
         .distinctUntilChanged()
-        .map { it ?: SerializableColor(0, 0, 0) }
 
     override suspend fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?> = serverState
         .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
@@ -263,6 +297,12 @@ private fun workshopService(
 
     override val coroutineContext = coroutineContext
 }
+
+internal fun SerializableColor.applyingDimming(dimmingRatio: Float): SerializableColor = transitionTo(
+    other = if (dimmingRatio < 0) SerializableColor(0, 0, 0)
+            else SerializableColor(255, 255, 255),
+    ratio = dimmingRatio.absoluteValue,
+)
 
 private fun SliderGameState.InProgress.withGravityApplied(): SliderGameState =
     participantStates.values.elementAtOrNull(pegLevel + 1)?.let { slider ->

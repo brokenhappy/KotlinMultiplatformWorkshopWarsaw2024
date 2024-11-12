@@ -5,12 +5,14 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.Orientation.Vertical
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.AnnotatedString
@@ -18,12 +20,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight.Companion.Bold
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import kmpworkshop.common.ApiKey
+import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.WorkshopStage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -31,13 +36,55 @@ import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
-internal fun ServerUi(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopEvent) -> Unit) {
-    val state by produceState(initialValue = ServerState()) {
-        serverState.collect { value = it }
+internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onSettingsChange: (ServerSettings) -> Unit) {
+    var currentSettings by remember(settings) { mutableStateOf(settings) }
+    var autoSave by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentSettings, autoSave) {
+        if (autoSave && currentSettings != settings) {
+            onSettingsChange(currentSettings)
+        }
     }
 
-    ServerUi(state, onEvent)
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .border(2.dp, shape = RoundedCornerShape(4.dp), color = Color.DarkGray)
+                .background(Color.White)
+                .padding(16.dp)
+            ,
+        ) {
+            Row {
+                Text("Color dimming: ")
+                Slider(
+                    currentSettings.dimmingRatio,
+                    onValueChange = { currentSettings = settings.copy(dimmingRatio = it) },
+                    valueRange = -1f..1f,
+                )
+            }
+            Row {
+                Text("Auto apply changes: ")
+                Checkbox(autoSave, onCheckedChange = { autoSave = it })
+            }
+
+            Row {
+                Button(onClick = { currentSettings = ServerSettings() }) {
+                    Text("Reset")
+                }
+                Button(onClick = { onDismiss() }) {
+                    Text("Close")
+                }
+                if (!autoSave) {
+                    Button(onClick = { onSettingsChange(currentSettings) }, enabled = currentSettings != settings) {
+                        Text("Save")
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 @Composable
 fun ServerUi(state: ServerState, onEvent: (WorkshopEvent) -> Unit) {
@@ -115,7 +162,12 @@ private fun DiscoGame(
                 .forEach { row ->
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         for ((_, color) in row) {
-                            Spacer(modifier = Modifier.weight(1f).fillMaxHeight().background(color.toComposeColor()))
+                            Spacer(
+                                modifier = Modifier.weight(1f)
+                                    .fillMaxHeight()
+                                    .background(color.applyingDimming(state.settings.dimmingRatio).toComposeColor())
+                                ,
+                            )
                         }
                         if (row.size < gameState.width) {
                             Spacer(modifier = Modifier.weight((gameState.width - row.size).toFloat()))
@@ -128,7 +180,11 @@ private fun DiscoGame(
             Box {
                 Text(
                     (gameState.target.current.instruction?.char ?: '·').toString(),
-                    modifier = Modifier.background(color = gameState.target.current.color.toComposeColor()),
+                    modifier = Modifier.background(
+                        color = gameState.target.current.color
+                            .applyingDimming(state.settings.dimmingRatio)
+                            .toComposeColor(),
+                    ),
                     fontSize = 250.sp,
                 )
             }
@@ -215,6 +271,11 @@ fun Color.transitionTo(other: Color, ratio: Float): Color = Color(
     green = this.green * (1 - ratio) + other.green * ratio,
     blue = this.blue * (1 - ratio) + other.blue * ratio,
     alpha = this.alpha * (1 - ratio) + other.alpha * ratio
+)
+fun SerializableColor.transitionTo(other: SerializableColor, ratio: Float): SerializableColor = SerializableColor(
+    red = (this.red * (1 - ratio) + other.red * ratio).roundToInt(),
+    green = (this.green * (1 - ratio) + other.green * ratio).roundToInt(),
+    blue = (this.blue * (1 - ratio) + other.blue * ratio).roundToInt(),
 )
 
 
