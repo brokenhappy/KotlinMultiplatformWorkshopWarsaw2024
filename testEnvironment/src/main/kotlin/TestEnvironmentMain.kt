@@ -11,8 +11,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import kmpworkshop.client.ClientEntryPoint
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopServer
+import kmpworkshop.common.WorkshopStage
 import kmpworkshop.server.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -22,13 +24,13 @@ import kotlinx.coroutines.flow.update
 
 fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState(
-        participants = listOf(
-            Participant("John", ApiKey("JohnKey")),
-            Participant("Jane", ApiKey("JaneKey")),
-            Participant("Alice", ApiKey("AliceKey")),
-            Participant("Jobber", ApiKey("JobberKey")),
-        ),
-//        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
+//        participants = listOf(
+//            Participant("John", ApiKey("JohnKey")),
+//            Participant("Jane", ApiKey("JaneKey")),
+//            Participant("Alice", ApiKey("AliceKey")),
+//            Participant("Jobber", ApiKey("JobberKey")),
+//        ),
+        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
         currentStage = WorkshopStage.SliderGameStage,
     ))
 
@@ -137,5 +139,10 @@ fun CanvasScreen(serverState: MutableStateFlow<ServerState>, onEvent: (WorkshopE
 
 @Composable
 fun FunctionUnderTest(server: WorkshopServer) {
-    DiscoGameSolution(server)
+    ClientEntryPoint(
+        server,
+        sliderGameSolution = { SliderGameSolution(server) },
+        pressiveGameSolution = { PressiveGameSolution(server) },
+        discoGameSolution = { DiscoGameSolution(it) },
+    )
 }

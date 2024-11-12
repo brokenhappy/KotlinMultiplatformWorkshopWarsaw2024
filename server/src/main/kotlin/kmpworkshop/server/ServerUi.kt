@@ -1,12 +1,10 @@
 @file:Suppress("FunctionName")
 package kmpworkshop.server
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.Orientation.Vertical
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.*
@@ -287,7 +285,7 @@ fun Int.binaryAsMorseCode(): String =
 
 @Composable
 private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getParticipant: (ApiKey) -> Participant) {
-    Row {
+    Row(modifier = Modifier.verticalScroll(rememberScrollState())) {
         fun Modifier.weight(d: Double): Modifier = if (d == .0) this else this.weight(d.toFloat())
         Column {
             Spacer(modifier = Modifier.height(32.dp))
@@ -362,7 +360,7 @@ private fun ServerState.getParticipantBy(key: ApiKey): Participant = participant
 
 @Composable
 private fun Submissions(submissions: Submissions) {
-    Column(modifier = Modifier.padding(16.dp).scrollable(rememberScrollState(), orientation = Vertical)) {
+    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         BasicText(text = "Number of completions: ${submissions.completedSubmissions.size}/${submissions.participants.size}")
         for ((apiKey, timeOfCompletion) in submissions.completedSubmissions.entries.sortedBy { it.value }) {
             Row(modifier = Modifier.padding(8.dp)) {
@@ -458,7 +456,7 @@ private fun Registration(
     state: ServerState,
     onEvent: (WorkshopEvent) -> Unit,
 ) {
-    Column(modifier = Modifier.padding(16.dp).scrollable(rememberScrollState(), orientation = Vertical)) {
+    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         BasicText(text = "Number of verified participants: ${state.participants.size}")
         state.participants.forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
