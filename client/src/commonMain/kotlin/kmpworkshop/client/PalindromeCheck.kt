@@ -1,9 +1,4 @@
-import kmpworkshop.client.checkCodePuzzle
-
-
-fun main() {
-    checkCodePuzzle("PalindromeCheck.kt", solution = ::doPalindromeCheckOn)
-}
+package kmpworkshop.client
 
 /**
  * Returns true if [input] is a palindrome. Meaning that it would be the same word if it were reversed.

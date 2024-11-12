@@ -6,7 +6,6 @@ plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
     id("com.android.application")
-//    id("io.ktor.plugin")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -79,6 +78,7 @@ kotlin {
             implementation(project(":common"))
         }
         jvmMain.dependencies {
+            implementation("org.slf4j:slf4j-simple:1.7.32")
             implementation(compose.desktop.currentOs)
             implementation("io.ktor:ktor-client-cio:2.3.12")
         }
@@ -92,6 +92,7 @@ kotlin {
         }
     }
     jvmToolchain(17)
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-receivers")
     }
@@ -99,6 +100,6 @@ kotlin {
 
 compose.desktop {
     application {
-        mainClass = "PressiveGameClientDesktopKt"
+        mainClass = "com.woutwerkman.MainKt"
     }
 }

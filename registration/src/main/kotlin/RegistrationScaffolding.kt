@@ -3,6 +3,10 @@ import kmpworkshop.common.*
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
+fun main() {
+    doRegistration()
+}
+
 internal fun printFirstHint() {
     println("""
         Welcome to the workshop! To start, you have to tell me the name that you will be using for the rest of the sessions!
@@ -32,7 +36,7 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
             println("""
                 Welcome! To verify your registration, run the following:
                 ```kotlin
-                fun main() {
+                fun doRegistration() {
                    verifyMyApiKey()
                 }
                 ```
@@ -62,7 +66,7 @@ private fun requestNameAndSuggestFollowup() {
         To proceed, run the following kotlin code:
         
         ```kotlin
-        fun main() {
+        fun doRegistration() {
             registerMyselfByNameThatIWillUseForTheRestOfTheSessions("<your name here!>") // (Sorry, please use ASCII characters)
         }
         ```
@@ -70,7 +74,8 @@ private fun requestNameAndSuggestFollowup() {
 }
 
 private fun prepareApiKey(apiKeyString: String) {
-    val file = File("../common/src/commonMain/kotlin/kmpworkshop/common/Secrets.kt")
+    val s = File.separatorChar
+    val file = File("..${s}common${s}src${s}commonMain${s}kotlin${s}kmpworkshop${s}common${s}Secrets.kt")
     file.createNewFile()
     file.readLines()
         .filterNot { it.startsWith("val clientApiKey: String? =") }
