@@ -309,7 +309,8 @@ private fun SliderGame(state: ServerState, onEvent: OnEvent) {
 }
 
 // @TestOnly public!!!
-fun binaryMoreCodeIdentifiers(count: Int, random: Random = Random): List<String> = count
+context(Random)
+fun binaryMoreCodeIdentifiers(count: Int): List<String> = count
     .nextPowerOfTwo()
     .let { totalBits ->
         val width = when (count) {
@@ -319,7 +320,7 @@ fun binaryMoreCodeIdentifiers(count: Int, random: Random = Random): List<String>
             }
         }
         (0..<totalBits)
-            .shuffled(random)
+            .shuffled(this@Random)
             .take(count)
             .map { it.binaryAsMorseCode().padEnd(width, '.') }
     }

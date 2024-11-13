@@ -22,7 +22,7 @@ sealed class PressiveGameEvent : WorkshopEvent() {
 @Serializable
 data class PressiveGamePressEvent(val now: Instant, val randomSeed: Long, val participant: ApiKey, val pressEvent: PressiveGamePressType) : WorkshopEventWithResult<String?>() {
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, String?> =
-        oldState.pressiveGameState.pressing(pressEvent, presserKey = participant, now, Random(randomSeed))
+        with(Random(randomSeed)) { oldState.pressiveGameState.pressing(pressEvent, presserKey = participant, now) }
             .let { update ->
                 when (update) {
                     is PressiveGamePressResult.Hint -> oldState to update.message
@@ -35,31 +35,31 @@ data class PressiveGamePressEvent(val now: Instant, val randomSeed: Long, val pa
 }
 
 fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
-    is PressiveGameEvent.StartFirst -> startingFirstPressiveGame(event.now, Random(event.randomSeed))
-    is PressiveGameEvent.StartSecond -> startingSecondPressiveGame(Random(event.randomSeed))
-    is PressiveGameEvent.StartThird -> startingThirdPressiveGame(Random(event.randomSeed))
+    is PressiveGameEvent.StartFirst -> with(Random(event.randomSeed)) { startingFirstPressiveGame(event.now) }
+    is PressiveGameEvent.StartSecond -> with(Random(event.randomSeed)) { startingSecondPressiveGame() }
+    is PressiveGameEvent.StartThird -> with(Random(event.randomSeed)) { startingThirdPressiveGame() }
 }
 
-private fun ServerState.startingFirstPressiveGame(now: Instant, random: Random): ServerState = copy(
+context(Random)
+private fun ServerState.startingFirstPressiveGame(now: Instant): ServerState = copy(
     pressiveGameState = PressiveGameState.FirstGameInProgress(
         startTime = now,
         states = participants.associate { participant ->
             Pair(
                 participant.apiKey.stringRepresentation,
-                newFirstPressiveGameState(justFailed = false, random),
+                newFirstPressiveGameState(justFailed = false),
             )
         },
     ),
 )
 
-private fun ServerState.startingSecondPressiveGame(random: Random): ServerState =
+context(Random)
+private fun ServerState.startingSecondPressiveGame(): ServerState =
     copy(pressiveGameState = PressiveGameState.SecondGameInProgress(
-        order = participants.shuffled(random).map { it.apiKey },
+        order = participants.shuffled(this@Random).map { it.apiKey },
         progress = 0,
         states = participants
-            .zip(
-                binaryMoreCodeIdentifiers(count = participants.size)
-            )
+            .zip(binaryMoreCodeIdentifiers(count = participants.size))
             .associate { (participant, code) ->
                 Pair(
                     participant.apiKey.stringRepresentation,
@@ -73,10 +73,11 @@ private fun ServerState.startingSecondPressiveGame(random: Random): ServerState 
             }
     ))
 
-private fun ServerState.startingThirdPressiveGame(random: Random): ServerState =
+context(Random)
+private fun ServerState.startingThirdPressiveGame(): ServerState =
     copy(
         pressiveGameState = PressiveGameState.ThirdGameInProgress(
-            order = participants.shuffled(random).map { it.apiKey },
+            order = participants.shuffled(this@Random).map { it.apiKey },
             progress = 0,
             participantThatIsBeingRung = null,
         )
@@ -142,11 +143,11 @@ fun PressiveGameState.toPressResult(): PressiveGamePressResult.Update = Pressive
 fun PressiveGameState.withEvent(event: TimedEventType): PressiveGamePressResult.UpdateWithEvent =
     PressiveGamePressResult.UpdateWithEvent(toPressResult(), event)
 
+context(Random)
 internal fun PressiveGameState.pressing(
     type: PressiveGamePressType,
     presserKey: ApiKey,
     now: Instant,
-    random: Random,
 ): PressiveGamePressResult = when (this) {
     PressiveGameState.NotStarted -> PressiveGamePressResult.Hint("Hold up there fella! We haven't started the game yet :)")
     PressiveGameState.ThirdGameDone,
@@ -172,7 +173,7 @@ internal fun PressiveGameState.pressing(
                             else it.withEvent(TimedEventType.PlaySuccessSound)
                         }
                 }
-            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true, random)))
+            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true)))
                 .toPressResult()
         }
     } ?: PressiveGamePressResult.Hint(
@@ -225,8 +226,9 @@ internal fun PressiveGameState.pressing(
         }
 }
 
-internal fun newFirstPressiveGameState(justFailed: Boolean, random: Random): FirstPressiveGameParticipantState =
-    FirstPressiveGameParticipantState(newRandomPresses(random), justFailed = justFailed, finishTime = null)
+context(Random)
+internal fun newFirstPressiveGameState(justFailed: Boolean): FirstPressiveGameParticipantState =
+    FirstPressiveGameParticipantState(newRandomPresses(), justFailed = justFailed, finishTime = null)
 
 private fun FirstPressiveGameParticipantState.dropSinglePressLeft(now: Instant): FirstPressiveGameParticipantState =
     copy(pressesLeft = pressesLeft.drop(1))
@@ -304,8 +306,9 @@ private fun Map<ApiKeyString, SecondPressiveGameParticipantState>.tryToFinishRou
 private fun SecondPressiveGameParticipantState.successfullyPairedWith(other: ApiKey): SecondPressiveGameParticipantState =
     copy(pairingState = SuccessFullyPaired(other), isBeingCalled = false)
 
-internal fun newRandomPresses(random: Random): List<PressiveGamePressType> = generateSequence {
-    generateSequence { PressiveGamePressType.entries.random(random) }
+context(Random)
+internal fun newRandomPresses(): List<PressiveGamePressType> = generateSequence {
+    generateSequence { PressiveGamePressType.entries.random(this@Random) }
         .take(NumberOfPressesNeededForFirstPressiveGame)
         .toList()
 }.first { it.toSet() == PressiveGamePressType.entries.toSet() /* Make sure we force them to press all types! */ }
