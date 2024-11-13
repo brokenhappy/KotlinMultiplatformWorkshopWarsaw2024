@@ -1,7 +1,6 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -10,16 +9,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import kmpworkshop.client.AdaptingBackground
 import kmpworkshop.client.ClientEntryPoint
 import kmpworkshop.common.*
 import kmpworkshop.server.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState(
@@ -138,7 +137,7 @@ fun FunctionUnderTest(server: WorkshopServer) {
     ClientEntryPoint(
         server,
         sliderGameSolution = { SliderGameSolution(server) },
-        pressiveGameSolution = { PressiveGameSolution(server) },
+        pressiveGameSolution = { AdaptingBackground(server) { PressiveGameSolution(server) } },
         discoGameSolution = { DiscoGameSolution(it) },
     )
 }
