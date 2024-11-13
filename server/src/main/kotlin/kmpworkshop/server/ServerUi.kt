@@ -116,7 +116,7 @@ private fun DiscoGame(
             onClick = {
                 onEvent.schedule(
                     when (state.discoGameState) {
-                        is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst
+                        is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst(Clock.System.now())
                         is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(Clock.System.now(), Random.nextLong())
                         is DiscoGameState.NotStarted,
                         is DiscoGameState.Second -> DiscoGameEvent.StartFirst(Clock.System.now(), Random.nextLong())
@@ -135,9 +135,9 @@ private fun DiscoGame(
                 onEvent.schedule(
                     when (state.discoGameState) {
                         is DiscoGameState.Second.InProgress -> DiscoGameEvent.StopSecond
-                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond
-                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond
-                        is DiscoGameState.First -> DiscoGameEvent.StartSecond
+                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond(Random.nextLong())
+                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond(Random.nextLong())
+                        is DiscoGameState.First -> DiscoGameEvent.StartSecond(Random.nextLong())
                     }
                 )
             },
@@ -195,13 +195,13 @@ private fun kmpworkshop.common.SerializableColor.toComposeColor(): Color = Color
 @Composable
 private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
     Column(modifier = Modifier.padding(16.dp)) {
-        TopButton("Start First game", onClick = { onEvent.schedule(PressiveGameEvent.StartFirst) })
+        TopButton("Start First game", onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.nextLong())) })
         TopButton(
             "Start Second game",
             enabled = state.participants.size % 2 == 0,
-            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond) },
+            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.nextLong())) },
         )
-        TopButton("Start Third game", onClick = { onEvent.schedule(PressiveGameEvent.StartThird) })
+        TopButton("Start Third game", onClick = { onEvent.schedule(PressiveGameEvent.StartThird(Random.nextLong())) })
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
@@ -295,14 +295,14 @@ private fun SliderGame(state: ServerState, onEvent: OnEvent) {
     // TODO: Names don't line up with sliders.
     when (val gameState = state.sliderGameState) {
         SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start) }
+            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start(Random.nextLong())) }
         }
         is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
             TopButton("Stop game") { onEvent.schedule(SliderGameEvent.Finished(gameState)) }
             UninteractiveSliderGame(gameState, getParticipant = { state.getParticipantBy(it) })
         }
         is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart) }
+            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart(Random.nextLong())) }
             UninteractiveSliderGame(gameState.lastState, getParticipant = { state.getParticipantBy(it) })
         }
     }

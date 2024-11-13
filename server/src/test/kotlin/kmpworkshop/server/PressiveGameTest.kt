@@ -16,6 +16,7 @@ import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kmpworkshop.server.PressivePairingState.TriedToCallNonExistingCode
 import kotlinx.datetime.Instant
 import org.junit.jupiter.api.Nested
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.fail
 
@@ -239,25 +240,25 @@ private fun PressiveGameState.SecondGameInProgress.assertPairingState(
 private fun PressiveGameState.SecondGameInProgress.pressingProgress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState.SecondGameInProgress = pressing(type, presser, onMessage = {})
+): PressiveGameState.SecondGameInProgress = pressing(type, presser, now, Random(randomSeed)).first
     .assertIs<PressiveGameState.SecondGameInProgress> { "Game state changed unexpectedly to $it" }
 
 private fun PressiveGameState.FirstGameInProgress.pressingProgress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState.FirstGameInProgress = pressing(type, presser, onMessage = {})
+): PressiveGameState.FirstGameInProgress = pressing(type, presser, now, Random(randomSeed)).first
     .assertIs<PressiveGameState.FirstGameInProgress> { "Game state changed unexpectedly to $it" }
 
 private fun PressiveGameState.SecondGameInProgress.lastPress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState = pressing(type, presser, onMessage = {})
+): PressiveGameState = pressing(type, presser, now, Random(randomSeed)).first
     .assertIs<PressiveGameState.SecondGameDone> { "Game state was supposed to finish, but is $it" }
 
 private fun PressiveGameState.FirstGameInProgress.lastPress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState = pressing(type, presser, onMessage = {})
+): PressiveGameState = pressing(type, presser, now, Random(randomSeed)).first
     .assertIs<PressiveGameState.FirstGameDone> { "Game state was supposed to finish, but is $it" }
 
 internal inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =

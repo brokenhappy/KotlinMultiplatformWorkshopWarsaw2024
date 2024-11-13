@@ -16,32 +16,35 @@ sealed class DiscoGameEvent : WorkshopEvent() {
     @Serializable
     data class RestartFirst(val now: Instant, val randomSeed: Long) : DiscoGameEvent()
     @Serializable
-    data object StopFirst : DiscoGameEvent()
+    data class StopFirst(val now: Instant) : DiscoGameEvent()
     @Serializable
-    data object StartSecond : DiscoGameEvent()
+    data class StartSecond(val randomSeed: Long) : DiscoGameEvent()
     @Serializable
-    data object RestartSecond : DiscoGameEvent()
+    data class RestartSecond(val randomSeed: Long) : DiscoGameEvent()
     @Serializable
     data object StopSecond : DiscoGameEvent()
+    @Serializable
+    data class GuessSubmissionEvent(val participant: ApiKey, val randomSeed: Long, val now: Instant) : DiscoGameEvent()
 }
 
 fun ServerState.after(event: DiscoGameEvent): ServerState = when (event) {
     is DiscoGameEvent.StopSecond -> copy(discoGameState = DiscoGameState.Second.Done)
-    is DiscoGameEvent.RestartSecond,
-    is DiscoGameEvent.StartSecond -> startingSecondDiscoGame()
+    is DiscoGameEvent.RestartSecond -> startingSecondDiscoGame(Random(event.randomSeed))
+    is DiscoGameEvent.StartSecond -> startingSecondDiscoGame(Random(event.randomSeed))
     is DiscoGameEvent.StopFirst -> copy(
         discoGameState = DiscoGameState.First.Done(
             submissions = (discoGameState as? DiscoGameState.First.InProgress)?.toSubmissionsIn(this)
                 ?: (discoGameState as? DiscoGameState.First.Done)?.submissions
-                ?: emptySubmissions(),
+                ?: emptySubmissions(event.now),
         )
     )
     is DiscoGameEvent.RestartFirst -> startingFirstDiscoGame(event.now, Random(event.randomSeed))
     is DiscoGameEvent.StartFirst -> startingFirstDiscoGame(event.now, Random(event.randomSeed))
+    is DiscoGameEvent.GuessSubmissionEvent -> afterDiscoGameGuessSubmission(event.participant, event.now, Random(event.randomSeed))
 }
 
-private fun emptySubmissions(): Submissions =
-    Submissions(startTime = Clock.System.now(), participants = emptyList(), completedSubmissions = emptyMap())
+private fun emptySubmissions(now: Instant): Submissions =
+    Submissions(startTime = now, participants = emptyList(), completedSubmissions = emptyMap())
 
 fun ServerState.startingFirstDiscoGame(now: Instant, random: Random): ServerState = copy(
     discoGameState = DiscoGameState.First.InProgress(
@@ -55,22 +58,22 @@ fun ServerState.startingFirstDiscoGame(now: Instant, random: Random): ServerStat
         startTime = now,
     ),
 )
-    .scheduling(TimedEventType.FirstDiscoGameTargetTickEvent(Random.nextLong())).after(0.seconds)
-    .scheduling(TimedEventType.FirstDiscoGamePrivateTickEvent(Random.nextLong())).after(0.seconds)
+    .scheduling(TimedEventType.FirstDiscoGameTargetTickEvent(random.nextLong())).after(0.seconds)
+    .scheduling(TimedEventType.FirstDiscoGamePrivateTickEvent(random.nextLong())).after(0.seconds)
 
-fun ServerState.startingSecondDiscoGame(): ServerState = copy(
+fun ServerState.startingSecondDiscoGame(random: Random): ServerState = copy(
     discoGameState = DiscoGameState.Second.InProgress(
         orderedParticipants = participants
             .map { SecondDiscoGameParticipantState(it.apiKey, SerializableColor(0, 0, 0)) }
-            .shuffled(),
+            .shuffled(random),
         progress = 0,
         instructionOrder = emptyList(),
-    ).restartingInstructions(),
+    ).restartingInstructions(random),
 )
-    .scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent).after(0.seconds)
-    .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent).after(1.5.seconds)
+    .scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent(random.nextLong())).after(0.seconds)
+    .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(random.nextLong())).after(1.5.seconds)
 
-internal fun ServerState.afterDiscoGameKeyPressBy(participant: ApiKey): ServerState = when (val gameState = discoGameState) {
+internal fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now: Instant, random: Random): ServerState = when (val gameState = discoGameState) {
     is DiscoGameState.Second.Done,
     is DiscoGameState.First.Done,
     is DiscoGameState.NotStarted -> this
@@ -81,8 +84,8 @@ internal fun ServerState.afterDiscoGameKeyPressBy(participant: ApiKey): ServerSt
             ) else copy(
                 discoGameState = gameState.copy(progress = gameState.progress + 1),
                 scheduledEvents = scheduledEvents.filter { it.type !is TimedEventType.SecondDiscoGamePressTimeoutEvent }
-            ).scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent).after(secondDiscoGamePressTimeout)
-        else copy(discoGameState = gameState.restartingInstructions())
+            ).scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(random.nextLong())).after(secondDiscoGamePressTimeout)
+        else copy(discoGameState = gameState.restartingInstructions(random))
     is DiscoGameState.First.InProgress -> {
         when (val participantState = gameState.states[participant.stringRepresentation]) {
             null,
@@ -98,7 +101,7 @@ internal fun ServerState.afterDiscoGameKeyPressBy(participant: ApiKey): ServerSt
                 ).scheduling(TimedEventType.PlayIncrementSound((participantState.completionCount + 1).toDouble() / numberOfCorrectGuessesToFinishThirdDiscoGame)).after(0.seconds)
                 else copy(
                     discoGameState = gameState.copy(
-                        states = gameState.states.put(participant, FirstDiscoGameParticipantState.Done(Clock.System.now()))
+                        states = gameState.states.put(participant, FirstDiscoGameParticipantState.Done(now))
                     ).applyIf({ it.states.all { (_, state) -> state is FirstDiscoGameParticipantState.Done } }) {
                         DiscoGameState.First.Done(it.toSubmissionsIn(this))
                     }
@@ -161,40 +164,49 @@ private fun Int.widthOfNearestGreaterSquare(): Int =
 private fun DiscoPoint.move(instruction: DiscoGameInstruction): DiscoPoint =
     DiscoPoint(x + instruction.dx, y + instruction.dy)
 
-internal fun DiscoGameState.Second.InProgress.restartingInstructions(): DiscoGameState.Second.InProgress = copy(
+internal fun DiscoGameState.Second.InProgress.restartingInstructions(random: Random): DiscoGameState.Second.InProgress = copy(
     progress = 0,
-    instructionOrder = createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction().shuffled()
+    instructionOrder = createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction(random).shuffled(random)
 )
 
-private fun DiscoGameState.Second.InProgress.createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction(): List<DiscoGameInstructionRequest> =
-    createSetOfInstructionsThatInstructsFromEachUser()
+private fun DiscoGameState.Second.InProgress.createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction(
+    random: Random,
+): List<DiscoGameInstructionRequest> =
+    createSetOfInstructionsThatInstructsFromEachUser(random)
         .let { instructions ->
             val targets = instructions.map { it.targetIn(this) }.toSet()
-            instructions + createSetOfInstructionsThatTargetsEachUser().filter { it.targetIn(this) !in targets }
+            instructions + createSetOfInstructionsThatTargetsEachUser(random).filter { it.targetIn(this) !in targets }
         }
 
-private fun DiscoGameState.Second.InProgress.createSetOfInstructionsThatInstructsFromEachUser(): List<DiscoGameInstructionRequest> = orderedParticipants
+private fun DiscoGameState.Second.InProgress.createSetOfInstructionsThatInstructsFromEachUser(
+    random: Random,
+): List<DiscoGameInstructionRequest> = orderedParticipants
     .map { it.participant }
-    .map { participant -> createInstructionThatInstructsFrom(participant) }
+    .map { participant -> createInstructionThatInstructsFrom(participant, random) }
 
-internal fun DiscoGameState.Second.InProgress.createInstructionThatInstructsFrom(participant: ApiKey): DiscoGameInstructionRequest {
+internal fun DiscoGameState.Second.InProgress.createInstructionThatInstructsFrom(participant: ApiKey, random: Random): DiscoGameInstructionRequest {
     val location = participant.findPointIn(this)!!
     return DiscoGameInstruction
         .entries
-        .shuffled()
+        .shuffled(random)
         .first { location.move(it).toOffsetIn(this).isNotNullAnd { it <= orderedParticipants.size } }
         .let { DiscoGameInstructionRequest(participant, it) }
 }
 
-private fun DiscoGameState.Second.InProgress.createSetOfInstructionsThatTargetsEachUser(): List<DiscoGameInstructionRequest> = orderedParticipants
+private fun DiscoGameState.Second.InProgress.createSetOfInstructionsThatTargetsEachUser(
+    random: Random,
+): List<DiscoGameInstructionRequest> = orderedParticipants
     .map { it.participant }
-    .map { participant -> createInstructionThatTargets(participant) }
+    .map { participant -> createInstructionThatTargets(participant, random) }
 
-internal fun DiscoGameState.Second.InProgress.createInstructionThatTargets(participant: ApiKey): DiscoGameInstructionRequest {
+internal fun DiscoGameState.Second.InProgress.createInstructionThatTargets(
+    participant: ApiKey,
+    random: Random,
+): DiscoGameInstructionRequest {
     val location = participant.findPointIn(this)!!
     return DiscoGameInstruction
         .entries
-        .shuffled()
+        .shuffled(random)
         .firstNotNullOf { instruction ->
             location
                 .move(instruction.inverted())

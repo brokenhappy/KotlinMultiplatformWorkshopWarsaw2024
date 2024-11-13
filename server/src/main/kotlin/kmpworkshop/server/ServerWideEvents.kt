@@ -1,9 +1,14 @@
+@file:Suppress("ReplaceToWithInfixForm")
+
 package kmpworkshop.server
 
-import kmpworkshop.common.SerializableColor
-import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import java.util.*
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
 
 
 @Serializable
@@ -12,6 +17,57 @@ sealed class ServerWideEvents : WorkshopEvent()
 data class StageChangeEvent(val stage: WorkshopStage) : ServerWideEvents()
 @Serializable
 data class SettingsChangeEvent(val newSettings: ServerSettings) : ServerWideEvents()
+@Serializable
+data class RegistrationStartEvent(val name: String) : WorkshopEventWithResult<ApiKeyRegistrationResult>() {
+    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, ApiKeyRegistrationResult> = when {
+        !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
+        oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
+        else -> UUID.randomUUID().toString()
+            .let { Participant(name, ApiKey(it)) }
+            .let {
+                oldState.copy(unverifiedParticipants = oldState.unverifiedParticipants + it) to ApiKeyRegistrationResult.Success(it.apiKey)
+            }
+    }
+}
+
+@Serializable
+data class RegistrationVerificationEvent(val key: ApiKey) : WorkshopEventWithResult<NameVerificationResult>() {
+    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, NameVerificationResult> {
+        val name = oldState
+            .unverifiedParticipants
+            .firstOrNull { it.apiKey == key }
+            ?.name
+            ?: return oldState to NameVerificationResult.ApiKeyDoesNotExist
+        val stateWithoutUnverifiedParticipant = oldState.copy(
+            unverifiedParticipants = oldState.unverifiedParticipants.filter { it.apiKey != key },
+        )
+        return if (oldState.participants.any { it.name == name })
+            stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
+        else stateWithoutUnverifiedParticipant.copy(
+            participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key),
+        ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+            .to(NameVerificationResult.Success)
+    }
+}
+
+@Serializable
+data class PuzzleFinishedEvent(val now: Instant, val participant: ApiKey, val puzzleName: String) : WorkshopEventWithResult<SolvingStatus>() {
+    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, SolvingStatus> =
+        (oldState.puzzleStates[puzzleName] as? PuzzleState.Opened)?.let { puzzleState ->
+            when {
+                participant.stringRepresentation in puzzleState.submissions -> oldState to SolvingStatus.AlreadySolved
+                else -> oldState.copy(
+                    puzzleStates = oldState.puzzleStates + puzzleName.to(
+                        puzzleState.copy(
+                            submissions = puzzleState.submissions + (participant.stringRepresentation to now)
+                        )
+                    )
+                ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+                    .to(SolvingStatus.Done)
+            }
+        } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
+}
+
 @Serializable
 data class ParticipantDeactivationEvent(val participant: Participant) : ServerWideEvents()
 @Serializable
@@ -73,8 +129,8 @@ private fun ServerState.reactivateParticipant(participant: Participant, random: 
         ).let {
             it.copy(
                 instructionOrder = it.instructionOrder
-                    + it.createInstructionThatInstructsFrom(participant.apiKey)
-                    + it.createInstructionThatTargets(participant.apiKey)
+                    + it.createInstructionThatInstructsFrom(participant.apiKey, random)
+                    + it.createInstructionThatTargets(participant.apiKey, random)
             )
         }
         is DiscoGameState.First.Done -> discoGameState

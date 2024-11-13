@@ -8,17 +8,21 @@ typealias OnEvent = (ScheduledWorkshopEvent) -> Unit
 
 @Serializable
 sealed class WorkshopEvent
+@Serializable
+sealed class WorkshopEventWithResult<Result> {
+    abstract fun applyWithResultTo(oldState: ServerState): Pair<ServerState, Result>
+}
 
 sealed class ScheduledWorkshopEvent {
     data class IgnoringResult(val event: WorkshopEvent) : ScheduledWorkshopEvent()
-    data class AwaitingResult(val event: WorkshopEvent, val continuation: Continuation<ServerState>) : ScheduledWorkshopEvent()
+    data class AwaitingResult<T>(val event: WorkshopEventWithResult<T>, val continuation: Continuation<T>) : ScheduledWorkshopEvent()
 }
 
 fun OnEvent.schedule(event: WorkshopEvent) {
     this(ScheduledWorkshopEvent.IgnoringResult(event))
 }
 
-suspend fun OnEvent.fire(event: WorkshopEvent): ServerState = suspendCoroutine { continuation ->
+suspend fun <T> OnEvent.fire(event: WorkshopEventWithResult<T>): T = suspendCoroutine { continuation ->
     this(ScheduledWorkshopEvent.AwaitingResult(event, continuation))
 }
 

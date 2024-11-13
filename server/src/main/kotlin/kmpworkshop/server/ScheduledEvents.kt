@@ -12,9 +12,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.sound.sampled.*
 import kotlin.random.Random
-import kotlin.random.nextInt
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -24,12 +22,8 @@ suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, e
             for (scheduledEvent in eventBus) {
                 try {
                     when (scheduledEvent) {
-                        is ScheduledWorkshopEvent.AwaitingResult -> {
-                            val result = runCatching {
-                                serverState.updateAndGet { it.after(scheduledEvent.event) }
-                            }
-                            // Launch to make sure we keep the important Event loop running.
-                            launch { scheduledEvent.continuation.resumeWith(result) }
+                        is ScheduledWorkshopEvent.AwaitingResult<*> -> {
+                            serverState.applyEventWithResult(continuationScope = this, scheduledEvent)
                         }
                         is ScheduledWorkshopEvent.IgnoringResult -> {
                             // TODO: If exception happens, let's rewind and report the exception!!
@@ -59,6 +53,23 @@ suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, e
             }
     }
     error("Should not be reached")
+}
+
+private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
+    continuationScope: CoroutineScope,
+    scheduledEvent: ScheduledWorkshopEvent.AwaitingResult<T>
+) {
+    val result = runCatching {
+        var result: T? = null
+        this@applyEventWithResult.updateAndGet {
+            val (nextState, value) = scheduledEvent.event.applyWithResultTo(it)
+            result = value
+            nextState
+        }
+        result!!
+    }
+    // Launch to make sure we keep the important Event loop running.
+    continuationScope.launch { scheduledEvent.continuation.resumeWith(result) }
 }
 
 internal data class InProgressScheduling(val stateWithoutEventScheduled: ServerState, val event: TimedEventType)
@@ -97,16 +108,16 @@ private fun ServerState.after(event: TimedEventType): ServerState = when (event)
             discoGameState = state.copy(
                 orderedParticipants = state
                     .orderedParticipants
-                    .map { it.copy(color = discoColors.random()) }
+                    .map { it.copy(color = discoColors.random(Random(event.randomSeed))) }
             ),
-        ).scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent).after(danceFloorChangeInterval)
+        ).scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent(Random(event.randomSeed).nextLong())).after(danceFloorChangeInterval)
     }
     is TimedEventType.SecondDiscoGamePressTimeoutEvent -> when (val state = discoGameState) {
         is DiscoGameState.Second.Done,
         is DiscoGameState.First,
         is DiscoGameState.NotStarted -> this
-        is DiscoGameState.Second.InProgress -> copy(discoGameState = state.restartingInstructions())
-            .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent).after(secondDiscoGamePressTimeout)
+        is DiscoGameState.Second.InProgress -> copy(discoGameState = state.restartingInstructions(Random(event.randomSeed)))
+            .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(Random(event.randomSeed).nextLong())).after(secondDiscoGamePressTimeout)
 
     }
     is TimedEventType.FirstDiscoGamePrivateTickEvent -> {

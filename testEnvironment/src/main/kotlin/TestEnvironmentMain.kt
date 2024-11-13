@@ -39,7 +39,9 @@ fun main(): Unit = runBlocking {
     }
 
     application {
-        val server = remember { workshopService(coroutineContext, serverState) }
+        val server = remember {
+            workshopService(coroutineContext, serverState, onEvent = { launch { eventBus.send(it) } })
+        }
         WorkshopWindow(
             onCloseRequest = ::exitApplication,
             title = "Test environment",

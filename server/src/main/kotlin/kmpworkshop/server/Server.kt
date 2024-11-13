@@ -22,10 +22,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import java.io.File
-import java.util.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.absoluteValue
-import kotlin.time.Duration.Companion.seconds
+import kotlin.random.Random
 
 fun main(): Unit = runBlocking {
     val serverState = MutableStateFlow(ServerState())
@@ -41,7 +40,7 @@ fun main(): Unit = runBlocking {
     launch(Dispatchers.Default) {
         try {
             serveSingleService<WorkshopApiService> { coroutineContext ->
-                workshopService(coroutineContext, serverState)
+                workshopService(coroutineContext, serverState, onEvent = { launch { eventBus.send(it) } })
             }
         } catch (t: Throwable) {
             t.printStackTrace()
@@ -91,48 +90,16 @@ fun WorkshopWindow(
     }
 }
 
-fun workshopServer(
+fun workshopService(
     coroutineContext: CoroutineContext,
-    serverState: MutableStateFlow<ServerState>,
-    apiKey: ApiKey,
-): WorkshopServer = workshopService(coroutineContext, serverState).asServer(apiKey)
-
-public fun workshopService(
-    coroutineContext: CoroutineContext,
-    serverState: MutableStateFlow<ServerState>,
+    serverState: Flow<ServerState>,
+    onEvent: OnEvent,
 ): WorkshopApiService = object : WorkshopApiService {
     override suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult =
-        serverState.updateAndGetValue { oldState ->
-            when {
-                !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
-                oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
-                else -> UUID.randomUUID().toString()
-                    .let { Participant(name, ApiKey(it)) }
-                    .let {
-                        oldState.copy(unverifiedParticipants = oldState.unverifiedParticipants + it) to ApiKeyRegistrationResult.Success(
-                            it.apiKey
-                        )
-                    }
-            }
-        }
+        onEvent.fire(RegistrationStartEvent(name))
 
     override suspend fun verifyRegistration(key: ApiKey): NameVerificationResult =
-        serverState.updateAndGetValue { oldState ->
-            val name = oldState
-                .unverifiedParticipants
-                .firstOrNull { it.apiKey == key }
-                ?.name
-                ?: return@updateAndGetValue oldState to NameVerificationResult.ApiKeyDoesNotExist
-            val stateWithoutUnverifiedParticipant = oldState.copy(
-                unverifiedParticipants = oldState.unverifiedParticipants.filter { it.apiKey != key },
-            )
-            if (oldState.participants.any { it.name == name })
-                return@updateAndGetValue stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
-            stateWithoutUnverifiedParticipant.copy(
-                participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key),
-            ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
-                .to(NameVerificationResult.Success)
-        }
+        onEvent.fire(RegistrationVerificationEvent(key))
 
     override suspend fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
 
@@ -141,10 +108,6 @@ public fun workshopService(
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
-        if (serverState.value.participantFor(key) == null) {
-            emit(SolvingStatus.InvalidApiKey)
-            return@flow
-        }
         val puzzle =
             WorkshopStage
                 .entries
@@ -168,21 +131,7 @@ public fun workshopService(
                     puzzleIndex++
                 }
                 if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
-                    serverState.updateAndGetValue { oldState ->
-                        (oldState.puzzleStates[puzzleName] as? PuzzleState.Opened)?.let { puzzleState ->
-                            when {
-                                key.stringRepresentation in puzzleState.submissions -> oldState to SolvingStatus.AlreadySolved
-                                else -> oldState.copy(
-                                    puzzleStates = oldState.puzzleStates + puzzleName.to(
-                                        puzzleState.copy(
-                                            submissions = puzzleState.submissions + (key.stringRepresentation to Clock.System.now())
-                                        )
-                                    )
-                                ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
-                                    .to(SolvingStatus.Done)
-                            }
-                        } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
-                    }.also { emit(it) }
+                    onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleName)).also { emit(it) }
                 } else {
                     val element = puzzle.getPuzzleInputAsJsonElementAtIndex(puzzleIndex)
                     emit(SolvingStatus.Next(element))
@@ -195,35 +144,15 @@ public fun workshopService(
     }
 
     override suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult =
-        serverState.updateAndGetValue { oldState ->
-            if (oldState.participantFor(key) == null) oldState to SlideResult.InvalidApiKey
-            else {
-                (oldState.sliderGameState as? SliderGameState.InProgress)?.let { oldGameState ->
-                    oldGameState.moveSlider(key, suggestedRatio.coerceIn(.0..1.0)).withGravityApplied()
-                        .let {
-                            oldState.copy(sliderGameState = it)
-                                .applyIf({ it.sliderGameState is SliderGameState.Done }) {
-                                    it.scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
-                                }
-                                .to(SlideResult.Success(when (it) {
-                                    is SliderGameState.InProgress -> it.findPositionOfParticipant(key)
-                                    is SliderGameState.Done -> it
-                                        .lastState
-                                        .findPositionOfParticipant(key)
-                                    is SliderGameState.NotStarted -> error("Impossible")
-                                }))
-                        }
-                } ?: oldState.to(SlideResult.NoSliderGameInProgress)
-            }
-        }
+        onEvent.fire(SliderSuggestionEvent(key, suggestedRatio))
 
     override suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
         channelFlow {
             launch {
                 pressEvents.collect { pressEvent ->
-                    serverState.update {
-                        it.copy(pressiveGameState = it.pressiveGameState.pressing(pressEvent, presserKey = key, ::trySend))
-                    }
+                    onEvent
+                        .fire(PressiveGamePressEvent(Clock.System.now(), Random.nextLong(), key, pressEvent))
+                        ?.let { send(it) }
                 }
             }
 
@@ -245,30 +174,29 @@ public fun workshopService(
                 .collect { send(it) }
         }
 
-    override suspend fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?> =
-        serverState
-            .map { it.discoGameState }
-            .map { gameState ->
-                when (gameState) {
-                    is DiscoGameState.Second.Done,
-                    is DiscoGameState.First.Done,
-                    is DiscoGameState.NotStarted -> null
-                    is DiscoGameState.Second.InProgress -> gameState
-                        .instructionOrder
-                        .getOrNull(gameState.progress)
-                        ?.takeIf { it.participant == key }
-                        ?.instruction
-                    is DiscoGameState.First.InProgress -> when (val state = gameState.states[key.stringRepresentation]) {
-                        null,
-                        is FirstDiscoGameParticipantState.Done -> null
-                        is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.instruction
-                    }
+    override suspend fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?> = serverState
+        .map { it.discoGameState }
+        .map { gameState ->
+            when (gameState) {
+                is DiscoGameState.Second.Done,
+                is DiscoGameState.First.Done,
+                is DiscoGameState.NotStarted -> null
+                is DiscoGameState.Second.InProgress -> gameState
+                    .instructionOrder
+                    .getOrNull(gameState.progress)
+                    ?.takeIf { it.participant == key }
+                    ?.instruction
+                is DiscoGameState.First.InProgress -> when (val state = gameState.states[key.stringRepresentation]) {
+                    null,
+                    is FirstDiscoGameParticipantState.Done -> null
+                    is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.instruction
                 }
             }
-            .distinctUntilChanged()
+        }
+        .distinctUntilChanged()
 
     override suspend fun discoGamePress(key: ApiKey) {
-        serverState.update { it.afterDiscoGameKeyPressBy(key) }
+        onEvent.schedule(DiscoGameEvent.GuessSubmissionEvent(key, Random.nextLong(), Clock.System.now()))
     }
 
     override suspend fun discoGameBackground(key: ApiKey): Flow<SerializableColor> = serverState
@@ -303,34 +231,6 @@ internal fun SerializableColor.applyingDimming(dimmingRatio: Float): Serializabl
             else SerializableColor(255, 255, 255),
     ratio = dimmingRatio.absoluteValue,
 )
-
-private fun SliderGameState.InProgress.withGravityApplied(): SliderGameState =
-    participantStates.values.elementAtOrNull(pegLevel + 1)?.let { slider ->
-        if (slider.letsThroughPegPositionedAt(pegPosition)) copy(pegLevel = pegLevel + 1).withGravityApplied()
-        else this
-    } ?: SliderGameState.Done(copy(pegLevel = participantStates.size))
-
-private fun SliderGameState.InProgress.findLevelOfParticipant(key: ApiKey): Int =
-    participantStates.entries.indexOfFirst { it.key == key.stringRepresentation }
-
-private fun SliderGameState.InProgress.findPositionOfParticipant(key: ApiKey): Double =
-    participantStates.entries.first { it.key == key.stringRepresentation }.value.position
-
-private fun SliderGameState.InProgress.moveSlider(key: ApiKey, ratio: Double): SliderGameState.InProgress {
-    val sliderState = participantStates[key.stringRepresentation]!!
-    return copy(
-        participantStates = (participantStates + key.stringRepresentation.to(
-            sliderState.copy(
-                position = if (findLevelOfParticipant(key) == pegLevel) {
-                    ratio.coerceIn(sliderState.positionRangeInWhichPegWouldFallThrough(pegPosition))
-                } else ratio
-            )
-        )).toSortedMap()
-    )
-}
-
-fun <V> Map<ApiKeyString, V>.updateNotNull(key: ApiKey, value: (V) -> V): Map<ApiKeyString, V> =
-    this[key.stringRepresentation]?.let(value)?.let { put(key, it) } ?: this
 
 internal const val PegWidth = 0.075
 internal const val SliderGapWidth = 0.1
@@ -395,18 +295,6 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
             SerializableUser("Jane", 10),
         ) to SerializableUser("John", 100),
     )
-}
-
-private fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
-
-private inline fun <T, R : Any> MutableStateFlow<T>.updateAndGetValue(update: (T) -> Pair<T, R>): R {
-    var result: R? = null
-    update {
-        val (newState, value) = update(it)
-        result = value
-        newState
-    }
-    return result!!
 }
 
 inline fun <T : R, R> T.applyIf(predicate: (T) -> Boolean, mapper: (T) -> R): R = if (predicate(this)) mapper(this) else this

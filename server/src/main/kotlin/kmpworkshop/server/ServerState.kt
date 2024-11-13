@@ -36,9 +36,9 @@ sealed class TimedEventType {
     @Serializable
     data class FirstDiscoGamePrivateTickEvent(val randomSeed: Long): TimedEventType()
     @Serializable
-    data object SecondDiscoGameBackgroundTickEvent: TimedEventType()
+    data class SecondDiscoGameBackgroundTickEvent(val randomSeed: Long): TimedEventType()
     @Serializable
-    data object SecondDiscoGamePressTimeoutEvent: TimedEventType()
+    data class SecondDiscoGamePressTimeoutEvent(val randomSeed: Long): TimedEventType()
     @Serializable
     data object PlaySuccessSound: TimedEventType()
     @Serializable
