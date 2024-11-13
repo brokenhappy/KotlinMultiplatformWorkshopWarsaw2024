@@ -66,7 +66,7 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
             result = value
             nextState
         }
-        result!!
+        result as T
     }
     // Launch to make sure we keep the important Event loop running.
     continuationScope.launch { scheduledEvent.continuation.resumeWith(result) }
@@ -100,28 +100,30 @@ private fun ServerState.after(event: TimedEventType): ServerState = when (event)
             )
         ).scheduling(PressiveGameTickEvent).after(delayForNextEvent(state))
     }
-    is TimedEventType.SecondDiscoGameBackgroundTickEvent -> when (val state = discoGameState) {
-        is DiscoGameState.Second.Done,
-        is DiscoGameState.First,
-        is DiscoGameState.NotStarted -> this
-        is DiscoGameState.Second.InProgress -> copy(
-            discoGameState = state.copy(
-                orderedParticipants = state
-                    .orderedParticipants
-                    .map { it.copy(color = discoColors.random(Random(event.randomSeed))) }
-            ),
-        ).scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent(Random(event.randomSeed).nextLong())).after(danceFloorChangeInterval)
+    is TimedEventType.SecondDiscoGameBackgroundTickEvent -> Random(event.randomSeed).let { random ->
+        when (val state = discoGameState) {
+            is DiscoGameState.Second.Done,
+            is DiscoGameState.First,
+            is DiscoGameState.NotStarted -> this
+            is DiscoGameState.Second.InProgress -> copy(
+                discoGameState = state.copy(
+                    orderedParticipants = state
+                        .orderedParticipants
+                        .map { it.copy(color = discoColors.random(random)) }
+                ),
+            ).scheduling(TimedEventType.SecondDiscoGameBackgroundTickEvent(random.nextLong())).after(danceFloorChangeInterval)
+        }
     }
-    is TimedEventType.SecondDiscoGamePressTimeoutEvent -> when (val state = discoGameState) {
-        is DiscoGameState.Second.Done,
-        is DiscoGameState.First,
-        is DiscoGameState.NotStarted -> this
-        is DiscoGameState.Second.InProgress -> copy(discoGameState = state.restartingInstructions(Random(event.randomSeed)))
-            .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(Random(event.randomSeed).nextLong())).after(secondDiscoGamePressTimeout)
-
+    is TimedEventType.SecondDiscoGamePressTimeoutEvent -> Random(event.randomSeed).let { random ->
+        when (val state = discoGameState) {
+            is DiscoGameState.Second.Done,
+            is DiscoGameState.First,
+            is DiscoGameState.NotStarted -> this
+            is DiscoGameState.Second.InProgress -> copy(discoGameState = state.restartingInstructions(random))
+                .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(random.nextLong())).after(secondDiscoGamePressTimeout)
+        }
     }
-    is TimedEventType.FirstDiscoGamePrivateTickEvent -> {
-        val random = Random(event.randomSeed)
+    is TimedEventType.FirstDiscoGamePrivateTickEvent -> Random(event.randomSeed).let { random ->
         when (val state = discoGameState) {
             is DiscoGameState.First.Done,
             is DiscoGameState.Second,
@@ -130,8 +132,7 @@ private fun ServerState.after(event: TimedEventType): ServerState = when (event)
                 .scheduling(TimedEventType.FirstDiscoGamePrivateTickEvent(random.nextLong())).after(firstDiscoGamePrivateTickTimeout)
         }
     }
-    is TimedEventType.FirstDiscoGameTargetTickEvent -> {
-        val random = Random(event.randomSeed)
+    is TimedEventType.FirstDiscoGameTargetTickEvent -> Random(event.randomSeed).let { random ->
         when (val state = discoGameState) {
             is DiscoGameState.First.Done,
             is DiscoGameState.Second,
