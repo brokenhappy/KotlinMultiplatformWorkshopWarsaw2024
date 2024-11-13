@@ -10,11 +10,9 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.common.*
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -31,14 +29,6 @@ fun main(): Unit = runBlocking {
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     launch(Dispatchers.Default) {
         try {
-            serverState.persisting(File(serverBackupFile!!))
-        } catch (t: Throwable) {
-            t.printStackTrace()
-            throw t
-        }
-    }
-    launch(Dispatchers.Default) {
-        try {
             serveSingleService<WorkshopApiService> { coroutineContext ->
                 workshopService(coroutineContext, serverState, onEvent = { launch { eventBus.send(it) } })
             }
@@ -50,9 +40,15 @@ fun main(): Unit = runBlocking {
     launch(Dispatchers.Default) {
         performScheduledEvents(serverState, eventBus)
     }
+    val job = coroutineContext.job
     application {
         WorkshopWindow(
-            onCloseRequest = ::exitApplication,
+            onCloseRequest = {
+                launch {
+                    job.cancelAndJoin()
+                    exitApplication()
+                }
+            },
             title = "KMP Workshop",
             onEvent = { launch { eventBus.send(it) } },
             serverState = serverState,

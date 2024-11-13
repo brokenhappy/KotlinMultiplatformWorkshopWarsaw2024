@@ -25,7 +25,6 @@ suspend fun <Service : RPC> serveSingleService(
 ): Nothing {
     embeddedServer(Netty, port = 8080) {
         install(RPC)
-
         routing {
             rpc("/${WorkshopApiService::class.simpleName!!}") {
                 rpcConfig {

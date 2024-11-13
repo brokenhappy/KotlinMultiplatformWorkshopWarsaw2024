@@ -1,12 +1,12 @@
 package com.woutwerkman
 
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
 import kmpworkshop.client.*
-import kmpworkshop.common.ApiKey
-import kmpworkshop.common.WorkshopStage
-import kmpworkshop.common.asServer
-import kmpworkshop.common.clientApiKey
+import kmpworkshop.common.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.rpc.transport.ktor.client.installRPC
 
 suspend fun main() {
     try {

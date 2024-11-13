@@ -77,17 +77,17 @@ fun ClientEntryPoint(
     val stage by remember { server.currentStage() }.collectAsState(initial = WorkshopStage.SliderGameStage)
     when (stage) {
         WorkshopStage.Registration -> Text("""
-                    The host went back to the Registration phase.
-                    Most likely the host is configuring something.
-                    A moment of patience please.
-                    
-                    (Maybe you can take these seconds to help your peers? :) )
-                """.trimIndent())
+            The host went back to the Registration phase.
+            Most likely the host is configuring something.
+            A moment of patience please.
+            
+            (Maybe you can take these seconds to help your peers? :) )
+        """.trimIndent())
         WorkshopStage.PalindromeCheckTask,
         WorkshopStage.FindMinimumAgeOfUserTask,
         WorkshopStage.FindOldestUserTask -> Text("""
-                    Hmm, we went back to one of the non UI tasks...
-                """.trimIndent())
+            Hmm, we went back to one of the non UI tasks...
+        """.trimIndent())
         WorkshopStage.SliderGameStage -> sliderGameSolution()
         WorkshopStage.PressiveGameStage -> pressiveGameSolution()
         WorkshopStage.DiscoGame -> discoGameSolution(object: DiscoGameServer {

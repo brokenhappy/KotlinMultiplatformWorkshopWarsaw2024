@@ -67,6 +67,9 @@ kotlin {
     }
     sourceSets {
         commonMain.dependencies {
+            implementation("io.ktor:ktor-client-cio:2.3.12")
+            implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
             implementation("io.ktor:ktor-client-core:2.3.12")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
             implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
@@ -80,15 +83,12 @@ kotlin {
         jvmMain.dependencies {
             implementation("org.slf4j:slf4j-simple:1.7.32")
             implementation(compose.desktop.currentOs)
-            implementation("io.ktor:ktor-client-cio:2.3.12")
         }
         androidMain.dependencies {
-            implementation("io.ktor:ktor-client-cio:2.3.12")
             implementation(compose.preview)
             implementation("androidx.activity:activity-compose:1.9.3")
         }
         iosMain.dependencies {
-            implementation("io.ktor:ktor-client-darwin:2.3.12")
         }
     }
     jvmToolchain(17)
@@ -96,6 +96,9 @@ kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-receivers")
     }
+}
+dependencies {
+    implementation("io.ktor:ktor-client-cio-jvm:2.3.12")
 }
 
 compose.desktop {
