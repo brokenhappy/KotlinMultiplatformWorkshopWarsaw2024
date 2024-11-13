@@ -78,7 +78,7 @@ data class ParticipantRemovalEvent(val participant: Participant) : ServerWideEve
 data class ParticipantRejectionEvent(val participant: Participant) : ServerWideEvents()
 
 internal fun ServerState.after(event: ServerWideEvents): ServerState = when (event) {
-    is StageChangeEvent -> error("AAJ")
+    is StageChangeEvent -> copy(currentStage = event.stage)
     is SettingsChangeEvent -> copy(settings = event.newSettings)
     is ParticipantDeactivationEvent -> deactivateParticipant(event.participant)
     is ParticipantReactivationEvent -> with(Random(event.randomSeed)) { reactivateParticipant(event.participant) }
