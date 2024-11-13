@@ -64,6 +64,7 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
         this@applyEventWithResult.updateAndGet {
             val (nextState, value) = scheduledEvent.event.applyWithResultTo(it)
             result = value
+            scheduledEvent.continuation.context.ensureActive() // Don't apply the change if the request got canceled.
             nextState
         }
         result as T
