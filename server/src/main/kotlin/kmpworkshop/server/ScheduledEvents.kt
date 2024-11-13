@@ -222,8 +222,8 @@ private val discoColors = listOf(
 )
 
 private fun delayForNextEvent(lastState: PressiveGameState.ThirdGameInProgress): Duration = when {
-    lastState.participantThatIsBeingRung == lastState.order.last() -> 1.seconds // Wait a bit in between cycles
-    else -> 150.milliseconds
+    lastState.participantThatIsBeingRung == lastState.order.last() -> 2.seconds // Wait a bit in between cycles
+    else -> 300.milliseconds
 }
 
 private suspend fun delayUntil(time: Instant) {
