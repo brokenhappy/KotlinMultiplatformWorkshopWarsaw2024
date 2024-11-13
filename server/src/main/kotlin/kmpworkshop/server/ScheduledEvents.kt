@@ -79,7 +79,7 @@ internal fun InProgressScheduling.after(delay: Duration): ServerState = stateWit
 internal fun ServerState.scheduling(event: TimedEventType): InProgressScheduling = InProgressScheduling(this, event)
 
 internal val secondDiscoGamePressTimeout = 2.5.seconds
-private val danceFloorChangeInterval = 0.5.seconds
+private val danceFloorChangeInterval = 0.8.seconds
 private val firstDiscoGamePrivateTickTimeout = 1.5.seconds
 private val firstDiscoGamePublicTickTimeout = 10.seconds
 
