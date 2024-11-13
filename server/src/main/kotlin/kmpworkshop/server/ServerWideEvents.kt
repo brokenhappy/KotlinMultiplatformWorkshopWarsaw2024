@@ -81,7 +81,7 @@ internal fun ServerState.after(event: ServerWideEvents): ServerState = when (eve
     is StageChangeEvent -> copy(currentStage = event.stage)
     is SettingsChangeEvent -> copy(settings = event.newSettings)
     is ParticipantDeactivationEvent -> deactivateParticipant(event.participant)
-    is ParticipantReactivationEvent -> reactivateParticipant(event.participant, Random(event.randomSeed))
+    is ParticipantReactivationEvent -> with(Random(event.randomSeed)) { reactivateParticipant(event.participant) }
     is ParticipantRemovalEvent -> removeParticipant(event.participant)
     is ParticipantRejectionEvent -> copy(unverifiedParticipants = unverifiedParticipants - event.participant)
 }
@@ -117,7 +117,8 @@ private fun ServerState.deactivateParticipant(participant: Participant): ServerS
     },
 )
 
-private fun ServerState.reactivateParticipant(participant: Participant, random: Random): ServerState = copy(
+context(Random)
+private fun ServerState.reactivateParticipant(participant: Participant): ServerState = copy(
     participants = participants + participant,
     deactivatedParticipants = deactivatedParticipants - participant,
     discoGameState = when (val gameState = discoGameState) {
@@ -129,14 +130,14 @@ private fun ServerState.reactivateParticipant(participant: Participant, random: 
         ).let {
             it.copy(
                 instructionOrder = it.instructionOrder
-                    + it.createInstructionThatInstructsFrom(participant.apiKey, random)
-                    + it.createInstructionThatTargets(participant.apiKey, random)
+                    + it.createInstructionThatInstructsFrom(participant.apiKey)
+                    + it.createInstructionThatTargets(participant.apiKey)
             )
         }
         is DiscoGameState.First.Done -> discoGameState
         is DiscoGameState.First.InProgress -> gameState.copy(
             states = gameState.states.put(participant.apiKey, FirstDiscoGameParticipantState.InProgress(
-                ColorAndInstructionWithPrevious(randomColorAndInstruction(random), randomColorAndInstruction(random)),
+                ColorAndInstructionWithPrevious(randomColorAndInstruction(), randomColorAndInstruction()),
                 completionCount = 0,
             )),
         )
