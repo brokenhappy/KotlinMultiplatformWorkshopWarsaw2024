@@ -21,37 +21,47 @@ suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, e
     coroutineScope {
         val events = Channel<CommittedState>()
         launch {
-            val initial = loadInitialStateFromDatabase()
-            if (initial != ServerState()) serverState.value = initial
-            storeEvents(initial, events)
+            try {
+                val initial = loadInitialStateFromDatabase()
+                if (initial != ServerState()) serverState.value = initial
+                storeEvents(initial, events)
+            } catch (t: Throwable) {
+                t.printStackTrace()
+                throw t
+            }
         }
         launch {
-            for (scheduledEvent in eventBus) {
-                when (scheduledEvent) {
-                    is ScheduledWorkshopEvent.AwaitingResult<*> -> {
-                        serverState.applyEventWithResult(
-                            applicationScope = this,
-                            scheduledEvent,
-                            onCommittedState = { launch { events.send(it) } }
-                        )
-                    }
-                    is ScheduledWorkshopEvent.IgnoringResult -> {
-                        var persistedState: CommittedState? = null
-                        serverState.update { oldState ->
-                            try {
-                                oldState.after(scheduledEvent.event).also { newState ->
-                                    persistedState = CommittedState(oldState, scheduledEvent.event, newState)
-                                }
-                            } catch (c: CancellationException) {
-                                throw c
-                            } catch (t: Throwable) {
-                                launch { reportError(oldState, scheduledEvent.event) }
-                                oldState
-                            }
+            try {
+                for (scheduledEvent in eventBus) {
+                    when (scheduledEvent) {
+                        is ScheduledWorkshopEvent.AwaitingResult<*> -> {
+                            serverState.applyEventWithResult(
+                                applicationScope = this,
+                                scheduledEvent,
+                                onCommittedState = { launch { events.send(it) } }
+                            )
                         }
-                        persistedState?.let { launch { events.send(it) } }
+                        is ScheduledWorkshopEvent.IgnoringResult -> {
+                            var persistedState: CommittedState? = null
+                            serverState.update { oldState ->
+                                try {
+                                    oldState.after(scheduledEvent.event).also { newState ->
+                                        persistedState = CommittedState(oldState, scheduledEvent.event, newState)
+                                    }
+                                } catch (c: CancellationException) {
+                                    throw c
+                                } catch (t: Throwable) {
+                                    launch { reportError(oldState, scheduledEvent.event) }
+                                    oldState
+                                }
+                            }
+                            persistedState?.let { launch { events.send(it) } }
+                        }
                     }
                 }
+            } catch (t: Throwable) {
+                t.printStackTrace()
+                throw t
             }
         }
         serverState
@@ -64,6 +74,8 @@ suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, e
                     serverState.update {
                         it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
                     }
+                } catch (c: CancellationException) {
+                    throw c
                 } catch (t: Throwable) {
                     t.printStackTrace()
                     throw t

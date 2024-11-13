@@ -23,15 +23,12 @@ fun PressiveGame() {
         getFlowOfPressiveGameHints().collect { newHint ->
             hint = newHint
         }
-        if ("My pressing state" == "single press") doSinglePress()
-        if ("My pressing state" == "double press") doDoublePress()
-        if ("My pressing state" == "Long pressing") doLongPress()
     }
     Row(
         modifier = Modifier.combinedClickable(
-            onClick = { println("Did single click!") },
-            onDoubleClick = { println("Did double click!") },
-            onLongClick = { println("Did long click!") }
+            onClick = { /* doSinglePress() */ },
+            onDoubleClick = { /* doDoublePress() */ },
+            onLongClick = { /* doLongPress() */ }
         )
     ) {
         Spacer(modifier = Modifier.weight(1f))
