@@ -81,11 +81,14 @@ internal fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now:
         if (gameState.currentParticipantThatShouldPress() == participant)
             if (gameState.progress >= gameState.orderedParticipants.lastIndex) copy(
                 discoGameState = DiscoGameState.Second.Done
-            ) else copy(
+            ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds) else copy(
                 discoGameState = gameState.copy(progress = gameState.progress + 1),
                 scheduledEvents = scheduledEvents.filter { it.type !is TimedEventType.SecondDiscoGamePressTimeoutEvent }
-            ).scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(random.nextLong())).after(secondDiscoGamePressTimeout)
+            )
+                .scheduling(TimedEventType.SecondDiscoGamePressTimeoutEvent(random.nextLong())).after(secondDiscoGamePressTimeout)
+                .scheduling(TimedEventType.PlayIncrementSound(gameState.progress.toDouble() / gameState.instructionOrder.size)).after(0.seconds)
         else copy(discoGameState = gameState.restartingInstructions(random))
+            .applyIf({ gameState.progress > 0 }) { it.scheduling(TimedEventType.PlayProgressLossSound).after(0.seconds) }
     is DiscoGameState.First.InProgress -> {
         when (val participantState = gameState.states[participant.stringRepresentation]) {
             null,
