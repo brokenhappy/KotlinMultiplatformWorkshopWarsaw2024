@@ -4,6 +4,7 @@ import kmpworkshop.common.DiscoGameInstruction
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.server.TimedEventType.PressiveGameTickEvent
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.*
 import kotlinx.datetime.Clock
@@ -18,21 +19,38 @@ import kotlin.time.Duration.Companion.seconds
 
 suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<ScheduledWorkshopEvent>): Nothing {
     coroutineScope {
+        val events = Channel<CommittedState>()
+        launch {
+            val initial = loadInitialStateFromDatabase()
+            if (initial != ServerState()) serverState.value = initial
+            storeEvents(initial, events)
+        }
         launch {
             for (scheduledEvent in eventBus) {
-                try {
-                    when (scheduledEvent) {
-                        is ScheduledWorkshopEvent.AwaitingResult<*> -> {
-                            serverState.applyEventWithResult(continuationScope = this, scheduledEvent)
-                        }
-                        is ScheduledWorkshopEvent.IgnoringResult -> {
-                            // TODO: If exception happens, let's rewind and report the exception!!
-                            serverState.update { it.after(scheduledEvent.event) }
-                        }
+                when (scheduledEvent) {
+                    is ScheduledWorkshopEvent.AwaitingResult<*> -> {
+                        serverState.applyEventWithResult(
+                            applicationScope = this,
+                            scheduledEvent,
+                            onCommittedState = { launch { events.send(it) } }
+                        )
                     }
-                } catch (t: Throwable) {
-                    t.printStackTrace()
-                    throw t
+                    is ScheduledWorkshopEvent.IgnoringResult -> {
+                        var persistedState: CommittedState? = null
+                        serverState.update { oldState ->
+                            try {
+                                oldState.after(scheduledEvent.event).also { newState ->
+                                    persistedState = CommittedState(oldState, scheduledEvent.event, newState)
+                                }
+                            } catch (c: CancellationException) {
+                                throw c
+                            } catch (t: Throwable) {
+                                launch { reportError(oldState, scheduledEvent.event) }
+                                oldState
+                            }
+                        }
+                        persistedState?.let { launch { events.send(it) } }
+                    }
                 }
             }
         }
@@ -56,22 +74,37 @@ suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, e
 }
 
 private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
-    continuationScope: CoroutineScope,
-    scheduledEvent: ScheduledWorkshopEvent.AwaitingResult<T>
-) {
+    applicationScope: CoroutineScope,
+    scheduledEvent: ScheduledWorkshopEvent.AwaitingResult<T>,
+    onCommittedState: (CommittedState) -> Unit,
+): Result<T> {
     val result = runCatching {
         var result: T? = null
-        this@applyEventWithResult.updateAndGet {
-            val (nextState, value) = scheduledEvent.event.applyWithResultTo(it)
+        var persistedState: CommittedState? = null
+        this@applyEventWithResult.updateAndGet { oldState ->
+            val (nextState, value) = try {
+                scheduledEvent.event.applyWithResultTo(oldState)
+            } catch (c: CancellationException) {
+                throw c
+            } catch (t: Throwable) {
+                applicationScope.launch { reportError(oldState, scheduledEvent.event) }
+                throw t
+            }
             result = value
+            persistedState = CommittedState(oldState, scheduledEvent.event, nextState)
             scheduledEvent.continuation.context.ensureActive() // Don't apply the change if the request got canceled.
             nextState
         }
+        persistedState?.let(onCommittedState)
+
         result as T
     }
     // Launch to make sure we keep the important Event loop running.
-    continuationScope.launch { scheduledEvent.continuation.resumeWith(result) }
+    applicationScope.launch { scheduledEvent.continuation.resumeWith(result) }
+    return result
 }
+
+data class CommittedState(val old: ServerState, val event: WorkshopEvent, val new: ServerState)
 
 internal data class InProgressScheduling(val stateWithoutEventScheduled: ServerState, val event: TimedEventType)
 internal fun InProgressScheduling.after(delay: Duration): ServerState = stateWithoutEventScheduled.copy(

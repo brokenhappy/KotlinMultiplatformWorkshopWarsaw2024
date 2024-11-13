@@ -9,7 +9,7 @@ typealias OnEvent = (ScheduledWorkshopEvent) -> Unit
 @Serializable
 sealed class WorkshopEvent
 @Serializable
-sealed class WorkshopEventWithResult<Result> {
+sealed class WorkshopEventWithResult<Result>: WorkshopEvent() {
     abstract fun applyWithResultTo(oldState: ServerState): Pair<ServerState, Result>
 }
 
@@ -32,4 +32,5 @@ fun ServerState.after(event: WorkshopEvent): ServerState = when (event) {
     is SliderGameEvent -> after(event)
     is PressiveGameEvent -> after(event)
     is DiscoGameEvent -> after(event)
+    is WorkshopEventWithResult<*> -> event.applyWithResultTo(this).first
 }
