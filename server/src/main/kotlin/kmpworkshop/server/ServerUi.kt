@@ -315,9 +315,7 @@ fun binaryMoreCodeIdentifiers(count: Int): List<String> = count
     .let { totalBits ->
         val width = when (count) {
             1 -> 1
-            else -> totalBits.countLeadingZeroBits().let { leadingBits ->
-                Int.SIZE_BITS - leadingBits - 1
-            }
+            else -> Int.SIZE_BITS - totalBits.countLeadingZeroBits() - 1
         }
         (0..<totalBits)
             .shuffled(this@Random)
