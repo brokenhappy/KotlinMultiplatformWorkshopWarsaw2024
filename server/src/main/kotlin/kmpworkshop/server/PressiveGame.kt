@@ -4,40 +4,49 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.PressiveGamePressType
 import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
 sealed class PressiveGameEvent : WorkshopEvent() {
     @Serializable
-    data object StartFirst : PressiveGameEvent()
+    data class StartFirst(val now: Instant, val randomSeed: Long) : PressiveGameEvent()
     @Serializable
-    data object StartSecond : PressiveGameEvent()
+    data class StartSecond(val randomSeed: Long) : PressiveGameEvent()
     @Serializable
-    data object StartThird : PressiveGameEvent()
+    data class StartThird(val randomSeed: Long) : PressiveGameEvent()
+}
+
+@Serializable
+data class PressiveGamePressEvent(val now: Instant, val randomSeed: Long, val participant: ApiKey, val pressEvent: PressiveGamePressType) : WorkshopEventWithResult<String?>() {
+    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, String?> =
+        oldState.pressiveGameState.pressing(pressEvent, presserKey = participant, now, Random(randomSeed))
+            .let { (newState, hint) -> oldState.copy(pressiveGameState = newState) to hint }
 }
 
 fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
-    PressiveGameEvent.StartFirst -> startingFirstPressiveGame()
-    PressiveGameEvent.StartSecond -> startingSecondPressiveGame()
-    PressiveGameEvent.StartThird -> startingThirdPressiveGame()
+    is PressiveGameEvent.StartFirst -> startingFirstPressiveGame(event.now, Random(event.randomSeed))
+    is PressiveGameEvent.StartSecond -> startingSecondPressiveGame(Random(event.randomSeed))
+    is PressiveGameEvent.StartThird -> startingThirdPressiveGame(Random(event.randomSeed))
 }
 
-private fun ServerState.startingFirstPressiveGame(): ServerState = copy(
+private fun ServerState.startingFirstPressiveGame(now: Instant, random: Random): ServerState = copy(
     pressiveGameState = PressiveGameState.FirstGameInProgress(
-        startTime = Clock.System.now(),
+        startTime = now,
         states = participants.associate { participant ->
             Pair(
                 participant.apiKey.stringRepresentation,
-                newFirstPressiveGameState(justFailed = false),
+                newFirstPressiveGameState(justFailed = false, random),
             )
         },
     ),
 )
 
-private fun ServerState.startingSecondPressiveGame(): ServerState =
+private fun ServerState.startingSecondPressiveGame(random: Random): ServerState =
     copy(pressiveGameState = PressiveGameState.SecondGameInProgress(
-        order = participants.shuffled().map { it.apiKey },
+        order = participants.shuffled(random).map { it.apiKey },
         progress = 0,
         states = participants
             .zip(
@@ -56,10 +65,10 @@ private fun ServerState.startingSecondPressiveGame(): ServerState =
             }
     ))
 
-private fun ServerState.startingThirdPressiveGame(): ServerState =
+private fun ServerState.startingThirdPressiveGame(random: Random): ServerState =
     copy(
         pressiveGameState = PressiveGameState.ThirdGameInProgress(
-            order = participants.shuffled().map { it.apiKey },
+            order = participants.shuffled(random).map { it.apiKey },
             progress = 0,
             participantThatIsBeingRung = null,
         )
@@ -111,20 +120,17 @@ private const val NumberOfPressesNeededForFirstPressiveGame = 4
 internal fun PressiveGameState.pressing(
     type: PressiveGamePressType,
     presserKey: ApiKey,
-    onMessage: (String) -> Unit,
-): PressiveGameState = when (this) {
-    PressiveGameState.NotStarted -> this.also {
-        onMessage("Hold up there fella! We haven't started the game yet :)")
-    }
+    now: Instant,
+    random: Random,
+): Pair<PressiveGameState, String?> = when (this) {
+    PressiveGameState.NotStarted -> this to "Hold up there fella! We haven't started the game yet :)"
     PressiveGameState.ThirdGameDone,
     PressiveGameState.SecondGameDone,
-    is PressiveGameState.FirstGameDone -> this.also {
-        onMessage("I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?")
-    }
+    is PressiveGameState.FirstGameDone -> this to "I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?"
     is PressiveGameState.FirstGameInProgress -> states[presserKey]?.let { state ->
         when (type) {
             state.pressesLeft.first() ->
-                copy(states = states.put(presserKey, state.dropSinglePressLeft()))
+                copy(states = states.put(presserKey, state.dropSinglePressLeft(now)))
                     .let { newState ->
                         // Mind the early return! We only finish the game if...
                         PressiveGameState.FirstGameDone(
@@ -134,11 +140,10 @@ internal fun PressiveGameState.pressing(
                             },
                         )
                     }
-            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true)))
+
+            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true, random)))
         }
-    } ?: this.also {
-        onMessage("You somehow are not part of this Pressive round! Contact the workshop host for help!")
-    }
+    }?.to(null) ?: (this to "You somehow are not part of this Pressive round! Contact the workshop host for help!")
     is PressiveGameState.SecondGameInProgress -> states[presserKey]?.let { presserState ->
         val stateWithProgressIncreased = copy(
             progress = if (order[progress] == presserKey) progress + 1 else 0,
@@ -162,20 +167,18 @@ internal fun PressiveGameState.pressing(
                 else -> stateWithProgressIncreased
             }
         }
-    } ?: this.also {
-        onMessage("You somehow are not part of this Pressive round! Contact the workshop host for help!")
-    }
+    }?.to(null) ?: (this to "You somehow are not part of this Pressive round! Contact the workshop host for help!")
     is PressiveGameState.ThirdGameInProgress -> copy(
         progress = if (order[progress] == presserKey) progress + 1 else 0,
-    ).let { if (it.progress == order.size) PressiveGameState.ThirdGameDone else it } // TODO: Sound effects!
+    ).let { if (it.progress == order.size) PressiveGameState.ThirdGameDone else it } to null // TODO: Sound effects!
 }
 
-internal fun newFirstPressiveGameState(justFailed: Boolean): FirstPressiveGameParticipantState =
-    FirstPressiveGameParticipantState(newRandomPresses(), justFailed = justFailed, finishTime = null)
+internal fun newFirstPressiveGameState(justFailed: Boolean, random: Random): FirstPressiveGameParticipantState =
+    FirstPressiveGameParticipantState(newRandomPresses(random), justFailed = justFailed, finishTime = null)
 
-private fun FirstPressiveGameParticipantState.dropSinglePressLeft(): FirstPressiveGameParticipantState =
+private fun FirstPressiveGameParticipantState.dropSinglePressLeft(now: Instant): FirstPressiveGameParticipantState =
     copy(pressesLeft = pressesLeft.drop(1))
-        .let { if (it.pressesLeft.isEmpty()) it.copy(finishTime = Clock.System.now()) else it }
+        .let { if (it.pressesLeft.isEmpty()) it.copy(finishTime = now) else it }
 
 private fun PressiveGameState.SecondGameInProgress.updatedStatesAfterButtonPress(
     pressType: PressiveGamePressType,
@@ -249,8 +252,8 @@ private fun Map<ApiKeyString, SecondPressiveGameParticipantState>.tryToFinishRou
 private fun SecondPressiveGameParticipantState.successfullyPairedWith(other: ApiKey): SecondPressiveGameParticipantState =
     copy(pairingState = SuccessFullyPaired(other), isBeingCalled = false)
 
-internal fun newRandomPresses(): List<PressiveGamePressType> = generateSequence {
-    generateSequence { PressiveGamePressType.entries.random() }
+internal fun newRandomPresses(random: Random): List<PressiveGamePressType> = generateSequence {
+    generateSequence { PressiveGamePressType.entries.random(random) }
         .take(NumberOfPressesNeededForFirstPressiveGame)
         .toList()
 }.first { it.toSet() == PressiveGamePressType.entries.toSet() /* Make sure we force them to press all types! */ }

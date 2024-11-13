@@ -4,6 +4,7 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.DiscoGameInstruction.*
 import org.junit.jupiter.api.Test
+import kotlin.random.Random
 
 class DiscoGameTest {
     @Test
@@ -40,7 +41,11 @@ class DiscoGameTest {
     }
 }
 
-private fun ServerState.press(key: ApiKey): ServerState = afterDiscoGameKeyPressBy(key)
+private fun ServerState.press(key: ApiKey): ServerState = afterDiscoGameGuessSubmission(
+    key,
+    Random(event.randomSeed),
+    Random(event.randomSeed)
+)
 private fun ServerState.asserting(assertion: (DiscoGameState.Second.InProgress) -> Boolean): ServerState {
     discoGameState
         .assertIs<DiscoGameState.Second.InProgress> { "Game state is not in progress anymore but $it" }
