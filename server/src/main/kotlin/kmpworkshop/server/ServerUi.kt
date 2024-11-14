@@ -150,7 +150,7 @@ private fun DiscoGame(
             BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
             state
                 .scheduledEvents
-                .firstOrNull { it.type is TimedEventType.SecondDiscoGamePressTimeoutEvent }
+                .firstOrNull { it.event is SoundPlayEvents.SecondDiscoGamePressTimeoutEvent }
                 ?.let { CountDownProgressBar(it.time) }
                 ?: BigProgressBar(0f)
             gameState

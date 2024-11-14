@@ -24,28 +24,8 @@ data class ServerState(
 @Serializable
 data class TimedEvent(
     val time: Instant,
-    val type: TimedEventType,
+    val event: WorkshopEvent,
 )
-
-@Serializable
-sealed class TimedEventType {
-    @Serializable
-    data object PressiveGameTickEvent: TimedEventType()
-    @Serializable
-    data class FirstDiscoGameTargetTickEvent(val randomSeed: Long): TimedEventType()
-    @Serializable
-    data class FirstDiscoGamePrivateTickEvent(val randomSeed: Long): TimedEventType()
-    @Serializable
-    data class SecondDiscoGameBackgroundTickEvent(val randomSeed: Long): TimedEventType()
-    @Serializable
-    data class SecondDiscoGamePressTimeoutEvent(val randomSeed: Long): TimedEventType()
-    @Serializable
-    data object PlaySuccessSound: TimedEventType()
-    @Serializable
-    data class PlayIncrementSound(val pitch: Double): TimedEventType()
-    @Serializable
-    data object PlayProgressLossSound: TimedEventType()
-}
 
 @Serializable
 sealed class PuzzleState {

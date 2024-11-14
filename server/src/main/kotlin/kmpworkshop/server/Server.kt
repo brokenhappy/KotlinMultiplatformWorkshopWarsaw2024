@@ -38,7 +38,7 @@ fun main(): Unit = runBlocking {
         }
     }
     launch(Dispatchers.Default) {
-        mainEventAndStoreLoopWritingTo(serverState, eventBus)
+        mainEventAndStoreLoopWritingTo(serverState, eventBus, onEvent = { launch { eventBus.send(it) } })
     }
     val job = coroutineContext.job
     application {
@@ -147,7 +147,7 @@ fun workshopService(
             launch {
                 pressEvents.collect { pressEvent ->
                     onEvent
-                        .fire(PressiveGamePressEvent(Clock.System.now(), Random.nextLong(), key, pressEvent))
+                        .fire(PressiveGameEvent.Press(Clock.System.now(), Random.nextLong(), key, pressEvent))
                         ?.let { send(it) }
                 }
             }
