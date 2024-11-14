@@ -28,7 +28,7 @@ data class SliderSuggestionEvent(val participant: ApiKey, val suggestedRatio: Do
                     .let {
                         oldState.copy(sliderGameState = it)
                             .applyIf({ it.sliderGameState is SliderGameState.Done }) {
-                                it.scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+                                it.scheduling(SoundPlayEvents.Success).after(0.seconds)
                             }
                             .to(SlideResult.Success(when (it) {
                                 is SliderGameState.InProgress -> it.findPositionOfParticipant(participant)

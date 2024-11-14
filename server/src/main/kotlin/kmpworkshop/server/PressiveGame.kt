@@ -3,10 +3,11 @@ package kmpworkshop.server
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.PressiveGamePressType
 import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlin.random.Random
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
@@ -17,27 +18,55 @@ sealed class PressiveGameEvent : WorkshopEvent() {
     data class StartSecond(val randomSeed: Long) : PressiveGameEvent()
     @Serializable
     data class StartThird(val randomSeed: Long) : PressiveGameEvent()
+    @Serializable
+    data object Tick: PressiveGameEvent()
+    @Serializable
+    data class Press(
+        val now: Instant,
+        val randomSeed: Long,
+        val participant: ApiKey,
+        val pressEvent: PressiveGamePressType,
+    ) : WorkshopEventWithResult<String?>() {
+        override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, String?> =
+            with(Random(randomSeed)) { oldState.pressiveGameState.pressing(pressEvent, presserKey = participant, now) }
+                .let { update ->
+                    when (update) {
+                        is PressiveGamePressResult.Hint -> oldState to update.message
+                        is PressiveGamePressResult.Update -> oldState.copy(pressiveGameState = update.newState) to null
+                        is PressiveGamePressResult.UpdateWithEvent -> oldState.copy(
+                            pressiveGameState = update.update.newState,
+                        ).scheduling(update.event).after(0.seconds) to null
+                    }
+                }
+    }
 }
 
-@Serializable
-data class PressiveGamePressEvent(val now: Instant, val randomSeed: Long, val participant: ApiKey, val pressEvent: PressiveGamePressType) : WorkshopEventWithResult<String?>() {
-    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, String?> =
-        with(Random(randomSeed)) { oldState.pressiveGameState.pressing(pressEvent, presserKey = participant, now) }
-            .let { update ->
-                when (update) {
-                    is PressiveGamePressResult.Hint -> oldState to update.message
-                    is PressiveGamePressResult.Update -> oldState.copy(pressiveGameState = update.newState) to null
-                    is PressiveGamePressResult.UpdateWithEvent -> oldState.copy(
-                        pressiveGameState = update.update.newState,
-                    ).scheduling(update.event).after(0.seconds) to null
-                }
-            }
-}
 
 fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
     is PressiveGameEvent.StartFirst -> with(Random(event.randomSeed)) { startingFirstPressiveGame(event.now) }
     is PressiveGameEvent.StartSecond -> with(Random(event.randomSeed)) { startingSecondPressiveGame() }
     is PressiveGameEvent.StartThird -> with(Random(event.randomSeed)) { startingThirdPressiveGame() }
+    is PressiveGameEvent.Tick -> when (val state = pressiveGameState) {
+        is PressiveGameState.FirstGameDone,
+        is PressiveGameState.FirstGameInProgress,
+        is PressiveGameState.NotStarted,
+        is PressiveGameState.SecondGameDone,
+        is PressiveGameState.SecondGameInProgress,
+        is PressiveGameState.ThirdGameDone -> this
+        is PressiveGameState.ThirdGameInProgress -> copy(
+            pressiveGameState = state.copy(
+                participantThatIsBeingRung = when (val current = state.participantThatIsBeingRung) {
+                    null -> state.order.firstOrNull()
+                    else -> state.order.getOrNull(state.order.indexOfFirst { it == current } + 1)
+                }
+            )
+        ).scheduling(PressiveGameEvent.Tick).after(delayForNextEvent(state))
+    }
+}
+
+private fun delayForNextEvent(lastState: PressiveGameState.ThirdGameInProgress): Duration = when {
+    lastState.participantThatIsBeingRung == lastState.order.last() -> 2.seconds // Wait a bit in between cycles
+    else -> 300.milliseconds
 }
 
 context(Random)
@@ -81,7 +110,7 @@ private fun ServerState.startingThirdPressiveGame(): ServerState =
             progress = 0,
             participantThatIsBeingRung = null,
         )
-    ).scheduling(TimedEventType.PressiveGameTickEvent).after(0.seconds)
+    ).scheduling(PressiveGameEvent.Tick).after(0.seconds)
 
 internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): String = """
     ${if (isBeingCalled) "|Someone is calling you, try to call them back!\n" else ""}|You are: $personalId
@@ -129,7 +158,7 @@ private const val NumberOfPressesNeededForFirstPressiveGame = 4
 sealed class PressiveGamePressResult {
     data class Hint(val message: String): PressiveGamePressResult()
     data class Update(val newState: PressiveGameState): PressiveGamePressResult()
-    data class UpdateWithEvent(val update: Update, val event: TimedEventType): PressiveGamePressResult()
+    data class UpdateWithEvent(val update: Update, val event: SoundPlayEvents): PressiveGamePressResult()
 }
 
 fun PressiveGamePressResult.map(mapper: (PressiveGameState) -> PressiveGameState): PressiveGamePressResult = when (this) {
@@ -140,7 +169,7 @@ fun PressiveGamePressResult.map(mapper: (PressiveGameState) -> PressiveGameState
 
 fun PressiveGameState.toPressResult(): PressiveGamePressResult.Update = PressiveGamePressResult.Update(this)
 
-fun PressiveGameState.withEvent(event: TimedEventType): PressiveGamePressResult.UpdateWithEvent =
+fun PressiveGameState.withEvent(event: SoundPlayEvents): PressiveGamePressResult.UpdateWithEvent =
     PressiveGamePressResult.UpdateWithEvent(toPressResult(), event)
 
 context(Random)
@@ -170,7 +199,7 @@ internal fun PressiveGameState.pressing(
                             )
                         }.let {
                             if (newParticipantState.finishTime == null) it.toPressResult()
-                            else it.withEvent(TimedEventType.PlaySuccessSound)
+                            else it.withEvent(SoundPlayEvents.Success)
                         }
                 }
             else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true)))
@@ -183,9 +212,9 @@ internal fun PressiveGameState.pressing(
         val stateWithProgressIncreasedAndSound =
             if (order[progress] == presserKey) copy(progress = progress + 1).let {
                 if (it.progress == order.size)
-                    PressiveGameState.SecondGameDone.withEvent(TimedEventType.PlaySuccessSound)
-                else it.withEvent(TimedEventType.PlayIncrementSound(progress.toDouble() / order.size))
-            } else if (progress > 0) copy(progress = 0).withEvent(TimedEventType.PlayProgressLossSound)
+                    PressiveGameState.SecondGameDone.withEvent(SoundPlayEvents.Success)
+                else it.withEvent(SoundPlayEvents.Increment(progress.toDouble() / order.size))
+            } else if (progress > 0) copy(progress = 0).withEvent(SoundPlayEvents.ProgressLoss)
             else copy(progress = 0).toPressResult()
         stateWithProgressIncreasedAndSound.map { stateWithProgressIncreased ->
             if (stateWithProgressIncreased !is PressiveGameState.SecondGameInProgress) return@map PressiveGameState.SecondGameDone
@@ -216,11 +245,11 @@ internal fun PressiveGameState.pressing(
         (if (order[progress] == presserKey) progress + 1 else 0).let { nextProgress ->
             copy(progress = nextProgress).let {
                 if (it.progress == order.size)
-                    PressiveGameState.ThirdGameDone.withEvent(TimedEventType.PlaySuccessSound)
+                    PressiveGameState.ThirdGameDone.withEvent(SoundPlayEvents.Success)
                 else if (nextProgress > 0)
-                    it.withEvent(TimedEventType.PlayIncrementSound(nextProgress.toDouble() / order.size))
+                    it.withEvent(SoundPlayEvents.Increment(nextProgress.toDouble() / order.size))
                 else if (progress > 0)
-                    it.withEvent(TimedEventType.PlayProgressLossSound)
+                    it.withEvent(SoundPlayEvents.ProgressLoss)
                 else it.toPressResult()
             }
         }

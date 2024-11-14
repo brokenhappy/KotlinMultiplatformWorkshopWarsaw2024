@@ -3,7 +3,6 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import java.util.*
@@ -45,7 +44,7 @@ data class RegistrationVerificationEvent(val key: ApiKey) : WorkshopEventWithRes
             stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
         else stateWithoutUnverifiedParticipant.copy(
             participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key),
-        ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+        ).scheduling(SoundPlayEvents.Success).after(0.seconds)
             .to(NameVerificationResult.Success)
     }
 }
@@ -62,7 +61,7 @@ data class PuzzleFinishedEvent(val now: Instant, val participant: ApiKey, val pu
                             submissions = puzzleState.submissions + (participant.stringRepresentation to now)
                         )
                     )
-                ).scheduling(TimedEventType.PlaySuccessSound).after(0.seconds)
+                ).scheduling(SoundPlayEvents.Success).after(0.seconds)
                     .to(SolvingStatus.Done)
             }
         } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
@@ -76,6 +75,8 @@ data class ParticipantReactivationEvent(val participant: Participant, val random
 data class ParticipantRemovalEvent(val participant: Participant) : ServerWideEvents()
 @Serializable
 data class ParticipantRejectionEvent(val participant: Participant) : ServerWideEvents()
+@Serializable
+data class ApplyScheduledEvent(val timedEvent: TimedEvent) : ServerWideEvents()
 
 internal fun ServerState.after(event: ServerWideEvents): ServerState = when (event) {
     is StageChangeEvent -> copy(currentStage = event.stage)
@@ -84,6 +85,9 @@ internal fun ServerState.after(event: ServerWideEvents): ServerState = when (eve
     is ParticipantReactivationEvent -> with(Random(event.randomSeed)) { reactivateParticipant(event.participant) }
     is ParticipantRemovalEvent -> removeParticipant(event.participant)
     is ParticipantRejectionEvent -> copy(unverifiedParticipants = unverifiedParticipants - event.participant)
+    is ApplyScheduledEvent -> copy(
+        scheduledEvents = scheduledEvents - event.timedEvent
+    ).after(event.timedEvent.event)
 }
 
 private fun ServerState.deactivateParticipant(participant: Participant): ServerState = copy(
