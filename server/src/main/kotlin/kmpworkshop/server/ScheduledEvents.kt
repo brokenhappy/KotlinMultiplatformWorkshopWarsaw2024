@@ -45,7 +45,11 @@ suspend fun mainEventLoopWritingTo(
                         serverState.update { oldState ->
                             try {
                                 oldState.after(scheduledEvent.event).also { newState ->
-                                    persistedState = CommittedState(oldState, scheduledEvent.event, newState)
+                                    persistedState = CommittedState(
+                                        oldState,
+                                        TimedEvent(Clock.System.now(), scheduledEvent.event),
+                                        newState,
+                                    )
                                 }
                             } catch (c: CancellationException) {
                                 throw c
@@ -98,7 +102,11 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
                 throw t
             }
             result = value
-            persistedState = CommittedState(oldState, scheduledEvent.event, nextState)
+            persistedState = CommittedState(
+                oldState,
+                TimedEvent(Clock.System.now(), scheduledEvent.event),
+                nextState,
+            )
             scheduledEvent.continuation.context.ensureActive() // Don't apply the change if the request got canceled.
             nextState
         }
@@ -111,7 +119,7 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
     return result
 }
 
-data class CommittedState(val old: ServerState, val event: WorkshopEvent, val new: ServerState)
+data class CommittedState(val old: ServerState, val event: TimedEvent, val new: ServerState)
 
 internal data class InProgressScheduling(val stateWithoutEventScheduled: ServerState, val event: WorkshopEvent)
 internal fun InProgressScheduling.after(delay: Duration): ServerState = stateWithoutEventScheduled.copy(

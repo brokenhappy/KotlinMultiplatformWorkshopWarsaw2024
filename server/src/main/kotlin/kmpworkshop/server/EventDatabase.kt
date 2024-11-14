@@ -13,10 +13,10 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 @Serializable
-data class Backup(val instant: Instant, val initial: ServerState, val events: List<WorkshopEvent>)
+data class Backup(val instant: Instant, val initial: ServerState, val events: List<TimedEvent>)
 
 suspend fun eventStorageLoop(initial: ServerState, channel: ReceiveChannel<CommittedState>): Nothing {
-    val queue = mutableListOf<WorkshopEvent>()
+    val queue = mutableListOf<TimedEvent>()
     var current = initial
     var lastState = initial
     suspend fun doBackup(
@@ -66,4 +66,4 @@ private suspend fun getMostRecentDatabaseFileContent(): String? = withContext(Di
         ?.readText()
 }
 
-private fun Backup.lastState(): ServerState = events.fold(initial) { state, event -> state.after(event) }
+private fun Backup.lastState(): ServerState = events.fold(initial) { state, event -> state.after(event.event) }
