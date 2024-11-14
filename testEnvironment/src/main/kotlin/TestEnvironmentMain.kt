@@ -34,7 +34,7 @@ fun main(): Unit = runBlocking {
 
     val eventBus = Channel<ScheduledWorkshopEvent>()
     launch(Dispatchers.Default) {
-        performScheduledEvents(serverState, eventBus)
+        mainEventLoopWritingTo(serverState, eventBus)
     }
 
     application {

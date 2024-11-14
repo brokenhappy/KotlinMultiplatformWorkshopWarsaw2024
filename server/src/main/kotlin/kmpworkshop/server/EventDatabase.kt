@@ -15,7 +15,7 @@ import java.io.File
 @Serializable
 data class Backup(val instant: Instant, val initial: ServerState, val events: List<WorkshopEvent>)
 
-suspend fun storeEvents(initial: ServerState, channel: ReceiveChannel<CommittedState>): Nothing {
+suspend fun eventStorageLoop(initial: ServerState, channel: ReceiveChannel<CommittedState>): Nothing {
     val queue = mutableListOf<WorkshopEvent>()
     var current = initial
     var lastState = initial
