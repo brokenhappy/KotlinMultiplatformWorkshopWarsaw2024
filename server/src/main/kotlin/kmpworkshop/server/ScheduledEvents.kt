@@ -17,71 +17,76 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-suspend fun performScheduledEvents(serverState: MutableStateFlow<ServerState>, eventBus: ReceiveChannel<ScheduledWorkshopEvent>): Nothing {
-    coroutineScope {
-        val events = Channel<CommittedState>()
-        launch {
-            try {
-                val initial = loadInitialStateFromDatabase()
-                if (initial != ServerState()) serverState.value = initial
-                storeEvents(initial, events)
-            } catch (t: Throwable) {
-                t.printStackTrace()
-                throw t
-            }
+suspend fun mainEventAndStoreLoopWritingTo(
+    serverState: MutableStateFlow<ServerState>,
+    eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
+): Nothing = coroutineScope {
+    val events = Channel<CommittedState>()
+    launch {
+        try {
+            val initial = loadInitialStateFromDatabase()
+            if (initial != ServerState()) serverState.value = initial
+            eventStorageLoop(initial, events)
+        } catch (t: Throwable) {
+            t.printStackTrace()
+            throw t
         }
-        launch {
-            try {
-                for (scheduledEvent in eventBus) {
-                    when (scheduledEvent) {
-                        is ScheduledWorkshopEvent.AwaitingResult<*> -> {
-                            serverState.applyEventWithResult(
-                                applicationScope = this,
-                                scheduledEvent,
-                                onCommittedState = { launch { events.send(it) } }
-                            )
-                        }
-                        is ScheduledWorkshopEvent.IgnoringResult -> {
-                            var persistedState: CommittedState? = null
-                            serverState.update { oldState ->
-                                try {
-                                    oldState.after(scheduledEvent.event).also { newState ->
-                                        persistedState = CommittedState(oldState, scheduledEvent.event, newState)
-                                    }
-                                } catch (c: CancellationException) {
-                                    throw c
-                                } catch (t: Throwable) {
-                                    launch { reportError(oldState, scheduledEvent.event) }
-                                    oldState
-                                }
-                            }
-                            persistedState?.let { launch { events.send(it) } }
-                        }
-                    }
-                }
-            } catch (t: Throwable) {
-                t.printStackTrace()
-                throw t
-            }
-        }
-        serverState
-            .map { it.scheduledEvents.minByOrNull { it.time } }
-            .distinctUntilChangedBy { it?.time }
-            .collectLatest { firstScheduledEvent ->
-                try {
-                    if (firstScheduledEvent == null) return@collectLatest
-                    delayUntil(firstScheduledEvent.time)
-                    serverState.update {
-                        it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
-                    }
-                } catch (c: CancellationException) {
-                    throw c
-                } catch (t: Throwable) {
-                    t.printStackTrace()
-                    throw t
-                }
-            }
     }
+    mainEventLoopWritingTo(serverState, eventBus, onCommittedState = { launch { events.send(it) } })
+}
+
+suspend fun mainEventLoopWritingTo(
+    serverState: MutableStateFlow<ServerState>,
+    eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
+    onCommittedState: (CommittedState) -> Unit = {},
+): Nothing = coroutineScope {
+    launch {
+        try {
+            for (scheduledEvent in eventBus) {
+                when (scheduledEvent) {
+                    is ScheduledWorkshopEvent.AwaitingResult<*> -> {
+                        serverState.applyEventWithResult(applicationScope = this, scheduledEvent, onCommittedState)
+                    }
+                    is ScheduledWorkshopEvent.IgnoringResult -> {
+                        var persistedState: CommittedState? = null
+                        serverState.update { oldState ->
+                            try {
+                                oldState.after(scheduledEvent.event).also { newState ->
+                                    persistedState = CommittedState(oldState, scheduledEvent.event, newState)
+                                }
+                            } catch (c: CancellationException) {
+                                throw c
+                            } catch (t: Throwable) {
+                                launch { reportError(oldState, scheduledEvent.event) }
+                                oldState
+                            }
+                        }
+                        persistedState?.let(onCommittedState)
+                    }
+                }
+            }
+        } catch (t: Throwable) {
+            t.printStackTrace()
+            throw t
+        }
+    }
+    serverState
+        .map { it.scheduledEvents.minByOrNull { it.time } }
+        .distinctUntilChangedBy { it?.time }
+        .collectLatest { firstScheduledEvent ->
+            try {
+                if (firstScheduledEvent == null) return@collectLatest
+                delayUntil(firstScheduledEvent.time)
+                serverState.update {
+                    it.copy(scheduledEvents = it.scheduledEvents - firstScheduledEvent).after(firstScheduledEvent.type)
+                }
+            } catch (c: CancellationException) {
+                throw c
+            } catch (t: Throwable) {
+                t.printStackTrace()
+                throw t
+            }
+        }
     error("Should not be reached")
 }
 

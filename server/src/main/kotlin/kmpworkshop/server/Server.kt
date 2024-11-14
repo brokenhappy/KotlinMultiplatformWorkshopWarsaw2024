@@ -38,7 +38,7 @@ fun main(): Unit = runBlocking {
         }
     }
     launch(Dispatchers.Default) {
-        performScheduledEvents(serverState, eventBus)
+        mainEventAndStoreLoopWritingTo(serverState, eventBus)
     }
     val job = coroutineContext.job
     application {
