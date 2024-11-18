@@ -40,7 +40,7 @@ suspend fun reportBug(bug: ReportedBug) {
     """.trimIndent())
     withContext(Dispatchers.IO) {
         val file = generateSequence(0) { it + 1 }
-            .map { File("$bugDirectory").resolve("Bug: ${bug.moment}" + if (it == 0) "" else "($it)") }
+            .map { File("$bugDirectory").resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
             .first { !it.exists() }
         file.writeText(Json.encodeToString(bug))
     }

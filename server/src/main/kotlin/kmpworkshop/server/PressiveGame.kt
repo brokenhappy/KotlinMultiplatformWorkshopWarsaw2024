@@ -60,7 +60,7 @@ fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
                     else -> state.order.getOrNull(state.order.indexOfFirst { it == current } + 1)
                 }
             )
-        ).scheduling(PressiveGameEvent.Tick).after(delayForNextEvent(state))
+        ).schedulingSingle(PressiveGameEvent.Tick).after(delayForNextEvent(state))
     }
 }
 
@@ -110,7 +110,7 @@ private fun ServerState.startingThirdPressiveGame(): ServerState =
             progress = 0,
             participantThatIsBeingRung = null,
         )
-    ).scheduling(PressiveGameEvent.Tick).after(0.seconds)
+    ).schedulingSingle(PressiveGameEvent.Tick).after(0.seconds)
 
 internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): String = """
     ${if (isBeingCalled) "|Someone is calling you, try to call them back!\n" else ""}|You are: $personalId

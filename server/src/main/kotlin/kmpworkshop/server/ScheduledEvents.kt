@@ -122,11 +122,21 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
 
 data class CommittedState(val old: ServerState, val event: TimedEvent, val new: ServerState)
 
-internal data class InProgressScheduling(val stateWithoutEventScheduled: ServerState, val event: WorkshopEvent)
-internal fun InProgressScheduling.after(delay: Duration): ServerState = stateWithoutEventScheduled.copy(
-    scheduledEvents = stateWithoutEventScheduled.scheduledEvents + TimedEvent(Clock.System.now() + delay, event)
+internal data class InProgressScheduling(
+    val stateWithoutEventScheduled: ServerState,
+    val event: WorkshopEvent,
+    val onlyASingleOfThisType: Boolean
 )
-internal fun ServerState.scheduling(event: WorkshopEvent): InProgressScheduling = InProgressScheduling(this, event)
+internal fun InProgressScheduling.after(delay: Duration): ServerState = stateWithoutEventScheduled.copy(
+    scheduledEvents = stateWithoutEventScheduled
+        .scheduledEvents
+        .applyIf({ onlyASingleOfThisType }) { it.filterNot { it.event.javaClass == event.javaClass } }
+        + TimedEvent(Clock.System.now() + delay, event)
+)
+internal fun ServerState.scheduling(event: WorkshopEvent): InProgressScheduling =
+    InProgressScheduling(this, event, onlyASingleOfThisType = false)
+internal fun ServerState.schedulingSingle(event: WorkshopEvent): InProgressScheduling =
+    InProgressScheduling(this, event, onlyASingleOfThisType = true)
 
 private suspend fun delayUntil(time: Instant) {
     (time - Clock.System.now())
