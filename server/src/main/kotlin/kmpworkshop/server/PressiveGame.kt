@@ -185,8 +185,9 @@ internal fun PressiveGameState.pressing(
         "I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?"
     )
     is PressiveGameState.FirstGameInProgress -> states[presserKey]?.let { state ->
-        when (type) {
-            state.pressesLeft.first() ->
+        when {
+            state.finishTime != null -> this.toPressResult()
+            type == state.pressesLeft.first() ->
                 state.dropSinglePressLeft(now).let { newParticipantState ->
                     copy(states = states.put(presserKey, state.dropSinglePressLeft(now)))
                         .let { newState ->
