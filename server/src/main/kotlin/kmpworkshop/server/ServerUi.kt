@@ -148,7 +148,10 @@ private fun DiscoGame(
         is DiscoGameState.Second.Done -> Text("Second game finished!")
         is DiscoGameState.NotStarted -> Text("Second game has not started yet!")
         is DiscoGameState.Second.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
-            BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
+            Row(verticalAlignment = CenterVertically) {
+                Text("Progress: ")
+                BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
+            }
             state
                 .scheduledEvents
                 .firstOrNull { it.event is DiscoGameEvent.SecondPressTimeout }
@@ -158,7 +161,7 @@ private fun DiscoGame(
                 .orderedParticipants
                 .chunked(gameState.width.takeIf { it > 0 } ?: 1)
                 .forEach { row ->
-                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = CenterVertically) {
                         for ((_, color) in row) {
                             Spacer(
                                 modifier = Modifier.weight(1f)
