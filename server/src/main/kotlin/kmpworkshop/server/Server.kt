@@ -37,10 +37,9 @@ fun main(): Unit = runBlocking {
             throw t
         }
     }
-    launch(Dispatchers.Default) {
+    val job = launch(Dispatchers.Default) {
         mainEventAndStoreLoopWritingTo(serverState, eventBus, onEvent = { launch { eventBus.send(it) } })
     }
-    val job = coroutineContext.job
     application {
         WorkshopWindow(
             onCloseRequest = {
