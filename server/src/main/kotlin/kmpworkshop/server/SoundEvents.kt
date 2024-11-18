@@ -17,7 +17,7 @@ sealed class SoundPlayEvents : WorkshopEvent() {
     data object ProgressLoss: SoundPlayEvents()
 }
 
-private fun ServerState.after(event: SoundPlayEvents): ServerState = when (event) {
+fun ServerState.after(event: SoundPlayEvents): ServerState = when (event) {
     is SoundPlayEvents.Success -> this.also { GlobalScope.launch { playSuccessSound() } }
     is SoundPlayEvents.Increment -> this.also { GlobalScope.launch { playProgressSound(event.pitch) } }
     is SoundPlayEvents.ProgressLoss -> this.also { GlobalScope.launch { playFailSound() } }
