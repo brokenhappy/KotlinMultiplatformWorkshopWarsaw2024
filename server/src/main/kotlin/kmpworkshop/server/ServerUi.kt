@@ -514,6 +514,10 @@ private fun Registration(
     onEvent: OnEvent,
 ) {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+        Text("")
+        var searchText by remember { mutableStateOf("") }
+        TextField(searchText, onValueChange = { searchText = it })
+
         BasicText(text = "Number of verified participants: ${state.participants.size}")
         state.participants.forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
@@ -527,7 +531,9 @@ private fun Registration(
                     Text("Deactivate")
                 }
             }
+            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
         }
+        Spacer(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.Red))
         state.deactivatedParticipants.forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = participant.name)
@@ -544,6 +550,7 @@ private fun Registration(
                 }
             }
         }
+        Spacer(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.Red))
         state.unverifiedParticipants.forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = participant.name)
@@ -556,6 +563,7 @@ private fun Registration(
                     Text("Reject")
                 }
             }
+            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
         }
     }
 }
