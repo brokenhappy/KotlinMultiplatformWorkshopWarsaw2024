@@ -36,7 +36,7 @@ suspend fun eventStorageLoop(initial: ServerState, channel: ReceiveChannel<Commi
         for ((oldState, event, newState) in channel) {
             lastState = newState
             queue.add(event)
-            if (queue.size < 100) continue
+            if (queue.size < 10) continue
             doBackup()
         }
         error("Channel completed unexpectedly")
