@@ -136,6 +136,8 @@ sealed class NameVerificationResult {
     @Serializable
     data object ApiKeyDoesNotExist : NameVerificationResult()
     @Serializable
+    data object AlreadyRegistered : NameVerificationResult()
+    @Serializable
     data object NameAlreadyExists : NameVerificationResult()
 }
 
