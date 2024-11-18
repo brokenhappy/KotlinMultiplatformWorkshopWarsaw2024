@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -514,12 +515,16 @@ private fun Registration(
     onEvent: OnEvent,
 ) {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-        Text("")
         var searchText by remember { mutableStateOf("") }
-        TextField(searchText, onValueChange = { searchText = it })
+        Row(verticalAlignment = CenterVertically) {
+            Text("Search: ")
+            TextField(searchText, onValueChange = { searchText = it })
+        }
+        fun List<Participant>.filtered(): List<Participant> =
+            if (searchText.isEmpty()) this else filter { searchText in it.name }
 
         BasicText(text = "Number of verified participants: ${state.participants.size}")
-        state.participants.forEach { participant ->
+        state.participants.filtered().forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = participant.name)
                 BasicText(
@@ -534,7 +539,7 @@ private fun Registration(
             Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
         }
         Spacer(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.Red))
-        state.deactivatedParticipants.forEach { participant ->
+        state.deactivatedParticipants.filtered().forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = participant.name)
                 BasicText(
@@ -551,7 +556,7 @@ private fun Registration(
             }
         }
         Spacer(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.Red))
-        state.unverifiedParticipants.forEach { participant ->
+        state.unverifiedParticipants.filtered().forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = participant.name)
                 BasicText(
