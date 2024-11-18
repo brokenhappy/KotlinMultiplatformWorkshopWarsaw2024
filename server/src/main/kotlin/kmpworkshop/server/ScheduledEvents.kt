@@ -73,6 +73,7 @@ suspend fun mainEventLoopWritingTo(
         .collectLatest { firstScheduledEvent ->
             try {
                 if (firstScheduledEvent == null) return@collectLatest
+                delayUntil(firstScheduledEvent.time)
                 onEvent.schedule(ApplyScheduledEvent(firstScheduledEvent))
             } catch (c: CancellationException) {
                 throw c
