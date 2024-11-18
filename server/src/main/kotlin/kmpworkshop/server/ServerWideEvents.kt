@@ -32,6 +32,8 @@ data class RegistrationStartEvent(val name: String) : WorkshopEventWithResult<Ap
 @Serializable
 data class RegistrationVerificationEvent(val key: ApiKey) : WorkshopEventWithResult<NameVerificationResult>() {
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, NameVerificationResult> {
+        if (oldState.participants.any { it.apiKey == key })
+            return oldState to NameVerificationResult.AlreadyRegistered
         val name = oldState
             .unverifiedParticipants
             .firstOrNull { it.apiKey == key }

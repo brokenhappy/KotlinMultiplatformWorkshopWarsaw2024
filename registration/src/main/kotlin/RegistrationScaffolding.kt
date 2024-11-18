@@ -65,6 +65,7 @@ internal fun verifyMyApiKey() {
             NameVerificationResult.ApiKeyDoesNotExist -> "Hmm, somehow your client-api-key is invalid, you tried to register with $apiKey. Please restart the process!"
             NameVerificationResult.NameAlreadyExists -> "Oh no, someone who registered with the same name verified before you! Please try again with a different name!"
             NameVerificationResult.Success -> "Congratulations! You've now been verified! You can now help the others to register!"
+            NameVerificationResult.AlreadyRegistered -> "You have already registered yourself before, you're good! Please consider helping your peers :)"
         }
     )
 }
