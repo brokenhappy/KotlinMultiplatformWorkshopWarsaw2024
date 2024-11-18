@@ -130,6 +130,7 @@ data class SecondPressiveGameParticipantState(
 data class ServerSettings(
     /** Value is `in -1..1`. Negative means darker, Positive means lighter */
     val dimmingRatio: Float = 0f,
+    val zoom: Float = 1f,
 )
 
 @Serializable

@@ -8,15 +8,16 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight.Companion.Bold
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -57,8 +58,16 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
                 Text("Color dimming: ")
                 Slider(
                     currentSettings.dimmingRatio,
-                    onValueChange = { currentSettings = settings.copy(dimmingRatio = it) },
+                    onValueChange = { currentSettings = currentSettings.copy(dimmingRatio = it) },
                     valueRange = -1f..1f,
+                )
+            }
+            Row {
+                Text("Zoom: ")
+                Slider(
+                    currentSettings.zoom,
+                    onValueChange = { currentSettings = currentSettings.copy(zoom = it) },
+                    valueRange = 0.1f..3f,
                 )
             }
             Row {
@@ -86,17 +95,21 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
 
 @Composable
 fun ServerUi(state: ServerState, onEvent: OnEvent) {
-    Column {
-        // TODO: Start first pressive tick event when switching to Pressive game!
-        StageTopBar(state.currentStage, onEvent)
-        when (state.currentStage) {
-            WorkshopStage.Registration -> Registration(state, onEvent)
-            WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onEvent)
-            WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onEvent)
-            WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onEvent)
-            WorkshopStage.SliderGameStage -> SliderGame(state, onEvent)
-            WorkshopStage.PressiveGameStage -> PressiveGame(state, onEvent)
-            WorkshopStage.DiscoGame -> DiscoGame(state, onEvent)
+    CompositionLocalProvider(
+        LocalDensity provides Density(LocalDensity.current.density * state.settings.zoom)
+    ) {
+        Column {
+            // TODO: Start first pressive tick event when switching to Pressive game!
+            StageTopBar(state.currentStage, onEvent)
+            when (state.currentStage) {
+                WorkshopStage.Registration -> Registration(state, onEvent)
+                WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onEvent)
+                WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onEvent)
+                WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onEvent)
+                WorkshopStage.SliderGameStage -> SliderGame(state, onEvent)
+                WorkshopStage.PressiveGameStage -> PressiveGame(state, onEvent)
+                WorkshopStage.DiscoGame -> DiscoGame(state, onEvent)
+            }
         }
     }
 }
