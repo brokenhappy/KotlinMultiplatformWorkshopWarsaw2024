@@ -59,7 +59,7 @@ fun ServerState.after(event: DiscoGameEvent): ServerState = when (event) {
                         .orderedParticipants
                         .map { it.copy(color = discoColors.random(random)) }
                 ),
-            ).scheduling(DiscoGameEvent.SecondBackgroundTick(random.nextLong())).after(danceFloorChangeInterval)
+            ).schedulingSingle(DiscoGameEvent.SecondBackgroundTick(random.nextLong())).after(danceFloorChangeInterval)
         }
     }
     is DiscoGameEvent.SecondPressTimeout -> with(Random(event.randomSeed)) {
@@ -77,7 +77,7 @@ fun ServerState.after(event: DiscoGameEvent): ServerState = when (event) {
             is DiscoGameState.Second,
             is DiscoGameState.NotStarted -> this@after
             is DiscoGameState.First.InProgress -> copy(discoGameState = state.privateTick())
-                .scheduling(DiscoGameEvent.FirstParticipantTick(nextLong())).after(firstDiscoGamePrivateTickTimeout)
+                .schedulingSingle(DiscoGameEvent.FirstParticipantTick(nextLong())).after(firstDiscoGamePrivateTickTimeout)
         }
     }
     is DiscoGameEvent.FirstTargetTick -> with(Random(event.randomSeed)) {
@@ -86,7 +86,7 @@ fun ServerState.after(event: DiscoGameEvent): ServerState = when (event) {
             is DiscoGameState.Second,
             is DiscoGameState.NotStarted -> this@after
             is DiscoGameState.First.InProgress -> copy(discoGameState = state.targetTick())
-                .scheduling(DiscoGameEvent.FirstTargetTick(nextLong())).after(firstDiscoGamePublicTickTimeout)
+                .schedulingSingle(DiscoGameEvent.FirstTargetTick(nextLong())).after(firstDiscoGamePublicTickTimeout)
         }
     }
 }
@@ -107,8 +107,8 @@ fun ServerState.startingFirstDiscoGame(now: Instant): ServerState = copy(
         startTime = now,
     ),
 )
-    .scheduling(DiscoGameEvent.FirstTargetTick(nextLong())).after(0.seconds)
-    .scheduling(DiscoGameEvent.FirstParticipantTick(nextLong())).after(0.seconds)
+    .schedulingSingle(DiscoGameEvent.FirstTargetTick(nextLong())).after(0.seconds)
+    .schedulingSingle(DiscoGameEvent.FirstParticipantTick(nextLong())).after(0.seconds)
 
 context(Random)
 fun ServerState.startingSecondDiscoGame(): ServerState = copy(
@@ -120,8 +120,8 @@ fun ServerState.startingSecondDiscoGame(): ServerState = copy(
         instructionOrder = emptyList(),
     ).restartingInstructions(),
 )
-    .scheduling(DiscoGameEvent.SecondBackgroundTick(nextLong())).after(0.seconds)
-    .scheduling(DiscoGameEvent.SecondPressTimeout(nextLong())).after(1.5.seconds)
+    .schedulingSingle(DiscoGameEvent.SecondBackgroundTick(nextLong())).after(0.seconds)
+    .schedulingSingle(DiscoGameEvent.SecondPressTimeout(nextLong())).after(1.5.seconds)
 
 context(Random)
 internal fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now: Instant): ServerState = when (val gameState = discoGameState) {

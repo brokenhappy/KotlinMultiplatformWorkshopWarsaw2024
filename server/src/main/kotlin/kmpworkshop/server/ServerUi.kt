@@ -463,7 +463,7 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
                 Text("<")
             }
             Spacer(modifier = Modifier.weight(1f))
-            Column(modifier = Modifier.align(Alignment.CenterVertically)) {
+            Column(modifier = Modifier.align(CenterVertically)) {
                 var expanded by remember { mutableStateOf(false) }
                 ClickableText(
                     text = AnnotatedString("Go to file: ${stage.kotlinFile}"),
