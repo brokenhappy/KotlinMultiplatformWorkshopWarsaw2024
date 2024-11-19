@@ -214,6 +214,12 @@ private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
     Column(modifier = Modifier.padding(16.dp)) {
         TopButton("Start First game", onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.nextLong())) })
         TopButton(
+            "Retain first game finishers",
+            enabled = state.pressiveGameState is PressiveGameState.FirstGameDone ||
+                    state.pressiveGameState is PressiveGameState.FirstGameInProgress,
+            onClick = { onEvent.schedule(PressiveGameEvent.DisableAllWhoDidntFinishFirstGame) },
+        )
+        TopButton(
             "Start Second game",
             enabled = state.participants.size % 2 == 0,
             onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.nextLong())) },
@@ -437,8 +443,9 @@ private fun Submissions(submissions: Submissions) {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         BasicText(text = "Number of completions: ${submissions.completedSubmissions.size}/${submissions.participants.size}")
         for ((apiKey, timeOfCompletion) in submissions.completedSubmissions.entries.sortedBy { it.value }) {
+            val participant = submissions.participants.firstOrNull { it.apiKey == apiKey } ?: continue
             Row(modifier = Modifier.padding(8.dp)) {
-                BasicText(text = submissions.participants.first { it.apiKey == apiKey }.name)
+                BasicText(text = participant.name)
                 val duration = timeOfCompletion - submissions.startTime
                 BasicText(
                     text = "Took: ${formatDuration(duration)}",
