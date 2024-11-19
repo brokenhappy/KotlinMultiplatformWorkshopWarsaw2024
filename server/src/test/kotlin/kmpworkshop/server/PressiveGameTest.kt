@@ -14,6 +14,7 @@ import kmpworkshop.server.PressivePairingState.PartnerHungUp
 import kmpworkshop.server.PressivePairingState.RoundSuccess
 import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kmpworkshop.server.PressivePairingState.TriedToCallNonExistingCode
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.junit.jupiter.api.Nested
 import kotlin.random.Random
@@ -240,25 +241,25 @@ private fun PressiveGameState.SecondGameInProgress.assertPairingState(
 private fun PressiveGameState.SecondGameInProgress.pressingProgress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState.SecondGameInProgress = pressing(type, presser, now, Random(randomSeed)).first
+): PressiveGameState.SecondGameInProgress = with(Random) { pressing(type, presser, Clock.System.now()) }
     .assertIs<PressiveGameState.SecondGameInProgress> { "Game state changed unexpectedly to $it" }
 
 private fun PressiveGameState.FirstGameInProgress.pressingProgress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState.FirstGameInProgress = pressing(type, presser, now, Random(randomSeed)).first
+): PressiveGameState.FirstGameInProgress = with(Random) { pressing(type, presser, Clock.System.now()) }
     .assertIs<PressiveGameState.FirstGameInProgress> { "Game state changed unexpectedly to $it" }
 
 private fun PressiveGameState.SecondGameInProgress.lastPress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState = pressing(type, presser, now, Random(randomSeed)).first
+): PressiveGameState = with(Random) { pressing(type, presser, Clock.System.now()) }
     .assertIs<PressiveGameState.SecondGameDone> { "Game state was supposed to finish, but is $it" }
 
 private fun PressiveGameState.FirstGameInProgress.lastPress(
     presser: ApiKey,
     type: PressiveGamePressType
-): PressiveGameState = pressing(type, presser, now, Random(randomSeed)).first
+): PressiveGameState = with(Random) { pressing(type, presser, Clock.System.now()) }
     .assertIs<PressiveGameState.FirstGameDone> { "Game state was supposed to finish, but is $it" }
 
 internal inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =
