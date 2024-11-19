@@ -19,41 +19,120 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
-import java.io.File
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 
-fun main(): Unit = runBlocking {
-    val serverState = MutableStateFlow(ServerState())
-    val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
-    launch(Dispatchers.Default) {
-        try {
+fun main(): Unit = application {
+    ServerApp(onExit = ::exitApplication)
+}
+
+@Composable
+fun ServerApp(onExit: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val serverState = remember { MutableStateFlow(ServerState()) }
+    var proposedState by remember { mutableStateOf<ServerState?>(null) }
+    val serverOrProposedState = remember {
+        serverState.combine(snapshotFlow { proposedState }) { realState, proposedState -> proposedState ?: realState }
+    }
+    val eventBus = remember { Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED) }
+    var isInterestedInBackups by remember { mutableStateOf(false) }
+    var recentBackups by remember { mutableStateOf(listOf<Backup>()) }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.Default) {
             serveSingleService<WorkshopApiService> { coroutineContext ->
-                workshopService(coroutineContext, serverState, onEvent = { launch { eventBus.send(it) } })
+                workshopService(coroutineContext, serverOrProposedState, onEvent = { launch { eventBus.send(it) } })
             }
-        } catch (t: Throwable) {
-            t.printStackTrace()
-            throw t
         }
     }
-    val job = launch(Dispatchers.Default) {
-        mainEventAndStoreLoopWritingTo(serverState, eventBus, onEvent = { launch { eventBus.send(it) } })
-    }
-    application {
-        WorkshopWindow(
-            onCloseRequest = {
-                launch {
-                    job.cancelAndJoin()
-                    exitApplication()
+
+    val job = remember {
+        scope.launch(Dispatchers.Default) {
+            try {
+                coroutineScope {
+                    mainEventLoopWithCommittedStateChannelWritingTo(
+                        serverState,
+                        eventBus,
+                        onEvent = { launch { eventBus.send(it) } }
+                    ) { initialState, channel ->
+                        withBackupLoop(initialState, channel) { backupRequests, trailingBackup ->
+                            val flow = backupRequests.consumeAsFlow()
+                                .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
+                            val channelCopy = Channel<BackupRequest>()
+                            launch {
+                                try {
+                                    flow.collectLatest { event ->
+                                        channelCopy.send(event)
+                                    }
+                                } catch (e: Throwable) {
+                                    e.printStackTrace()
+                                    throw e
+                                }
+                            }
+                            launch {
+                                try {
+                                    snapshotFlow { isInterestedInBackups }.collectLatest { isInterestedInBackups ->
+                                        if (!isInterestedInBackups) {
+                                            recentBackups = emptyList()
+                                            return@collectLatest
+                                        }
+                                        flow
+                                            .mapNotNull { it.backup }
+                                            .runningFold(emptyList<Backup>()) { acc, event -> acc + event }
+                                            .combine(trailingBackup) { backups, trailingBackup -> backups + trailingBackup }
+                                            .collect { recentBackups = it }
+                                    }
+                                } catch (t: Throwable) {
+                                    t.printStackTrace()
+                                    throw t
+                                }
+                            }
+
+                            try {
+                                store(channelCopy)
+                            } catch (e: Throwable) {
+                                e.printStackTrace()
+                                throw e
+                            }
+                        }
+                    }
                 }
-            },
-            title = "KMP Workshop",
-            onEvent = { launch { eventBus.send(it) } },
-            serverState = serverState,
-            serverUi = { state, onEvent -> ServerUi(state, onEvent) },
-        )
+            } catch (t: Throwable) {
+                t.printStackTrace()
+                throw t
+            }
+        }
     }
+
+    WorkshopWindow(
+        serverState = serverOrProposedState,
+        title = "KMP Workshop",
+        onCloseRequest = {
+            scope.launch {
+                job.cancelAndJoin()
+                onExit()
+            }
+        },
+        onEvent = { scope.launch { eventBus.send(it) } },
+        recentBackups = recentBackups,
+        whileTimeLineOpen = {
+            try {
+                isInterestedInBackups = true
+                proposedState = null
+                awaitCancellation()
+            } finally {
+                isInterestedInBackups = false
+                proposedState = null
+            }
+        },
+        onTimeLineSelectionChange = { proposedState = it },
+        serverUi = { state, onEvent -> ServerUi(state, onEvent) },
+        onTimeLineAccept = {
+            proposedState?.let {
+                scope.launch { eventBus.send(ScheduledWorkshopEvent.IgnoringResult(RevertWholeStateEvent(it))) }
+            }
+        },
+    )
 }
 
 @Composable
@@ -62,25 +141,39 @@ fun WorkshopWindow(
     title: String,
     onCloseRequest: () -> Unit,
     onEvent: OnEvent,
+    recentBackups: List<Backup> = emptyList(),
+    whileTimeLineOpen: suspend () -> Nothing = ::awaitCancellation,
+    onTimeLineSelectionChange: (ServerState?) -> Unit = {},
+    onTimeLineAccept: () -> Unit = {},
     serverUi: @Composable (ServerState, onEvent: OnEvent) -> Unit,
 ) {
     Window(onCloseRequest = onCloseRequest, title = title) {
         var settingsIsOpen by remember { mutableStateOf(false) }
+        var timelineIsOpen by remember { mutableStateOf(false) }
         MenuBar {
             Menu("Edit") {
                 Item("Settings", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { settingsIsOpen = true })
+                Item("TimeLine", shortcut = KeyShortcut(Key.T, meta = true), onClick = { timelineIsOpen = true })
             }
         }
-        MaterialTheme {
-            val state by serverState.collectAsState(initial = ServerState())
-            if (settingsIsOpen) {
-                SettingsDialog(
-                    state.settings,
-                    onDismiss = { settingsIsOpen = false },
-                    onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
-                )
-            }
-            serverUi(state, onEvent)
+        val state by serverState.collectAsState(initial = ServerState())
+        if (settingsIsOpen) {
+            SettingsDialog(
+                state.settings,
+                onDismiss = { settingsIsOpen = false },
+                onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
+            )
+        }
+        MaterialTheme { serverUi(state, onEvent) }
+        if (timelineIsOpen) {
+            TimeLine(
+                state.participants,
+                onClose = { timelineIsOpen = false },
+                recentBackups,
+                whileTimeLineOpen,
+                onSelectionChange = onTimeLineSelectionChange,
+                onTimeLineAccept,
+            )
         }
     }
 }
@@ -91,7 +184,7 @@ fun workshopService(
     onEvent: OnEvent,
 ): WorkshopApiService = object : WorkshopApiService {
     override suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult =
-        onEvent.fire(RegistrationStartEvent(name))
+        onEvent.fire(RegistrationStartEvent(name, Random.nextLong()))
 
     override suspend fun verifyRegistration(key: ApiKey): NameVerificationResult =
         onEvent.fire(RegistrationVerificationEvent(key))
