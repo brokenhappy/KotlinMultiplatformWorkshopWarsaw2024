@@ -19,6 +19,8 @@ sealed class PressiveGameEvent : WorkshopEvent() {
     @Serializable
     data class StartThird(val randomSeed: Long) : PressiveGameEvent()
     @Serializable
+    data object DisableAllWhoDidntFinishFirstGame : PressiveGameEvent()
+    @Serializable
     data object Tick: PressiveGameEvent()
     @Serializable
     data class Press(
@@ -46,6 +48,20 @@ fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
     is PressiveGameEvent.StartFirst -> with(Random(event.randomSeed)) { startingFirstPressiveGame(event.now) }
     is PressiveGameEvent.StartSecond -> with(Random(event.randomSeed)) { startingSecondPressiveGame() }
     is PressiveGameEvent.StartThird -> with(Random(event.randomSeed)) { startingThirdPressiveGame() }
+    is PressiveGameEvent.DisableAllWhoDidntFinishFirstGame -> when (val state = pressiveGameState) {
+        is PressiveGameState.FirstGameDone -> state.finishTimes.keys.map { ApiKey(it) }
+        is PressiveGameState.FirstGameInProgress -> state.states.entries
+            .mapNotNull { (key, value) -> ApiKey(key).takeUnless { value.finishTime == null } }
+        is PressiveGameState.SecondGameDone,
+        is PressiveGameState.SecondGameInProgress,
+        is PressiveGameState.NotStarted,
+        is PressiveGameState.ThirdGameDone,
+        is PressiveGameState.ThirdGameInProgress -> null
+    }
+        ?.toSet()
+        ?.let { keys -> participants.filter { it.apiKey !in keys } }
+        ?.let { participants -> participants.fold(this) { acc, key -> acc.after(ParticipantDeactivationEvent(key)) } }
+        ?: this
     is PressiveGameEvent.Tick -> when (val state = pressiveGameState) {
         is PressiveGameState.FirstGameDone,
         is PressiveGameState.FirstGameInProgress,
