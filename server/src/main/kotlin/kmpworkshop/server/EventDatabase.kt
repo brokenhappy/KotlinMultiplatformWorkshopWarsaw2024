@@ -15,7 +15,7 @@ import java.io.File
 @Serializable
 data class Backup(val instant: Instant, val initial: ServerState, val events: List<TimedEvent>)
 
-suspend fun eventStorageLoop(initial: ServerState, channel: ReceiveChannel<CommittedState>): Nothing {
+suspend fun eventStorageLoop(initial: ServerState, channel: ReceiveChannel<CommittedState>): Nothing = coroutineScope {
     val queue = mutableListOf<TimedEvent>()
     var current = initial
     var lastState = initial
@@ -34,6 +34,8 @@ suspend fun eventStorageLoop(initial: ServerState, channel: ReceiveChannel<Commi
     }
     try {
         for ((oldState, event, newState) in channel) {
+            if (oldState.after(event.event).droppingScheduledEventTimes() != newState.droppingScheduledEventTimes())
+                launch { reportIndeterministicEvent(oldState, event.event) }
             lastState = newState
             queue.add(event)
             if (queue.size < 10) continue

@@ -22,8 +22,13 @@ sealed class BugType {
     @Serializable
     data class Behavioral(val description: String, val events: List<WorkshopEvent>): BugType()
     @Serializable
+    data class IndeterministicEvent(val event: WorkshopEvent): BugType()
+    @Serializable
     data class Error(val failingEvent: WorkshopEvent): BugType()
 }
+
+fun ServerState.droppingScheduledEventTimes(): ServerState =
+    copy(scheduledEvents = scheduledEvents.map { it.copy(time = Instant.DISTANT_PAST) })
 
 suspend fun reportError(safeState: ServerState, event: WorkshopEvent) {
     reportBug(ReportedBug(safeState, BugType.Error(event), Clock.System.now()))
@@ -31,6 +36,10 @@ suspend fun reportError(safeState: ServerState, event: WorkshopEvent) {
 
 suspend fun reportBehavioralBug(initialState: ServerState, description: String, events: List<WorkshopEvent>) {
     reportBug(ReportedBug(initialState, BugType.Behavioral(description, events), Clock.System.now()))
+}
+
+suspend fun reportIndeterministicEvent(initialState: ServerState, event: WorkshopEvent) {
+    reportBug(ReportedBug(initialState, BugType.IndeterministicEvent(event), Clock.System.now()))
 }
 
 suspend fun reportBug(bug: ReportedBug) {
