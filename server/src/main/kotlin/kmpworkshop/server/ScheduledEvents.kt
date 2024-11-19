@@ -8,17 +8,18 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlin.time.Duration
 
-suspend fun mainEventAndStoreLoopWritingTo(
+suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
     serverState: MutableStateFlow<ServerState>,
     eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
     onEvent: OnEvent,
+    block: suspend CoroutineScope.(initial: ServerState, Channel<CommittedState>) -> Unit,
 ): Nothing = coroutineScope {
     val events = Channel<CommittedState>()
     launch {
         try {
             val initial = loadInitialStateFromDatabase()
             if (initial != ServerState()) serverState.value = initial
-            eventStorageLoop(initial, events)
+            block(initial, events)
         } catch (t: Throwable) {
             t.printStackTrace()
             throw t

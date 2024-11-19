@@ -17,11 +17,13 @@ data class StageChangeEvent(val stage: WorkshopStage) : ServerWideEvents()
 @Serializable
 data class SettingsChangeEvent(val newSettings: ServerSettings) : ServerWideEvents()
 @Serializable
-data class RegistrationStartEvent(val name: String) : WorkshopEventWithResult<ApiKeyRegistrationResult>() {
+data class RevertWholeStateEvent(val newState: ServerState) : ServerWideEvents()
+@Serializable
+data class RegistrationStartEvent(val name: String, val randomSeed: Long) : WorkshopEventWithResult<ApiKeyRegistrationResult>() {
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, ApiKeyRegistrationResult> = when {
         !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
         oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
-        else -> UUID.randomUUID().toString()
+        else -> UUID.nameUUIDFromBytes(Random(randomSeed).nextBytes(16)).toString()
             .let { Participant(name, ApiKey(it)) }
             .let {
                 oldState.copy(unverifiedParticipants = oldState.unverifiedParticipants + it) to ApiKeyRegistrationResult.Success(it.apiKey)
@@ -88,8 +90,9 @@ internal fun ServerState.after(event: ServerWideEvents): ServerState = when (eve
     is ParticipantRemovalEvent -> removeParticipant(event.participant)
     is ParticipantRejectionEvent -> copy(unverifiedParticipants = unverifiedParticipants - event.participant)
     is ApplyScheduledEvent -> copy(
-        scheduledEvents = scheduledEvents - event.timedEvent
+        scheduledEvents = scheduledEvents - event.timedEvent,
     ).after(event.timedEvent.event)
+    is RevertWholeStateEvent -> event.newState
 }
 
 private fun ServerState.deactivateParticipant(participant: Participant): ServerState = copy(
