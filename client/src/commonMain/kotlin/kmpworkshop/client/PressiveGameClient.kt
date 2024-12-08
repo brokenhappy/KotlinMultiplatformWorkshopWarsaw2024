@@ -16,14 +16,9 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PressiveGame() {
-    var hint by remember { mutableStateOf("Connecting to host...") }
+    val hint by remember { getFlowOfPressiveGameHints() }.collectAsState(initial = "Connecting to host...")
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        getFlowOfPressiveGameHints().collect { newHint ->
-            hint = newHint
-        }
-    }
     Row(
         modifier = Modifier.combinedClickable(
             onClick = { /* doSinglePress() */ },
