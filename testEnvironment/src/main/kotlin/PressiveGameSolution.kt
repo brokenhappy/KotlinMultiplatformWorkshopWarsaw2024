@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.onClick
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import kmpworkshop.client.getFlowOfPressiveGameHints
 import kmpworkshop.common.PressiveGamePressType
 import kmpworkshop.common.WorkshopServer
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -13,24 +14,19 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun PressiveGameSolution(server: WorkshopServer) {
-    var hint by remember { mutableStateOf("Connecting to host...") }
-    val scope = rememberCoroutineScope()
     val pressEvents = remember { MutableSharedFlow<PressiveGamePressType>() }
     suspend fun doSinglePress(): Unit = pressEvents.emit(PressiveGamePressType.SinglePress)
     suspend fun doDoublePress(): Unit = pressEvents.emit(PressiveGamePressType.DoublePress)
     suspend fun doLongPress(): Unit = pressEvents.emit(PressiveGamePressType.LongPress)
 
-    LaunchedEffect(Unit) {
-        server.playPressiveGame(pressEvents).collect { newHint ->
-            hint = newHint
-        }
-    }
+    val hint by remember { server.playPressiveGame(pressEvents) }.collectAsState(initial = "Connecting to host...")
+    val scope = rememberCoroutineScope()
 
     Row(
         modifier = Modifier.onClick(
             onClick = { scope.launch { doSinglePress() } },
             onDoubleClick = { scope.launch { doDoublePress() } },
-            onLongClick = { scope.launch { doLongPress() } }
+            onLongClick = { scope.launch { doLongPress() } },
         )
     ) {
         Spacer(modifier = Modifier.weight(1f))
