@@ -94,7 +94,7 @@ fun ServerState.after(event: DiscoGameEvent): ServerState = when (event) {
 private fun emptySubmissions(now: Instant): Submissions =
     Submissions(startTime = now, participants = emptyList(), completedSubmissions = emptyMap())
 
-context(Random)
+context(random: Random)
 fun ServerState.startingFirstDiscoGame(now: Instant): ServerState = copy(
     discoGameState = DiscoGameState.First.InProgress(
         states = participants.associate {
@@ -107,23 +107,23 @@ fun ServerState.startingFirstDiscoGame(now: Instant): ServerState = copy(
         startTime = now,
     ),
 )
-    .schedulingSingle(DiscoGameEvent.FirstTargetTick(nextLong())).after(0.seconds)
-    .schedulingSingle(DiscoGameEvent.FirstParticipantTick(nextLong())).after(0.seconds)
+    .schedulingSingle(DiscoGameEvent.FirstTargetTick(random.nextLong())).after(0.seconds)
+    .schedulingSingle(DiscoGameEvent.FirstParticipantTick(random.nextLong())).after(0.seconds)
 
-context(Random)
+context(random: Random)
 fun ServerState.startingSecondDiscoGame(): ServerState = copy(
     discoGameState = DiscoGameState.Second.InProgress(
         orderedParticipants = participants
             .map { SecondDiscoGameParticipantState(it.apiKey, SerializableColor(0, 0, 0)) }
-            .shuffled(this@Random),
+            .shuffled(random),
         progress = 0,
         instructionOrder = emptyList(),
     ).restartingInstructions(),
 )
-    .schedulingSingle(DiscoGameEvent.SecondBackgroundTick(nextLong())).after(0.seconds)
-    .schedulingSingle(DiscoGameEvent.SecondPressTimeout(nextLong())).after(1.5.seconds)
+    .schedulingSingle(DiscoGameEvent.SecondBackgroundTick(random.nextLong())).after(0.seconds)
+    .schedulingSingle(DiscoGameEvent.SecondPressTimeout(random.nextLong())).after(1.5.seconds)
 
-context(Random)
+context(random: Random)
 internal fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now: Instant): ServerState = when (val gameState = discoGameState) {
     is DiscoGameState.Second.Done,
     is DiscoGameState.First.Done,
@@ -136,7 +136,7 @@ internal fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now:
                 discoGameState = gameState.copy(progress = gameState.progress + 1),
                 scheduledEvents = scheduledEvents.filter { it.event !is DiscoGameEvent.SecondPressTimeout }
             )
-                .scheduling(DiscoGameEvent.SecondPressTimeout(nextLong())).after(secondDiscoGamePressTimeout)
+                .scheduling(DiscoGameEvent.SecondPressTimeout(random.nextLong())).after(secondDiscoGamePressTimeout)
                 .scheduling(SoundPlayEvents.Increment(gameState.progress.toDouble() / gameState.instructionOrder.size)).after(0.seconds)
         else copy(discoGameState = gameState.restartingInstructions())
             .applyIf({ gameState.progress > 0 }) { it.scheduling(SoundPlayEvents.ProgressLoss).after(0.seconds) }
@@ -218,13 +218,13 @@ private fun Int.widthOfNearestGreaterSquare(): Int =
 private fun DiscoPoint.move(instruction: DiscoGameInstruction): DiscoPoint =
     DiscoPoint(x + instruction.dx, y + instruction.dy)
 
-context(Random)
+context(random: Random)
 internal fun DiscoGameState.Second.InProgress.restartingInstructions(): DiscoGameState.Second.InProgress = copy(
     progress = 0,
-    instructionOrder = createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction().shuffled(this@Random)
+    instructionOrder = createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction().shuffled(random)
 )
 
-context(Random)
+context(_: Random)
 private fun DiscoGameState.Second.InProgress.createSetOfInstructionsSoThatEachUserBothGetsToPressAsWellAsShowAnInstruction(): List<DiscoGameInstructionRequest> =
     createSetOfInstructionsThatInstructsFromEachUser()
         .let { instructions ->
@@ -232,34 +232,34 @@ private fun DiscoGameState.Second.InProgress.createSetOfInstructionsSoThatEachUs
             instructions + createSetOfInstructionsThatTargetsEachUser().filter { it.targetIn(this) !in targets }
         }
 
-context(Random)
+context(_: Random)
 private fun DiscoGameState.Second.InProgress.createSetOfInstructionsThatInstructsFromEachUser(): List<DiscoGameInstructionRequest> = orderedParticipants
     .map { it.participant }
     .map { participant -> createInstructionThatInstructsFrom(participant) }
 
-context(Random)
+context(random: Random)
 internal fun DiscoGameState.Second.InProgress.createInstructionThatInstructsFrom(participant: ApiKey): DiscoGameInstructionRequest {
     val location = participant.findPointIn(this)!!
     return DiscoGameInstruction
         .entries
-        .shuffled(this@Random)
+        .shuffled(random)
         .first { location.move(it).toOffsetIn(this).isNotNullAnd { it <= orderedParticipants.size } }
         .let { DiscoGameInstructionRequest(participant, it) }
 }
 
-context(Random)
+context(_: Random)
 private fun DiscoGameState.Second.InProgress.createSetOfInstructionsThatTargetsEachUser(): List<DiscoGameInstructionRequest> = orderedParticipants
     .map { it.participant }
     .map { participant -> createInstructionThatTargets(participant) }
 
-context(Random)
+context(random: Random)
 internal fun DiscoGameState.Second.InProgress.createInstructionThatTargets(
     participant: ApiKey,
 ): DiscoGameInstructionRequest {
     val location = participant.findPointIn(this)!!
     return DiscoGameInstruction
         .entries
-        .shuffled(this@Random)
+        .shuffled(random)
         .firstNotNullOf { instruction ->
             location
                 .move(instruction.inverted())
@@ -273,33 +273,33 @@ private val danceFloorChangeInterval = 0.8.seconds
 private val firstDiscoGamePrivateTickTimeout = 1.5.seconds
 private val firstDiscoGamePublicTickTimeout = 10.seconds
 
-context(Random)
+context(_: Random)
 private fun DiscoGameState.First.InProgress.targetTick(): DiscoGameState = copy(target = target.nextRandom())
 
-context(Random)
+context(_: Random)
 internal fun ColorAndInstructionWithPrevious.nextRandom() = ColorAndInstructionWithPrevious(
     current = randomColorAndInstruction(),
     previous = current,
 )
 
-context(Random)
+context(random: Random)
 private fun DiscoGameState.First.InProgress.privateTick(): DiscoGameState = copy(
     states = states.mapValues { (_, value) ->
         when (value) {
             is FirstDiscoGameParticipantState.Done -> value
             is FirstDiscoGameParticipantState.InProgress -> value.copy(
                 colorAndInstructionState =
-                    if (nextDouble() < .25) target
+                    if (random.nextDouble() < .25) target
                     else value.colorAndInstructionState.nextRandom()
             )
         }
     },
 )
 
-context(Random)
+context(random: Random)
 fun randomColorAndInstruction(): ColorAndInstruction = ColorAndInstruction(
-    color = discoColors.random(this@Random),
-    (DiscoGameInstruction.entries + null).random(this@Random  )
+    color = discoColors.random(random),
+    (DiscoGameInstruction.entries + null).random(random)
 )
 
 

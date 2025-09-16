@@ -94,7 +94,7 @@ kotlin {
     jvmToolchain(17)
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
-        freeCompilerArgs.add("-Xcontext-receivers")
+        freeCompilerArgs.add("-Xcontext-parameters")
     }
 }
 dependencies {
