@@ -1,8 +1,11 @@
+@file:OptIn(ExperimentalTime::class)
+
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @Serializable
 data class Participant(val name: String, val apiKey: ApiKey)

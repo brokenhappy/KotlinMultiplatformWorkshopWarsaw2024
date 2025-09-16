@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalTime::class)
+
 package kmpworkshop.server
 
-import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @Serializable
 data class PuzzleStartEvent(val puzzleName: String, val startTime: Instant): WorkshopEvent()

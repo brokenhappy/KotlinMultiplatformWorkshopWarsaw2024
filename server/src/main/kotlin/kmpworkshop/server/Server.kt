@@ -1,4 +1,5 @@
 @file:Suppress("ReplaceToWithInfixForm")
+@file:OptIn(ExperimentalTime::class)
 
 package kmpworkshop.server
 
@@ -13,15 +14,15 @@ import kmpworkshop.common.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
-import kotlinx.datetime.Clock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
-import kotlin.coroutines.CoroutineContext
 import kotlin.math.absoluteValue
 import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 fun main(): Unit = application {
     ServerApp(onExit = ::exitApplication)
@@ -40,8 +41,8 @@ fun ServerApp(onExit: () -> Unit) {
     var recentBackups by remember { mutableStateOf(listOf<Backup>()) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
-            serveSingleService<WorkshopApiService> { coroutineContext ->
-                workshopService(coroutineContext, serverOrProposedState, onEvent = { launch { eventBus.send(it) } })
+            serveSingleService<WorkshopApiService> {
+                workshopService(serverOrProposedState, onEvent = { launch { eventBus.send(it) } })
             }
         }
     }
@@ -179,7 +180,6 @@ fun WorkshopWindow(
 }
 
 fun workshopService(
-    coroutineContext: CoroutineContext,
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
 ): WorkshopApiService = object : WorkshopApiService {
@@ -189,9 +189,9 @@ fun workshopService(
     override suspend fun verifyRegistration(key: ApiKey): NameVerificationResult =
         onEvent.fire(RegistrationVerificationEvent(key))
 
-    override suspend fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
+    override fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
 
-    override suspend fun doPuzzleSolveAttempt(
+    override fun doPuzzleSolveAttempt(
         key: ApiKey,
         puzzleName: String,
         answers: Flow<JsonElement>,
@@ -234,7 +234,7 @@ fun workshopService(
     override suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult =
         onEvent.fire(SliderSuggestionEvent(key, suggestedRatio))
 
-    override suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
+    override fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
         channelFlow {
             launch {
                 pressEvents.collect { pressEvent ->
@@ -262,7 +262,7 @@ fun workshopService(
                 .collect { send(it) }
         }
 
-    override suspend fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?> = serverState
+    override fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?> = serverState
         .map { it.discoGameState }
         .map { gameState ->
             when (gameState) {
@@ -287,7 +287,7 @@ fun workshopService(
         onEvent.schedule(DiscoGameEvent.GuessSubmissionEvent(key, Random.nextLong(), Clock.System.now()))
     }
 
-    override suspend fun discoGameBackground(key: ApiKey): Flow<SerializableColor> = serverState
+    override fun discoGameBackground(key: ApiKey): Flow<SerializableColor> = serverState
         .map { serverState ->
             when (val gameState = serverState.discoGameState) {
                 is DiscoGameState.Second.Done,
@@ -306,12 +306,10 @@ fun workshopService(
         }
         .distinctUntilChanged()
 
-    override suspend fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?> = serverState
+    override fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?> = serverState
         .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
         .distinctUntilChanged()
         .map { isBeingRung -> SerializableColor(0, 0, 0).takeIf { isBeingRung } }
-
-    override val coroutineContext = coroutineContext
 }
 
 internal fun SerializableColor.applyingDimming(dimmingRatio: Float): SerializableColor = transitionTo(

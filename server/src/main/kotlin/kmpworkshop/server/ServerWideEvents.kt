@@ -1,13 +1,15 @@
 @file:Suppress("ReplaceToWithInfixForm")
+@file:OptIn(ExperimentalTime::class)
 
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import java.util.*
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 
 @Serializable

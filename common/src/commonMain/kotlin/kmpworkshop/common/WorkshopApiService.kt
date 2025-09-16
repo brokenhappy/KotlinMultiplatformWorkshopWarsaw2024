@@ -1,23 +1,20 @@
 package kmpworkshop.common
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.rpc.RPC
-import kotlinx.rpc.streamScoped
+import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-interface WorkshopApiService : RPC {
+@Rpc interface WorkshopApiService {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
-    suspend fun currentStage(): Flow<WorkshopStage>
-    suspend fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
+    fun currentStage(): Flow<WorkshopStage>
+    fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
-    suspend fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
-    suspend fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?>
-    suspend fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?>
-    suspend fun discoGameBackground(key: ApiKey): Flow<SerializableColor>
+    fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
+    fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?>
+    fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?>
+    fun discoGameBackground(key: ApiKey): Flow<SerializableColor>
     suspend fun discoGamePress(key: ApiKey)
 }
 
@@ -33,27 +30,18 @@ interface WorkshopServer {
 }
 
 fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
-    override fun currentStage(): Flow<WorkshopStage> = decoupledRpcFlow { this@asServer.currentStage() }
+    override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
-        decoupledRpcFlow { this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers) }
+        this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
     override suspend fun setSlider(suggestedRatio: Double): SlideResult =
         this@asServer.setSlider(apiKey, suggestedRatio)
     override fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String> =
-        decoupledRpcFlow { this@asServer.playPressiveGame(apiKey, pressEvents) }
-    override fun pressiveGameBackground(): Flow<SerializableColor?> =
-        decoupledRpcFlow { this@asServer.pressiveGameBackground(apiKey) }
-    override fun discoGameInstructions(): Flow<DiscoGameInstruction?> =
-        decoupledRpcFlow { this@asServer.discoGameInstructions(apiKey) }
-    override fun discoGameBackground(): Flow<SerializableColor> =
-        decoupledRpcFlow { this@asServer.discoGameBackground(apiKey) }
+        this@asServer.playPressiveGame(apiKey, pressEvents)
+    override fun pressiveGameBackground(): Flow<SerializableColor?> = this@asServer.pressiveGameBackground(apiKey)
+    override fun discoGameInstructions(): Flow<DiscoGameInstruction?> = this@asServer.discoGameInstructions(apiKey)
+    override fun discoGameBackground(): Flow<SerializableColor> = this@asServer.discoGameBackground(apiKey)
     override suspend fun discoGamePress() {
         this@asServer.discoGamePress(apiKey)
-    }
-}
-
-fun <T> decoupledRpcFlow(rpcFlow: suspend () -> Flow<T>): Flow<T> = channelFlow {
-    streamScoped {
-        rpcFlow().collect { send(it) }
     }
 }
 

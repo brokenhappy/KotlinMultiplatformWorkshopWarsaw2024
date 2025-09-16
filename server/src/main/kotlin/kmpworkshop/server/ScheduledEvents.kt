@@ -1,12 +1,15 @@
+@file:OptIn(ExperimentalTime::class)
+
 package kmpworkshop.server
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.*
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
 
 suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
     serverState: MutableStateFlow<ServerState>,
