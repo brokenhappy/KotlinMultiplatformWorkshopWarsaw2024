@@ -126,7 +126,7 @@ private fun ServerState.deactivateParticipant(participant: Participant): ServerS
     },
 )
 
-context(Random)
+context(_: Random)
 private fun ServerState.reactivateParticipant(participant: Participant): ServerState = copy(
     participants = participants + participant,
     deactivatedParticipants = deactivatedParticipants - participant,

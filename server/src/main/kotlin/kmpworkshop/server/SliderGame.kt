@@ -76,20 +76,20 @@ fun ServerState.after(event: SliderGameEvent): ServerState = when (event) {
     is SliderGameEvent.Start -> with(Random(event.randomSeed)) { startingNewSliderGame() }
 }
 
-context(Random)
+context(_: Random)
 private fun ServerState.startingNewSliderGame(): ServerState =
     copy(sliderGameState = newSliderGame(participants.map { it.apiKey }))
 
-context(Random)
+context(random: Random)
 private fun newSliderGame(participants: List<ApiKey>): SliderGameState.InProgress =
-    newSliderGame(participants, nextDouble(1.0 - PegWidth * 3))
+    newSliderGame(participants, random.nextDouble(1.0 - PegWidth * 3))
 
-context(Random)
+context(random: Random)
 private fun newSliderGame(participants: List<ApiKey>, pegPosition: Double): SliderGameState.InProgress =
     SliderGameState.InProgress(
         participantStates = participants.associate {
             it.stringRepresentation to generateSequence {
-                SliderState(gapOffset = nextDouble(1.0 - SliderGapWidth * 3), position = 0.5)
+                SliderState(gapOffset = random.nextDouble(1.0 - SliderGapWidth * 3), position = 0.5)
             }.first { !it.letsThroughPegPositionedAt(pegPosition) }
         }.toSortedMap(),
         pegPosition = pegPosition,

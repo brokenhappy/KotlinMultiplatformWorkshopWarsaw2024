@@ -85,7 +85,7 @@ private fun delayForNextEvent(lastState: PressiveGameState.ThirdGameInProgress):
     else -> 300.milliseconds
 }
 
-context(Random)
+context(_: Random)
 private fun ServerState.startingFirstPressiveGame(now: Instant): ServerState = copy(
     pressiveGameState = PressiveGameState.FirstGameInProgress(
         startTime = now,
@@ -98,10 +98,10 @@ private fun ServerState.startingFirstPressiveGame(now: Instant): ServerState = c
     ),
 )
 
-context(Random)
+context(random: Random)
 private fun ServerState.startingSecondPressiveGame(): ServerState =
     copy(pressiveGameState = PressiveGameState.SecondGameInProgress(
-        order = participants.shuffled(this@Random).map { it.apiKey },
+        order = participants.shuffled(random).map { it.apiKey },
         progress = 0,
         states = participants
             .zip(binaryMoreCodeIdentifiers(count = participants.size))
@@ -118,11 +118,11 @@ private fun ServerState.startingSecondPressiveGame(): ServerState =
             }
     ))
 
-context(Random)
+context(random: Random)
 private fun ServerState.startingThirdPressiveGame(): ServerState =
     copy(
         pressiveGameState = PressiveGameState.ThirdGameInProgress(
-            order = participants.shuffled(this@Random).map { it.apiKey },
+            order = participants.shuffled(random).map { it.apiKey },
             progress = 0,
             participantThatIsBeingRung = null,
         )
@@ -188,7 +188,7 @@ fun PressiveGameState.toPressResult(): PressiveGamePressResult.Update = Pressive
 fun PressiveGameState.withEvent(event: SoundPlayEvents): PressiveGamePressResult.UpdateWithEvent =
     PressiveGamePressResult.UpdateWithEvent(toPressResult(), event)
 
-context(Random)
+context(_: Random)
 internal fun PressiveGameState.pressing(
     type: PressiveGamePressType,
     presserKey: ApiKey,
@@ -272,7 +272,7 @@ internal fun PressiveGameState.pressing(
         }
 }
 
-context(Random)
+context(_: Random)
 internal fun newFirstPressiveGameState(justFailed: Boolean): FirstPressiveGameParticipantState =
     FirstPressiveGameParticipantState(newRandomPresses(), justFailed = justFailed, finishTime = null)
 
@@ -352,9 +352,9 @@ private fun Map<ApiKeyString, SecondPressiveGameParticipantState>.tryToFinishRou
 private fun SecondPressiveGameParticipantState.successfullyPairedWith(other: ApiKey): SecondPressiveGameParticipantState =
     copy(pairingState = SuccessFullyPaired(other), isBeingCalled = false)
 
-context(Random)
+context(random: Random)
 internal fun newRandomPresses(): List<PressiveGamePressType> = generateSequence {
-    generateSequence { PressiveGamePressType.entries.random(this@Random) }
+    generateSequence { PressiveGamePressType.entries.random(random) }
         .take(NumberOfPressesNeededForFirstPressiveGame)
         .toList()
 }.first { it.toSet() == PressiveGamePressType.entries.toSet() /* Make sure we force them to press all types! */ }
