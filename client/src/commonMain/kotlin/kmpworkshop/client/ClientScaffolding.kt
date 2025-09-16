@@ -12,11 +12,11 @@ import kmpworkshop.common.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
-import kotlinx.rpc.serialization.json
-import kotlinx.rpc.transport.ktor.client.KtorRPCClient
-import kotlinx.rpc.transport.ktor.client.installRPC
-import kotlinx.rpc.transport.ktor.client.rpc
-import kotlinx.rpc.transport.ktor.client.rpcConfig
+import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
+import kotlinx.rpc.krpc.ktor.client.installKrpc
+import kotlinx.rpc.krpc.ktor.client.rpc
+import kotlinx.rpc.krpc.ktor.client.rpcConfig
+import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 
 // This is a hacky solution just so I can keep things simple for the scope of the workshop.
@@ -28,12 +28,12 @@ val workshopService: WorkshopApiService get() = _workshopService ?: createServic
 
 private fun createService(): WorkshopApiService = runBlocking {
     val ktorClient = HttpClient {
-        installRPC {
+        installKrpc {
             waitForServices = true
         }
     }
 
-    val client: KtorRPCClient = ktorClient.rpc {
+    val client: KtorRpcClient = ktorClient.rpc {
         url {
             host = "192.168.0.67"
 //            host = "10.0.2.2"

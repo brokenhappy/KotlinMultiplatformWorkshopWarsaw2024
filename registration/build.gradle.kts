@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
-
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
@@ -20,10 +18,10 @@ repositories {
 }
 
 dependencies {
-    implementation("io.ktor:ktor-client-core:2.3.12")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
+    implementation("io.ktor:ktor-client-core:3.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.9.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
     testImplementation(kotlin("test"))
     implementation(project(":client"))
     implementation(project(":common"))

@@ -8,23 +8,23 @@ import io.ktor.server.routing.routing
 import kmpworkshop.common.WorkshopApiService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.rpc.RPC
-import kotlinx.rpc.serialization.json
-import kotlinx.rpc.transport.ktor.server.RPC
-import kotlinx.rpc.transport.ktor.server.rpc
+import kotlinx.rpc.annotations.Rpc
+import kotlinx.rpc.krpc.ktor.server.Krpc
+import kotlinx.rpc.krpc.ktor.server.rpc
+import kotlinx.rpc.krpc.serialization.json.json
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
-suspend inline fun <reified Service : RPC> serveSingleService(
-    noinline serviceFactory: (CoroutineContext) -> Service,
+suspend inline fun <@Rpc reified Service : Any> serveSingleService(
+    noinline serviceFactory: () -> Service,
 ): Nothing = serveSingleService(Service::class, serviceFactory)
 
-suspend fun <Service : RPC> serveSingleService(
+suspend fun <@Rpc Service : Any> serveSingleService(
     serviceKClass: KClass<Service>,
-    serviceFactory: (CoroutineContext) -> Service,
+    serviceFactory: () -> Service,
 ): Nothing {
     embeddedServer(Netty, port = 8080) {
-        install(RPC)
+        install(Krpc)
         routing {
             rpc("/${WorkshopApiService::class.simpleName!!}") {
                 rpcConfig {
@@ -36,14 +36,8 @@ suspend fun <Service : RPC> serveSingleService(
                 registerService(serviceKClass, serviceFactory)
             }
         }
-        println("Server running")
-    }.apply { start(wait = true) }
-        .stopServerOnCancellation()
-        .use { awaitCancellation() }
-}
+    }.startSuspend(wait = true)
 
-private inline fun <T: Job, R> T.use(f: (T) -> R): R = try {
-    f(this)
-} finally {
-    cancel()
+    println("Extremely questionable event happened, this is definitely not supposed to be printed if ktor APIs were properly designed")
+    awaitCancellation()
 }

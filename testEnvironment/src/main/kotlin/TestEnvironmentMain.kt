@@ -39,7 +39,7 @@ suspend fun main(): Unit = coroutineScope {
 
     application {
         val server = remember {
-            workshopService(coroutineContext, serverState, onEvent = { launch { eventBus.send(it) } })
+            workshopService(serverState, onEvent = { launch { eventBus.send(it) } })
         }
         WorkshopWindow(
             onCloseRequest = ::exitApplication,

@@ -1,4 +1,6 @@
 @file:Suppress("FunctionName")
+@file:OptIn(ExperimentalTime::class)
+
 package kmpworkshop.server
 
 import androidx.compose.foundation.*
@@ -24,8 +26,8 @@ import androidx.compose.ui.window.Dialog
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.WorkshopStage
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -33,6 +35,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 
 @Composable
 internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onSettingsChange: (ServerSettings) -> Unit) {

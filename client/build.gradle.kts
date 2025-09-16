@@ -1,3 +1,4 @@
+import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -67,13 +68,13 @@ kotlin {
     }
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-cio:2.3.12")
-            implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
-            implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
-            implementation("io.ktor:ktor-client-core:2.3.12")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client")
-            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json")
+            implementation("io.ktor:ktor-client-cio:3.3.0")
+            implementation("io.ktor:ktor-client-content-negotiation:3.3.0")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.3.0")
+            implementation("io.ktor:ktor-client-core:3.3.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.9.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material)
@@ -98,7 +99,7 @@ kotlin {
     }
 }
 dependencies {
-    implementation("io.ktor:ktor-client-cio-jvm:2.3.12")
+    implementation("io.ktor:ktor-client-cio-jvm:3.3.0")
 }
 
 compose.desktop {
