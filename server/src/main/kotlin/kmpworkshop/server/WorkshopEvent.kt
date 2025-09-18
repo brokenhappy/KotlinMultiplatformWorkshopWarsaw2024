@@ -1,8 +1,8 @@
 package kmpworkshop.server
 
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.Serializable
 import kotlin.coroutines.Continuation
-import kotlin.coroutines.suspendCoroutine
 
 typealias OnEvent = (ScheduledWorkshopEvent) -> Unit
 
@@ -22,7 +22,7 @@ fun OnEvent.schedule(event: WorkshopEvent) {
     this(ScheduledWorkshopEvent.IgnoringResult(event))
 }
 
-suspend fun <T> OnEvent.fire(event: WorkshopEventWithResult<T>): T = suspendCoroutine { continuation ->
+suspend fun <T> OnEvent.fire(event: WorkshopEventWithResult<T>): T = suspendCancellableCoroutine { continuation ->
     this(ScheduledWorkshopEvent.AwaitingResult(event, continuation))
 }
 
