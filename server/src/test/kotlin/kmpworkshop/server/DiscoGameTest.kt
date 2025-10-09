@@ -3,9 +3,10 @@ package kmpworkshop.server
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.DiscoGameInstruction.*
-import kotlinx.datetime.Clock
 import org.junit.jupiter.api.Test
 import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 class DiscoGameTest {
     @Test
@@ -42,6 +43,7 @@ class DiscoGameTest {
     }
 }
 
+@OptIn(ExperimentalTime::class)
 private fun ServerState.press(key: ApiKey): ServerState =
     with(Random) { afterDiscoGameGuessSubmission(key, Clock.System.now()) }
 

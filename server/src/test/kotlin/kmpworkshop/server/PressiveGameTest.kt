@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package kmpworkshop.server
 
 import kmpworkshop.common.ApiKey
@@ -14,12 +16,14 @@ import kmpworkshop.server.PressivePairingState.PartnerHungUp
 import kmpworkshop.server.PressivePairingState.RoundSuccess
 import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
 import kmpworkshop.server.PressivePairingState.TriedToCallNonExistingCode
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import org.junit.jupiter.api.Nested
 import kotlin.random.Random
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.fail
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 class PressiveGameTest {
     @Nested
@@ -264,6 +268,13 @@ private fun PressiveGameState.FirstGameInProgress.lastPress(
 
 internal inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =
     if (this is T) this else fail(message(this))
+
+internal inline fun Any?.assertIs(other: Any?, message: (Any?) -> String) {
+    assertEquals(this, message(this))
+}
+
+internal inline fun <T> T.assert(test: (T) -> Boolean, message: (T) -> String): T =
+    this.also { if (!test(this)) fail(message(this) + "\nActual value was: $this") }
 
 private fun ApiKey.startEntryWithId(string: String): Pair<String, SecondPressiveGameParticipantState> =
     stringRepresentation to SecondPressiveGameParticipantState(

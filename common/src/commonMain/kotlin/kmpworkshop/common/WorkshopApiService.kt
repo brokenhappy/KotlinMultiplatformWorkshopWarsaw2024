@@ -1,14 +1,37 @@
+@file:OptIn(ExperimentalAtomicApi::class)
+
 package kmpworkshop.common
 
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.*
 import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.fetchAndIncrement
+
+interface WorkshopServer {
+    fun currentStage(): Flow<WorkshopStage>
+    fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
+    suspend fun doCoroutinePuzzleSolveAttempt(
+        puzzleId: String,
+        callback: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
+    ): CoroutinePuzzleSolutionResult
+    suspend fun setSlider(suggestedRatio: Double): SlideResult
+    fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
+    fun pressiveGameBackground(): Flow<SerializableColor?>
+    fun discoGameInstructions(): Flow<DiscoGameInstruction?>
+    fun discoGameBackground(): Flow<SerializableColor>
+    suspend fun discoGamePress()
+}
 
 @Rpc interface WorkshopApiService {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
     fun currentStage(): Flow<WorkshopStage>
+    fun doCoroutinePuzzleSolveAttempt(key: ApiKey, puzzleId: String, calls: Flow<CoroutinePuzzleEndpointCall>): Flow<CoroutinePuzzleEndpointAnswer>
     fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
     suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
     fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
@@ -18,21 +41,52 @@ import kotlinx.serialization.json.JsonElement
     suspend fun discoGamePress(key: ApiKey)
 }
 
-interface WorkshopServer {
-    fun currentStage(): Flow<WorkshopStage>
-    fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
-    suspend fun setSlider(suggestedRatio: Double): SlideResult
-    fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
-    fun pressiveGameBackground(): Flow<SerializableColor?>
-    fun discoGameInstructions(): Flow<DiscoGameInstruction?>
-    fun discoGameBackground(): Flow<SerializableColor>
-    suspend fun discoGamePress()
-}
-
 fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
     override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
         this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
+
+    override suspend fun doCoroutinePuzzleSolveAttempt(
+        puzzleId: String,
+        callback: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
+    ): CoroutinePuzzleSolutionResult {
+        data class CallInProgress(
+            val callId: Int,
+            val deferred: CompletableDeferred<JsonElement>,
+            val endPoint: CoroutinePuzzleEndPoint<*, *>,
+        )
+        val callsInProgress = MutableStateFlow<List<CallInProgress>>(emptyList())
+        return doCoroutinePuzzleSolveAttempt(
+            key = apiKey,
+            puzzleId = puzzleId,
+            calls = channelFlow {
+                val callIdCounter = AtomicInt(0)
+                callback(object: CoroutinePuzzleSolutionScope {
+                    override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
+                        val deferred = CompletableDeferred<JsonElement>()
+                        val callInProgress = CallInProgress(callIdCounter.fetchAndIncrement(), deferred, this)
+                        callsInProgress.update { it + callInProgress }
+                        send(CoroutinePuzzleEndpointCall(callInProgress.callId, this.description, t))
+                        return deferred.await()
+                    }
+                }, this)
+            },
+        ).mapNotNull { answer ->
+            when (answer) {
+                is CoroutinePuzzleEndpointAnswer.CallAnswered -> {
+                    val call = callsInProgress.value.first { it.callId == answer.callId }
+                    callsInProgress.update { it - call }
+                    call.deferred.complete(answer.answer)
+                    null
+                }
+                is CoroutinePuzzleEndpointAnswer.Done -> answer.result
+                CoroutinePuzzleEndpointAnswer.IncorrectInput -> accidentalChangesMadeError()
+                CoroutinePuzzleEndpointAnswer.AlreadySolved -> TODO()
+                CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet -> TODO()
+            }
+        }.first()
+    }
+
     override suspend fun setSlider(suggestedRatio: Double): SlideResult =
         this@asServer.setSlider(apiKey, suggestedRatio)
     override fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String> =
@@ -51,6 +105,10 @@ enum class WorkshopStage(val kotlinFile: String) {
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
     FindOldestUserTask("OldestUserFinding.kt"),
+    SumOfTwoIntsSlow("NumSumYum.kt"),
+    SumOfTwoIntsFast("NumSumYum.kt"),
+    SimpleFlow("FlowsAndCollecting.kt"),
+    CollectLatest("FlowsAndCollecting.kt"),
     // TODO: Handle deletion of user!
     // TODO: Test scroll ability with 30 users!
     SliderGameStage("SliderGameClient.kt"),
@@ -90,6 +148,27 @@ sealed class SlideResult {
 }
 
 @Serializable
+data class CoroutinePuzzleEndpointCall(
+    val callId: Int,
+    val endPointName: String, // Should be: CoroutinePuzzleEndpoint<*, *>, but that crashes the compiler :sweat_smile:
+    val argument: JsonElement,
+)
+
+@Serializable
+sealed class CoroutinePuzzleEndpointAnswer {
+    @Serializable
+    data class CallAnswered(val callId: Int, val answer: JsonElement) : CoroutinePuzzleEndpointAnswer()
+    @Serializable
+    data class Done(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleEndpointAnswer()
+    @Serializable
+    data object IncorrectInput : CoroutinePuzzleEndpointAnswer()
+    @Serializable
+    data object PuzzleNotOpenedYet : CoroutinePuzzleEndpointAnswer()
+    @Serializable
+    data object AlreadySolved : CoroutinePuzzleEndpointAnswer()
+}
+
+@Serializable
 sealed class SolvingStatus {
     @Serializable
     data class Next(val questionJson: JsonElement) : SolvingStatus()
@@ -105,6 +184,16 @@ sealed class SolvingStatus {
     data object AlreadySolved : SolvingStatus()
     @Serializable
     data object Done : SolvingStatus()
+}
+
+@Serializable
+sealed class PuzzleCompletionResult {
+    @Serializable
+    data object PuzzleNotOpenedYet : PuzzleCompletionResult()
+    @Serializable
+    data object AlreadySolved : PuzzleCompletionResult()
+    @Serializable
+    data object Done : PuzzleCompletionResult()
 }
 
 @Serializable
@@ -130,6 +219,36 @@ sealed class NameVerificationResult {
 }
 
 @Serializable
+sealed class NextNumberResult {
+    @Serializable
+    data class Success(val number: Int) : NextNumberResult()
+    @Serializable
+    data object TooSlow : NextNumberResult()
+    @Serializable
+    data object AskedForTooManyNumbers : NextNumberResult()
+    @Serializable
+    data object NotCurrentlyActiveStage : NextNumberResult()
+}
+
+@Serializable
+sealed class SumSubmissionResult {
+    @Serializable
+    data object Success : SumSubmissionResult()
+    @Serializable
+    data object NotOpenedYet : SumSubmissionResult()
+    @Serializable
+    data object AlreadySolved : SumSubmissionResult()
+    @Serializable
+    data class WrongSum(val expected: Int) : SumSubmissionResult()
+    @Serializable
+    data object InvalidApiKey : SumSubmissionResult()
+    @Serializable
+    data object TooSlow : SumSubmissionResult()
+    @Serializable
+    data object NotCurrentlyActiveStage : SumSubmissionResult()
+}
+
+@Serializable
 data class ApiKey(val stringRepresentation: String)
 
 // We don't want to burden the user with @Serializable, so we hide it here
@@ -137,3 +256,6 @@ data class ApiKey(val stringRepresentation: String)
 data class SerializableUser(val name: String, val age: Int) {
     override fun toString(): String = "User(name=$name, age=$age)"
 }
+
+fun accidentalChangesMadeError(): Nothing =
+    error("You accidentally made changes to the puzzle types or scaffolding.\nPlease revert those changes yourself or ask the workshop host for help!")

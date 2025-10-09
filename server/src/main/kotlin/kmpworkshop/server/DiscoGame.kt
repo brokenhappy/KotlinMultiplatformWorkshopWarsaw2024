@@ -320,4 +320,4 @@ private val discoColors = listOf(
 private fun DiscoGameInstruction.inverted(): DiscoGameInstruction =
     DiscoGameInstruction.entries.first { it.dx == -dx && it.dy == -dy }
 
-private inline fun <T> T?.isNotNullAnd(predicate: (T) -> Boolean): Boolean = this != null && predicate(this)
+inline fun <T> T?.isNotNullAnd(predicate: (T) -> Boolean): Boolean = this != null && predicate(this)

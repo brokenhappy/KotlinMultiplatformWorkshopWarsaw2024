@@ -1,4 +1,5 @@
 package kmpworkshop.common
 
-val serverBackupFile: String? = null
+val serverEventBackupDirectory: String? = null
+val bugDirectory: String? = null
 val clientApiKey: String? = null

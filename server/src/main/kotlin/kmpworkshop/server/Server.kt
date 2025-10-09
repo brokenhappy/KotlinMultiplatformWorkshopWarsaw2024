@@ -11,6 +11,8 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.common.*
+import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
+import kmpworkshop.common.WorkshopStage.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -196,15 +198,15 @@ fun workshopService(
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
-        val puzzle =
-            WorkshopStage
-                .entries
-                .firstOrNull { it.kotlinFile == puzzleName }
-                ?.let { findPuzzleFor(it) } ?: run {
-            println("Someone tried to request puzzle name: $puzzleName")
-            emit(SolvingStatus.IncorrectInput)
-            return@flow
-        }
+        val puzzle = WorkshopStage
+            .entries
+            .firstOrNull { it.kotlinFile == puzzleName }
+            ?.let { findPuzzleFor(it) }
+            ?: run {
+                println("Someone tried to request puzzle name: $puzzleName")
+                emit(SolvingStatus.IncorrectInput)
+                return@flow
+            }
 
         var puzzleIndex = 0
         var lastInput: JsonElement? = null
@@ -219,7 +221,13 @@ fun workshopService(
                     puzzleIndex++
                 }
                 if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
-                    onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleName)).also { emit(it) }
+                    emit(
+                        when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleName))) {
+                            PuzzleCompletionResult.AlreadySolved -> SolvingStatus.AlreadySolved
+                            PuzzleCompletionResult.Done -> SolvingStatus.Done
+                            PuzzleCompletionResult.PuzzleNotOpenedYet -> SolvingStatus.PuzzleNotOpenedYet
+                        }
+                    )
                 } else {
                     val element = puzzle.getPuzzleInputAsJsonElementAtIndex(puzzleIndex)
                     emit(SolvingStatus.Next(element))
@@ -229,6 +237,47 @@ fun workshopService(
         } catch (_: SerializationException) {
             emit(SolvingStatus.IncorrectInput)
         }
+    }
+
+    override fun doCoroutinePuzzleSolveAttempt(
+        key: ApiKey,
+        puzzleId: String,
+        calls: Flow<CoroutinePuzzleEndpointCall>,
+    ): Flow<CoroutinePuzzleEndpointAnswer> = channelFlow {
+        val puzzle = WorkshopStage
+            .entries
+            .firstOrNull { it.name == puzzleId }
+            ?.let { findCoroutinePuzzleFor(it) }
+            ?: run {
+                println("Someone tried to request coroutine puzzle id: $puzzleId")
+                send(CoroutinePuzzleEndpointAnswer.IncorrectInput)
+                return@channelFlow
+            }
+
+        send(try {
+            puzzle.solve {
+                calls.collect { call ->
+                    launch {
+                        send(CallAnswered(
+                            call.callId,
+                            deserializeEndpoint(call.endPointName).submitRawCall(call.argument),
+                        ))
+                    }
+                }
+            }.let {
+                when (it) {
+                    is CoroutinePuzzleSolutionResult.Failure -> CoroutinePuzzleEndpointAnswer.Done(it)
+                    is CoroutinePuzzleSolutionResult.Success ->
+                        when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
+                            PuzzleCompletionResult.AlreadySolved -> CoroutinePuzzleEndpointAnswer.AlreadySolved
+                            PuzzleCompletionResult.Done -> CoroutinePuzzleEndpointAnswer.Done(it)
+                            PuzzleCompletionResult.PuzzleNotOpenedYet -> CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet
+                        }
+                }
+            }
+        } catch (_: SerializationException) {
+            CoroutinePuzzleEndpointAnswer.IncorrectInput
+        })
     }
 
     override suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult =
@@ -337,11 +386,15 @@ private data class Puzzle<T, R>(
 )
 
 private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
-    WorkshopStage.Registration,
-    WorkshopStage.PressiveGameStage,
-    WorkshopStage.DiscoGame,
-    WorkshopStage.SliderGameStage -> null
-    WorkshopStage.PalindromeCheckTask -> puzzle(
+    Registration,
+    PressiveGameStage,
+    DiscoGame,
+    SumOfTwoIntsSlow,
+    SumOfTwoIntsFast,
+    CollectLatest,
+    SimpleFlow,
+    SliderGameStage -> null
+    PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,
         "radar" to true,
@@ -349,7 +402,7 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
         "abba" to true,
         "ABBA" to true,
     )
-    WorkshopStage.FindMinimumAgeOfUserTask -> puzzle(
+    FindMinimumAgeOfUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to 18,
         listOf(SerializableUser("John", 0)) to 0,
         listOf(
@@ -365,7 +418,7 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
             SerializableUser("Jane", 10),
         ) to 10,
     )
-    WorkshopStage.FindOldestUserTask -> puzzle(
+    FindOldestUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to SerializableUser("John", 18),
         listOf(SerializableUser("John", 0)) to SerializableUser("John", 0),
         listOf(
@@ -382,5 +435,8 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
         ) to SerializableUser("John", 100),
     )
 }
+
+fun deserializeEndpoint(endpointId: String): CoroutinePuzzleEndPoint<*, *> =
+    CoroutinePuzzleEndPoint<Nothing, Nothing>(endpointId)
 
 inline fun <T : R, R> T.applyIf(predicate: (T) -> Boolean, mapper: (T) -> R): R = if (predicate(this)) mapper(this) else this
