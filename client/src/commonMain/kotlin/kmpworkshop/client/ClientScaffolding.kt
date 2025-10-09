@@ -35,8 +35,9 @@ private fun createService(): WorkshopApiService = runBlocking {
 
     val client: KtorRpcClient = ktorClient.rpc {
         url {
-            host = "192.168.0.67"
+//            host = "192.168.0.67"
 //            host = "10.0.2.2"
+            host = "127.0.0.1"
             port = 8080
             encodedPath = WorkshopApiService::class.simpleName!!
         }
@@ -83,6 +84,10 @@ fun ClientEntryPoint(
             
             (Maybe you can take these seconds to help your peers? :) )
         """.trimIndent())
+        WorkshopStage.SumOfTwoIntsSlow,
+        WorkshopStage.SumOfTwoIntsFast,
+        WorkshopStage.SimpleFlow,
+        WorkshopStage.CollectLatest,
         WorkshopStage.PalindromeCheckTask,
         WorkshopStage.FindMinimumAgeOfUserTask,
         WorkshopStage.FindOldestUserTask -> Text("""

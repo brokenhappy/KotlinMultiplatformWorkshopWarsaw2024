@@ -2,6 +2,7 @@ package kmpworkshop.client
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SolvingStatus
+import kmpworkshop.common.accidentalChangesMadeError
 import kmpworkshop.common.clientApiKey
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
@@ -80,6 +81,3 @@ internal suspend fun <T : Any, R : Any> checkCodePuzzle(
 }
 
 private class DoneWithPuzzleException: Throwable("")
-
-private fun accidentalChangesMadeError(): Nothing =
-    error("You accidentally made changes to the puzzle types or scaffolding.\nPlease revert those changes yourself or ask the workshop host for help!")

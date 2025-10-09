@@ -104,11 +104,15 @@ fun ServerUi(state: ServerState, onEvent: OnEvent) {
         Column {
             // TODO: Start first pressive tick event when switching to Pressive game!
             StageTopBar(state.currentStage, onEvent)
-            when (state.currentStage) {
+            when (val stage = state.currentStage) {
                 WorkshopStage.Registration -> Registration(state, onEvent)
-                WorkshopStage.PalindromeCheckTask -> Puzzle(state, WorkshopStage.PalindromeCheckTask.kotlinFile, onEvent)
-                WorkshopStage.FindMinimumAgeOfUserTask -> Puzzle(state, WorkshopStage.FindMinimumAgeOfUserTask.kotlinFile, onEvent)
-                WorkshopStage.FindOldestUserTask -> Puzzle(state, WorkshopStage.FindOldestUserTask.kotlinFile, onEvent)
+                WorkshopStage.SumOfTwoIntsSlow,
+                WorkshopStage.SumOfTwoIntsFast,
+                WorkshopStage.SimpleFlow,
+                WorkshopStage.CollectLatest,
+                WorkshopStage.PalindromeCheckTask,
+                WorkshopStage.FindMinimumAgeOfUserTask,
+                WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
                 WorkshopStage.SliderGameStage -> SliderGame(state, onEvent)
                 WorkshopStage.PressiveGameStage -> PressiveGame(state, onEvent)
                 WorkshopStage.DiscoGame -> DiscoGame(state, onEvent)

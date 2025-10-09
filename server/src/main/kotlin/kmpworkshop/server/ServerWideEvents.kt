@@ -56,21 +56,21 @@ data class RegistrationVerificationEvent(val key: ApiKey) : WorkshopEventWithRes
 }
 
 @Serializable
-data class PuzzleFinishedEvent(val now: Instant, val participant: ApiKey, val puzzleName: String) : WorkshopEventWithResult<SolvingStatus>() {
-    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, SolvingStatus> =
-        (oldState.puzzleStates[puzzleName] as? PuzzleState.Opened)?.let { puzzleState ->
+data class PuzzleFinishedEvent(val now: Instant, val participant: ApiKey, val puzzleId: String) : WorkshopEventWithResult<PuzzleCompletionResult>() {
+    override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, PuzzleCompletionResult> =
+        (oldState.puzzleStates[puzzleId] as? PuzzleState.Opened)?.let { puzzleState ->
             when {
-                participant.stringRepresentation in puzzleState.submissions -> oldState to SolvingStatus.AlreadySolved
+                participant.stringRepresentation in puzzleState.submissions -> oldState to PuzzleCompletionResult.AlreadySolved
                 else -> oldState.copy(
-                    puzzleStates = oldState.puzzleStates + puzzleName.to(
+                    puzzleStates = oldState.puzzleStates + puzzleId.to(
                         puzzleState.copy(
                             submissions = puzzleState.submissions + (participant.stringRepresentation to now)
                         )
                     )
                 ).scheduling(SoundPlayEvents.Success).after(0.seconds)
-                    .to(SolvingStatus.Done)
+                    .to(PuzzleCompletionResult.Done)
             }
-        } ?: (oldState to SolvingStatus.PuzzleNotOpenedYet)
+        } ?: (oldState to PuzzleCompletionResult.PuzzleNotOpenedYet)
 }
 
 @Serializable
