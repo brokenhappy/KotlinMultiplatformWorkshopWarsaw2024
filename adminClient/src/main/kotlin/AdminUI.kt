@@ -69,11 +69,11 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 fun main(): Unit = application {
-    ServerApp(onExit = ::exitApplication)
+    AdminApp(onExit = ::exitApplication)
 }
 
 @Composable
-fun ServerApp(onExit: () -> Unit) {
+fun AdminApp(onExit: () -> Unit) {
     TODO()
 //    var server: HostedServer? by remember { mutableStateOf(null) }
 //    LaunchedEffect(Unit) {
@@ -94,7 +94,7 @@ fun ServerApp(onExit: () -> Unit) {
 }
 
 @Composable
-fun ServerApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
+fun AdminApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
     val scope = rememberCoroutineScope()
     var proposedState by remember { mutableStateOf<ServerState?>(null) }
 
@@ -117,7 +117,7 @@ fun ServerApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
             }
         },
         onTimeLineSelectionChange = { proposedState = it },
-        serverUi = { state, onEvent -> ServerUi(state, onEvent) },
+        adminUi = { state, onEvent -> AdminUi(state, onEvent) },
         onTimeLineAccept = {
 //            proposedState?.let {
 //                onEvent(state.sendEvent(ScheduledWorkshopEvent.IgnoringResult(RevertWholeStateEvent(it))))
@@ -136,7 +136,7 @@ fun WorkshopWindow(
     whileTimeLineOpen: suspend () -> Nothing = ::awaitCancellation,
     onTimeLineSelectionChange: (ServerState?) -> Unit = {},
     onTimeLineAccept: () -> Unit = {},
-    serverUi: @Composable (ServerState, onEvent: OnEvent) -> Unit,
+    adminUi: @Composable (ServerState, onEvent: OnEvent) -> Unit,
 ) {
     Window(onCloseRequest = onCloseRequest, title = title) {
         var settingsIsOpen by remember { mutableStateOf(false) }
@@ -154,7 +154,7 @@ fun WorkshopWindow(
                 onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
             )
         }
-        MaterialTheme { serverUi(state, onEvent) }
+        MaterialTheme { adminUi(state, onEvent) }
         if (timelineIsOpen) {
             TimeLine(
                 state.participants,
@@ -231,7 +231,7 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
 
 
 @Composable
-fun ServerUi(state: ServerState, onEvent: OnEvent) {
+fun AdminUi(state: ServerState, onEvent: OnEvent) {
     CompositionLocalProvider(
         LocalDensity provides Density(LocalDensity.current.density * state.settings.zoom)
     ) {
