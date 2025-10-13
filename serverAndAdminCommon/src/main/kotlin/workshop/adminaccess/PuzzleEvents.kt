@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalTime::class)
 
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kotlinx.serialization.Serializable
 import kotlin.time.ExperimentalTime
@@ -14,3 +14,5 @@ internal fun ServerState.after(event: PuzzleStartEvent): ServerState =
         startTime = event.startTime,
         submissions = emptyMap()
     )))
+
+internal fun <K, V> Map<K, V>.put(key: K, value: V): Map<K, V> = this + (key to value)

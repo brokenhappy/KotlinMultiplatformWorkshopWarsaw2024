@@ -1,41 +1,172 @@
-@file:Suppress("FunctionName")
 @file:OptIn(ExperimentalTime::class)
 
-package kmpworkshop.server
-
-import androidx.compose.foundation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment.Companion.CenterVertically
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight.Companion.Bold
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.MenuBar
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.application
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.WorkshopStage
-import kotlin.time.Clock
-import kotlin.time.Instant
-import kotlinx.serialization.Serializable
-import kotlin.math.roundToInt
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import workshop.adminaccess.Backup
+import workshop.adminaccess.DiscoGameEvent
+import workshop.adminaccess.DiscoGameState
+import workshop.adminaccess.OnEvent
+import workshop.adminaccess.Participant
+import workshop.adminaccess.ParticipantDeactivationEvent
+import workshop.adminaccess.ParticipantReactivationEvent
+import workshop.adminaccess.ParticipantRejectionEvent
+import workshop.adminaccess.ParticipantRemovalEvent
+import workshop.adminaccess.PegWidth
+import workshop.adminaccess.PressiveGameEvent
+import workshop.adminaccess.PressiveGameState
+import workshop.adminaccess.PuzzleStartEvent
+import workshop.adminaccess.PuzzleState
+import workshop.adminaccess.ServerSettings
+import workshop.adminaccess.ServerState
+import workshop.adminaccess.SettingsChangeEvent
+import workshop.adminaccess.SliderGameEvent
+import workshop.adminaccess.SliderGameState
+import workshop.adminaccess.SliderGapWidth
+import workshop.adminaccess.StageChangeEvent
+import workshop.adminaccess.Submissions
+import workshop.adminaccess.applyingDimming
+import workshop.adminaccess.schedule
+import workshop.adminaccess.secondDiscoGamePressTimeout
+import workshop.adminaccess.toSubmissionsIn
+import workshop.adminaccess.width
 import kotlin.random.Random
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
+
+fun main(): Unit = application {
+    ServerApp(onExit = ::exitApplication)
+}
+
+@Composable
+fun ServerApp(onExit: () -> Unit) {
+    TODO()
+//    var server: HostedServer? by remember { mutableStateOf(null) }
+//    LaunchedEffect(Unit) {
+//        try {
+//            hostingServer {
+//                server = it
+//                awaitCancellation()
+//            }
+//        } finally {
+//            server = null
+//        }
+//    }
+//    server
+//        ?.let { ServerApp(it, onExit) }
+//        ?: Window(title = "Kotlin Workshop", onCloseRequest = { onExit() }) {
+//            Text("Workshop is starting!")
+//        }
+}
+
+@Composable
+fun ServerApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var proposedState by remember { mutableStateOf<ServerState?>(null) }
+
+    WorkshopWindow(
+        state = state,
+        title = "KMP Workshop",
+        onCloseRequest = {
+            scope.launch {
+                onExit()
+            }
+        },
+        onEvent = onEvent,
+        recentBackups = emptyList(),
+        whileTimeLineOpen = {
+            try {
+//                server.setInterestedInBackups(true)
+                awaitCancellation()
+            } finally {
+//                server.setInterestedInBackups(false)
+            }
+        },
+        onTimeLineSelectionChange = { proposedState = it },
+        serverUi = { state, onEvent -> ServerUi(state, onEvent) },
+        onTimeLineAccept = {
+//            proposedState?.let {
+//                onEvent(state.sendEvent(ScheduledWorkshopEvent.IgnoringResult(RevertWholeStateEvent(it))))
+//            }
+        },
+    )
+}
+
+@Composable
+fun WorkshopWindow(
+    state: ServerState,
+    title: String,
+    onCloseRequest: () -> Unit,
+    onEvent: OnEvent,
+    recentBackups: List<Backup> = emptyList(),
+    whileTimeLineOpen: suspend () -> Nothing = ::awaitCancellation,
+    onTimeLineSelectionChange: (ServerState?) -> Unit = {},
+    onTimeLineAccept: () -> Unit = {},
+    serverUi: @Composable (ServerState, onEvent: OnEvent) -> Unit,
+) {
+    Window(onCloseRequest = onCloseRequest, title = title) {
+        var settingsIsOpen by remember { mutableStateOf(false) }
+        var timelineIsOpen by remember { mutableStateOf(false) }
+        MenuBar {
+            Menu("Edit") {
+                Item("Settings", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { settingsIsOpen = true })
+                Item("TimeLine", shortcut = KeyShortcut(Key.T, meta = true), onClick = { timelineIsOpen = true })
+            }
+        }
+        if (settingsIsOpen) {
+            SettingsDialog(
+                state.settings,
+                onDismiss = { settingsIsOpen = false },
+                onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
+            )
+        }
+        MaterialTheme { serverUi(state, onEvent) }
+        if (timelineIsOpen) {
+            TimeLine(
+                state.participants,
+                onClose = { timelineIsOpen = false },
+                recentBackups,
+                whileTimeLineOpen,
+                onSelectionChange = onTimeLineSelectionChange,
+                onTimeLineAccept,
+            )
+        }
+    }
+}
 
 @Composable
 internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onSettingsChange: (ServerSettings) -> Unit) {
@@ -52,10 +183,13 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(4.dp))
-                .border(2.dp, shape = RoundedCornerShape(4.dp), color = Color.DarkGray)
+                .border(
+                    2.dp,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                    color = Color.DarkGray
+                )
                 .background(Color.White)
-                .padding(16.dp)
-            ,
+                .padding(16.dp),
         ) {
             Row {
                 Text("Color dimming: ")
@@ -113,6 +247,7 @@ fun ServerUi(state: ServerState, onEvent: OnEvent) {
                 WorkshopStage.PalindromeCheckTask,
                 WorkshopStage.FindMinimumAgeOfUserTask,
                 WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
+
                 WorkshopStage.SliderGameStage -> SliderGame(state, onEvent)
                 WorkshopStage.PressiveGameStage -> PressiveGame(state, onEvent)
                 WorkshopStage.DiscoGame -> DiscoGame(state, onEvent)
@@ -138,9 +273,16 @@ private fun DiscoGame(
                 onEvent.schedule(
                     when (state.discoGameState) {
                         is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst(Clock.System.now())
-                        is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(Clock.System.now(), Random.nextLong())
+                        is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(
+                            Clock.System.now(),
+                            Random.Default.nextLong()
+                        )
+
                         is DiscoGameState.NotStarted,
-                        is DiscoGameState.Second -> DiscoGameEvent.StartFirst(Clock.System.now(), Random.nextLong())
+                        is DiscoGameState.Second -> DiscoGameEvent.StartFirst(
+                            Clock.System.now(),
+                            Random.Default.nextLong()
+                        )
                     }
                 )
             },
@@ -156,9 +298,9 @@ private fun DiscoGame(
                 onEvent.schedule(
                     when (state.discoGameState) {
                         is DiscoGameState.Second.InProgress -> DiscoGameEvent.StopSecond
-                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond(Random.nextLong())
-                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond(Random.nextLong())
-                        is DiscoGameState.First -> DiscoGameEvent.StartSecond(Random.nextLong())
+                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond(Random.Default.nextLong())
+                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond(Random.Default.nextLong())
+                        is DiscoGameState.First -> DiscoGameEvent.StartSecond(Random.Default.nextLong())
                     }
                 )
             },
@@ -168,7 +310,7 @@ private fun DiscoGame(
         is DiscoGameState.Second.Done -> Text("Second game finished!")
         is DiscoGameState.NotStarted -> Text("Second game has not started yet!")
         is DiscoGameState.Second.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Progress: ")
                 BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
             }
@@ -181,13 +323,15 @@ private fun DiscoGame(
                 .orderedParticipants
                 .chunked(gameState.width.takeIf { it > 0 } ?: 1)
                 .forEach { row ->
-                    Row(modifier = Modifier.weight(1f), verticalAlignment = CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         for ((_, color) in row) {
                             Spacer(
                                 modifier = Modifier.weight(1f)
                                     .fillMaxHeight()
-                                    .background(color.applyingDimming(state.settings.dimmingRatio).toComposeColor())
-                                ,
+                                    .background(color.applyingDimming(state.settings.dimmingRatio).toComposeColor()),
                             )
                         }
                         if (row.size < gameState.width) {
@@ -214,12 +358,14 @@ private fun DiscoGame(
     }
 }
 
-private fun kmpworkshop.common.SerializableColor.toComposeColor(): Color = Color(red, green, blue)
+private fun SerializableColor.toComposeColor(): Color = Color(red, green, blue)
 
 @Composable
 private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
     Column(modifier = Modifier.padding(16.dp)) {
-        TopButton("Start First game", onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.nextLong())) })
+        TopButton(
+            "Start First game",
+            onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.Default.nextLong())) })
         TopButton(
             "Retain first game finishers",
             enabled = state.pressiveGameState is PressiveGameState.FirstGameDone ||
@@ -229,9 +375,11 @@ private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
         TopButton(
             "Start Second game",
             enabled = state.participants.size % 2 == 0,
-            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.nextLong())) },
+            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.Default.nextLong())) },
         )
-        TopButton("Start Third game", onClick = { onEvent.schedule(PressiveGameEvent.StartThird(Random.nextLong())) })
+        TopButton(
+            "Start Third game",
+            onClick = { onEvent.schedule(PressiveGameEvent.StartThird(Random.Default.nextLong())) })
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
@@ -264,7 +412,8 @@ private fun CountDownProgressBar(time: Instant) {
         fun frameNanosToInstant(frameNanos: Long): Instant = startInstant + (frameNanos - startNanos).nanoseconds
         while (true) {
             withFrameNanos { frameTimeNanos ->
-                progress = ((time - frameNanosToInstant(frameTimeNanos)) / secondDiscoGamePressTimeout).toFloat().coerceIn(0f, 1f)
+                progress = ((time - frameNanosToInstant(frameTimeNanos)) / secondDiscoGamePressTimeout).toFloat()
+                    .coerceIn(0f, 1f)
             }
         }
     }
@@ -299,12 +448,6 @@ fun Color.transitionTo(other: Color, ratio: Float): Color = Color(
     blue = this.blue * (1 - ratio) + other.blue * ratio,
     alpha = this.alpha * (1 - ratio) + other.alpha * ratio
 )
-fun SerializableColor.transitionTo(other: SerializableColor, ratio: Float): SerializableColor = SerializableColor(
-    red = (this.red * (1 - ratio) + other.red * ratio).roundToInt(),
-    green = (this.green * (1 - ratio) + other.green * ratio).roundToInt(),
-    blue = (this.blue * (1 - ratio) + other.blue * ratio).roundToInt(),
-)
-
 
 private fun PressiveGameState.FirstGameInProgress.asSubmissions(participants: List<Participant>) = Submissions(
     startTime = startTime,
@@ -325,50 +468,18 @@ private fun SliderGame(state: ServerState, onEvent: OnEvent) {
     // TODO: Names don't line up with sliders.
     when (val gameState = state.sliderGameState) {
         SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start(Random.nextLong())) }
+            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start(Random.Default.nextLong())) }
         }
         is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
             TopButton("Stop game") { onEvent.schedule(SliderGameEvent.Finished(gameState)) }
             UninteractiveSliderGame(gameState, getParticipant = { state.getParticipantBy(it) })
         }
         is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart(Random.nextLong())) }
+            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart(Random.Default.nextLong())) }
             UninteractiveSliderGame(gameState.lastState, getParticipant = { state.getParticipantBy(it) })
         }
     }
 }
-
-// @TestOnly public!!!
-context(random: Random)
-fun binaryMoreCodeIdentifiers(count: Int): List<String> = count
-    .nextPowerOfTwo()
-    .let { totalBits ->
-        val width = when (count) {
-            1 -> 1
-            else -> Int.SIZE_BITS - totalBits.countLeadingZeroBits() - 1
-        }
-        (0..<totalBits)
-            .shuffled(random)
-            .take(count)
-            .map { it.binaryAsMorseCode().padEnd(width, '.') }
-    }
-
-// Thanks, AI assistant!
-private fun Int.nextPowerOfTwo(): Int {
-    if (this <= 0) return 1
-    var value = this - 1
-    value = value or (value shr 1)
-    value = value or (value shr 2)
-    value = value or (value shr 4)
-    value = value or (value shr 8)
-    value = value or (value shr 16)
-    return value + 1
-}
-
-// 3 => 11 => --
-// 4 => 100 => -..
-fun Int.binaryAsMorseCode(): String =
-    if (this == 0) "" else (if (this % 2 == 0) "." else "-") + (this / 2).binaryAsMorseCode()
 
 @Composable
 private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getParticipant: (ApiKey) -> Participant) {
@@ -407,7 +518,9 @@ private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getPa
                 Spacer(modifier = Modifier.height(32.dp * (gameState.pegLevel + 1)))
                 Row {
                     Spacer(modifier = Modifier.weight(1.0 + gameState.pegPosition))
-                    Spacer(modifier = Modifier.weight(PegWidth * 3).background(Color.Red).height(32.dp))
+                    Spacer(
+                        modifier = Modifier.weight(PegWidth * 3).background(Color.Red).height(32.dp)
+                    )
                     Spacer(modifier = Modifier.weight(2.0 - gameState.pegPosition - PegWidth * 3))
                 }
             }
@@ -463,13 +576,6 @@ private fun Submissions(submissions: Submissions) {
     }
 }
 
-@Serializable
-data class Submissions(
-    val startTime: Instant,
-    val participants: List<Participant>,
-    val completedSubmissions: Map<ApiKey, Instant>,
-)
-
 private fun PuzzleState.Opened.asSubmissions(participants: List<Participant>): Submissions = Submissions(
     startTime,
     participants,
@@ -490,11 +596,11 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
                 Text("<")
             }
             Spacer(modifier = Modifier.weight(1f))
-            Column(modifier = Modifier.align(CenterVertically)) {
+            Column(modifier = Modifier.align(Alignment.CenterVertically)) {
                 var expanded by remember { mutableStateOf(false) }
                 ClickableText(
                     text = AnnotatedString("Go to file: ${stage.kotlinFile}"),
-                    style = TextStyle(fontSize = 20.sp, fontWeight = Bold),
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
                     onClick = { expanded = true }
                 )
                 DropdownMenu(
@@ -546,7 +652,7 @@ private fun Registration(
 ) {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         var searchText by remember { mutableStateOf("") }
-        Row(verticalAlignment = CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Search: ")
             TextField(searchText, onValueChange = { searchText = it })
         }
@@ -577,7 +683,14 @@ private fun Registration(
                     modifier = Modifier.padding(start = 8.dp)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent.schedule(ParticipantReactivationEvent(participant, Random.nextLong())) }) {
+                Button(onClick = {
+                    onEvent.schedule(
+                        ParticipantReactivationEvent(
+                            participant,
+                            Random.Default.nextLong()
+                        )
+                    )
+                }) {
                     Text("Activate")
                 }
                 Button(onClick = { onEvent.schedule(ParticipantRemovalEvent(participant)) }) {

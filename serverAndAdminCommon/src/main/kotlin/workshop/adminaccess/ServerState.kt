@@ -1,9 +1,12 @@
 @file:OptIn(ExperimentalTime::class)
 
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kmpworkshop.common.*
 import kotlinx.serialization.Serializable
+import kotlin.collections.plus
+import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -180,4 +183,30 @@ sealed class SliderGameState {
 }
 
 @Serializable
+data class Submissions(
+    val startTime: Instant,
+    val participants: List<Participant>,
+    val completedSubmissions: Map<ApiKey, Instant>,
+)
+
+@Serializable
 data class SliderState(val gapOffset: Double, val position: Double)
+
+fun ServerState.scheduling(event: WorkshopEvent): InProgressScheduling =
+    InProgressScheduling(this, event, onlyASingleOfThisType = false)
+
+data class InProgressScheduling(
+    val stateWithoutEventScheduled: ServerState,
+    val event: WorkshopEvent,
+    val onlyASingleOfThisType: Boolean
+)
+
+fun InProgressScheduling.after(delay: Duration): ServerState = stateWithoutEventScheduled.copy(
+    scheduledEvents = stateWithoutEventScheduled
+        .scheduledEvents
+        .applyIf({ onlyASingleOfThisType }) { it.filterNot { it.event.javaClass == event.javaClass } }
+            + TimedEvent(Clock.System.now() + delay, event)
+)
+
+fun ServerState.schedulingSingle(event: WorkshopEvent): InProgressScheduling =
+    InProgressScheduling(this, event, onlyASingleOfThisType = true)

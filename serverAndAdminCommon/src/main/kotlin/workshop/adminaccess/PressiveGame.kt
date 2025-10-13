@@ -1,17 +1,20 @@
 @file:OptIn(ExperimentalTime::class)
 
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.PressiveGamePressType
-import kmpworkshop.server.PressivePairingState.SuccessFullyPaired
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import workshop.adminaccess.PressivePairingState.SuccessFullyPaired
 import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
+
 
 @Serializable
 sealed class PressiveGameEvent : WorkshopEvent() {
@@ -32,6 +35,9 @@ sealed class PressiveGameEvent : WorkshopEvent() {
         val participant: ApiKey,
         val pressEvent: PressiveGamePressType,
     ) : WorkshopEventWithResult<String?>() {
+        @Transient
+        override val serializer: KSerializer<String?> = kotlinx.serialization.serializer()
+
         override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, String?> =
             with(Random(randomSeed)) { oldState.pressiveGameState.pressing(pressEvent, presserKey = participant, now) }
                 .let { update ->
@@ -46,6 +52,96 @@ sealed class PressiveGameEvent : WorkshopEvent() {
     }
 }
 
+sealed class PressiveGamePressResult {
+    data class Hint(val message: String): PressiveGamePressResult()
+    data class Update(val newState: PressiveGameState): PressiveGamePressResult()
+    data class UpdateWithEvent(val update: Update, val event: SoundPlayEvents): PressiveGamePressResult()
+}
+
+
+context(_: Random)
+fun PressiveGameState.pressing(
+    type: PressiveGamePressType,
+    presserKey: ApiKey,
+    now: Instant,
+): PressiveGamePressResult = when (this) {
+    PressiveGameState.NotStarted -> PressiveGamePressResult.Hint("Hold up there fella! We haven't started the game yet :)")
+    PressiveGameState.ThirdGameDone,
+    PressiveGameState.SecondGameDone,
+    is PressiveGameState.FirstGameDone -> PressiveGamePressResult.Hint(
+        "I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?"
+    )
+    is PressiveGameState.FirstGameInProgress -> states[presserKey]?.let { state ->
+        when {
+            state.finishTime != null -> this.toPressResult()
+            type == state.pressesLeft.first() ->
+                state.dropSinglePressLeft(now).let { newParticipantState ->
+                    copy(states = states.put(presserKey, state.dropSinglePressLeft(now)))
+                        .let { newState ->
+                            // Mind the early return! We only finish the game if...
+                            PressiveGameState.FirstGameDone(
+                                startTime = newState.startTime,
+                                finishTimes = newState.states.mapValues { (_, participantState) ->
+                                    participantState.finishTime ?: return@let newState // ...All the participants finished
+                                },
+                            )
+                        }.let {
+                            if (newParticipantState.finishTime == null) it.toPressResult()
+                            else it.withEvent(SoundPlayEvents.Success)
+                        }
+                }
+            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true)))
+                .toPressResult()
+        }
+    } ?: PressiveGamePressResult.Hint(
+        "You somehow are not part of this Pressive round! Contact the workshop host for help!"
+    )
+    is PressiveGameState.SecondGameInProgress -> states[presserKey]?.let { presserState ->
+        val stateWithProgressIncreasedAndSound =
+            if (order[progress] == presserKey) copy(progress = progress + 1).let {
+                if (it.progress == order.size)
+                    PressiveGameState.SecondGameDone.withEvent(SoundPlayEvents.Success)
+                else it.withEvent(SoundPlayEvents.Increment(progress.toDouble() / order.size))
+            } else if (progress > 0) copy(progress = 0).withEvent(SoundPlayEvents.ProgressLoss)
+            else copy(progress = 0).toPressResult()
+        stateWithProgressIncreasedAndSound.map { stateWithProgressIncreased ->
+            if (stateWithProgressIncreased !is PressiveGameState.SecondGameInProgress) return@map PressiveGameState.SecondGameDone
+            if (stateWithProgressIncreased.progress == order.size) PressiveGameState.SecondGameDone // TODO: Sound effects!
+            else when (presserState.pairingState) {
+                is PressivePairingState.InProgress,
+                PressivePairingState.DialedThemselves,
+                PressivePairingState.DialedPersonIsBeingCalled,
+                PressivePairingState.DialedPersonIsCalling,
+                PressivePairingState.PartnerHungUp,
+                is PressivePairingState.RoundSuccess,
+                PressivePairingState.TriedToCallNonExistingCode ->
+                    stateWithProgressIncreased.updatedStatesAfterButtonPress(type, presserState)
+                is SuccessFullyPaired,
+                is PressivePairingState.Calling -> when (type) {
+                    PressiveGamePressType.DoublePress -> presserState
+                        .pairingState
+                        .let { (it as? SuccessFullyPaired)?.partner ?: (it as? PressivePairingState.Calling)?.partner!! }
+                        .let { partner -> resetting(presserState).hangUp(partner) }
+                    else -> stateWithProgressIncreased
+                }
+            }
+        }
+    } ?: PressiveGamePressResult.Hint(
+        "You somehow are not part of this Pressive round! Contact the workshop host for help!"
+    )
+    is PressiveGameState.ThirdGameInProgress ->
+        (if (order[progress] == presserKey) progress + 1 else 0).let { nextProgress ->
+            copy(progress = nextProgress).let {
+                if (it.progress == order.size)
+                    PressiveGameState.ThirdGameDone.withEvent(SoundPlayEvents.Success)
+                else if (nextProgress > 0)
+                    it.withEvent(SoundPlayEvents.Increment(nextProgress.toDouble() / order.size))
+                else if (progress > 0)
+                    it.withEvent(SoundPlayEvents.ProgressLoss)
+                else it.toPressResult()
+            }
+        }
+}
 
 fun ServerState.after(event: PressiveGameEvent): ServerState = when (event) {
     is PressiveGameEvent.StartFirst -> with(Random(event.randomSeed)) { startingFirstPressiveGame(event.now) }
@@ -131,7 +227,7 @@ private fun ServerState.startingThirdPressiveGame(): ServerState =
         )
     ).schedulingSingle(PressiveGameEvent.Tick).after(0.seconds)
 
-internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): String = """
+fun SecondPressiveGameParticipantState.toHint(state: ServerState): String = """
     ${if (isBeingCalled) "|Someone is calling you, try to call them back!\n" else ""}|You are: $personalId
     |${
         when (pairingState) {
@@ -152,7 +248,7 @@ internal fun SecondPressiveGameParticipantState.toHint(state: ServerState): Stri
     |Do a double press to restart dialing!
 """.trimMargin()
 
-internal fun FirstPressiveGameParticipantState.toHint(): String = when {
+fun FirstPressiveGameParticipantState.toHint(): String = when {
     pressesLeft.isEmpty() -> "Yay! You've finished this puzzle, you can now help the others!"
     pressesLeft.size == NumberOfPressesNeededForFirstPressiveGame -> when {
         this.justFailed -> """
@@ -174,12 +270,6 @@ internal fun FirstPressiveGameParticipantState.toHint(): String = when {
 
 private const val NumberOfPressesNeededForFirstPressiveGame = 4
 
-sealed class PressiveGamePressResult {
-    data class Hint(val message: String): PressiveGamePressResult()
-    data class Update(val newState: PressiveGameState): PressiveGamePressResult()
-    data class UpdateWithEvent(val update: Update, val event: SoundPlayEvents): PressiveGamePressResult()
-}
-
 fun PressiveGamePressResult.map(mapper: (PressiveGameState) -> PressiveGameState): PressiveGamePressResult = when (this) {
     is PressiveGamePressResult.Hint -> this
     is PressiveGamePressResult.Update -> copy(newState = mapper(newState))
@@ -190,90 +280,6 @@ fun PressiveGameState.toPressResult(): PressiveGamePressResult.Update = Pressive
 
 fun PressiveGameState.withEvent(event: SoundPlayEvents): PressiveGamePressResult.UpdateWithEvent =
     PressiveGamePressResult.UpdateWithEvent(toPressResult(), event)
-
-context(_: Random)
-internal fun PressiveGameState.pressing(
-    type: PressiveGamePressType,
-    presserKey: ApiKey,
-    now: Instant,
-): PressiveGamePressResult = when (this) {
-    PressiveGameState.NotStarted -> PressiveGamePressResult.Hint("Hold up there fella! We haven't started the game yet :)")
-    PressiveGameState.ThirdGameDone,
-    PressiveGameState.SecondGameDone,
-    is PressiveGameState.FirstGameDone -> PressiveGamePressResult.Hint(
-        "I know you're excited, but you're gonna have to wait until we start the next round!\nPerhaps you could help your peers so we are ready faster?"
-    )
-    is PressiveGameState.FirstGameInProgress -> states[presserKey]?.let { state ->
-        when {
-            state.finishTime != null -> this.toPressResult()
-            type == state.pressesLeft.first() ->
-                state.dropSinglePressLeft(now).let { newParticipantState ->
-                    copy(states = states.put(presserKey, state.dropSinglePressLeft(now)))
-                        .let { newState ->
-                            // Mind the early return! We only finish the game if...
-                            PressiveGameState.FirstGameDone(
-                                startTime = newState.startTime,
-                                finishTimes = newState.states.mapValues { (_, participantState) ->
-                                    participantState.finishTime ?: return@let newState // ...All the participants finished
-                                },
-                            )
-                        }.let {
-                            if (newParticipantState.finishTime == null) it.toPressResult()
-                            else it.withEvent(SoundPlayEvents.Success)
-                        }
-                }
-            else -> copy(states = states.put(presserKey, newFirstPressiveGameState(justFailed = true)))
-                .toPressResult()
-        }
-    } ?: PressiveGamePressResult.Hint(
-        "You somehow are not part of this Pressive round! Contact the workshop host for help!"
-    )
-    is PressiveGameState.SecondGameInProgress -> states[presserKey]?.let { presserState ->
-        val stateWithProgressIncreasedAndSound =
-            if (order[progress] == presserKey) copy(progress = progress + 1).let {
-                if (it.progress == order.size)
-                    PressiveGameState.SecondGameDone.withEvent(SoundPlayEvents.Success)
-                else it.withEvent(SoundPlayEvents.Increment(progress.toDouble() / order.size))
-            } else if (progress > 0) copy(progress = 0).withEvent(SoundPlayEvents.ProgressLoss)
-            else copy(progress = 0).toPressResult()
-        stateWithProgressIncreasedAndSound.map { stateWithProgressIncreased ->
-            if (stateWithProgressIncreased !is PressiveGameState.SecondGameInProgress) return@map PressiveGameState.SecondGameDone
-            if (stateWithProgressIncreased.progress == order.size) PressiveGameState.SecondGameDone // TODO: Sound effects!
-            else when (presserState.pairingState) {
-                is PressivePairingState.InProgress,
-                PressivePairingState.DialedThemselves,
-                PressivePairingState.DialedPersonIsBeingCalled,
-                PressivePairingState.DialedPersonIsCalling,
-                PressivePairingState.PartnerHungUp,
-                is PressivePairingState.RoundSuccess,
-                PressivePairingState.TriedToCallNonExistingCode ->
-                    stateWithProgressIncreased.updatedStatesAfterButtonPress(type, presserState)
-                is SuccessFullyPaired,
-                is PressivePairingState.Calling -> when (type) {
-                    PressiveGamePressType.DoublePress -> presserState
-                        .pairingState
-                        .let { (it as? SuccessFullyPaired)?.partner ?: (it as? PressivePairingState.Calling)?.partner!! }
-                        .let { partner -> resetting(presserState).hangUp(partner) }
-                    else -> stateWithProgressIncreased
-                }
-            }
-        }
-    } ?: PressiveGamePressResult.Hint(
-        "You somehow are not part of this Pressive round! Contact the workshop host for help!"
-    )
-    is PressiveGameState.ThirdGameInProgress ->
-        (if (order[progress] == presserKey) progress + 1 else 0).let { nextProgress ->
-            copy(progress = nextProgress).let {
-                if (it.progress == order.size)
-                    PressiveGameState.ThirdGameDone.withEvent(SoundPlayEvents.Success)
-                else if (nextProgress > 0)
-                    it.withEvent(SoundPlayEvents.Increment(nextProgress.toDouble() / order.size))
-                else if (progress > 0)
-                    it.withEvent(SoundPlayEvents.ProgressLoss)
-                else it.toPressResult()
-            }
-        }
-}
 
 context(_: Random)
 internal fun newFirstPressiveGameState(justFailed: Boolean): FirstPressiveGameParticipantState =
@@ -376,5 +382,37 @@ private fun PressiveGameState.SecondGameInProgress.hangUp(ditchedPerson: ApiKey)
 )
 
 private operator fun <V> Map<ApiKeyString, V>.get(key: ApiKey): V? = this[key.stringRepresentation]
-internal fun <V> Map<ApiKeyString, V>.put(key: ApiKey, value: V): Map<ApiKeyString, V> =
+fun <V> Map<ApiKeyString, V>.put(key: ApiKey, value: V): Map<ApiKeyString, V> =
     put(key.stringRepresentation, value)
+
+// @TestOnly public!!!
+context(random: Random)
+fun binaryMoreCodeIdentifiers(count: Int): List<String> = count
+    .nextPowerOfTwo()
+    .let { totalBits ->
+        val width = when (count) {
+            1 -> 1
+            else -> Int.SIZE_BITS - totalBits.countLeadingZeroBits() - 1
+        }
+        (0..<totalBits)
+            .shuffled(random)
+            .take(count)
+            .map { it.binaryAsMorseCode().padEnd(width, '.') }
+    }
+
+// Thanks, AI assistant!
+private fun Int.nextPowerOfTwo(): Int {
+    if (this <= 0) return 1
+    var value = this - 1
+    value = value or (value shr 1)
+    value = value or (value shr 2)
+    value = value or (value shr 4)
+    value = value or (value shr 8)
+    value = value or (value shr 16)
+    return value + 1
+}
+
+// 3 => 11 => --
+// 4 => 100 => -..
+fun Int.binaryAsMorseCode(): String =
+    if (this == 0) "" else (if (this % 2 == 0) "." else "-") + (this / 2).binaryAsMorseCode()

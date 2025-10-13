@@ -1,12 +1,16 @@
 @file:Suppress("ReplaceToWithInfixForm")
 @file:OptIn(ExperimentalTime::class)
 
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kmpworkshop.common.*
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import java.util.*
+import kotlin.plus
 import kotlin.random.Random
+import kotlin.text.contains
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -21,7 +25,13 @@ data class SettingsChangeEvent(val newSettings: ServerSettings) : ServerWideEven
 @Serializable
 data class RevertWholeStateEvent(val newState: ServerState) : ServerWideEvents()
 @Serializable
-data class RegistrationStartEvent(val name: String, val randomSeed: Long) : WorkshopEventWithResult<ApiKeyRegistrationResult>() {
+data class RegistrationStartEvent(
+    val name: String,
+    val randomSeed: Long,
+) : WorkshopEventWithResult<ApiKeyRegistrationResult>() {
+    @Transient
+    override val serializer: KSerializer<ApiKeyRegistrationResult> = kotlinx.serialization.serializer()
+
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, ApiKeyRegistrationResult> = when {
         !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
         oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
@@ -33,8 +43,14 @@ data class RegistrationStartEvent(val name: String, val randomSeed: Long) : Work
     }
 }
 
+
 @Serializable
-data class RegistrationVerificationEvent(val key: ApiKey) : WorkshopEventWithResult<NameVerificationResult>() {
+data class RegistrationVerificationEvent(
+    val key: ApiKey,
+) : WorkshopEventWithResult<NameVerificationResult>() {
+    @Transient
+    override val serializer: KSerializer<NameVerificationResult> = kotlinx.serialization.serializer()
+
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, NameVerificationResult> {
         if (oldState.participants.any { it.apiKey == key })
             return oldState to NameVerificationResult.AlreadyRegistered
@@ -56,7 +72,14 @@ data class RegistrationVerificationEvent(val key: ApiKey) : WorkshopEventWithRes
 }
 
 @Serializable
-data class PuzzleFinishedEvent(val now: Instant, val participant: ApiKey, val puzzleId: String) : WorkshopEventWithResult<PuzzleCompletionResult>() {
+data class PuzzleFinishedEvent(
+    val now: Instant,
+    val participant: ApiKey,
+    val puzzleId: String,
+) : WorkshopEventWithResult<PuzzleCompletionResult>() {
+    @Transient
+    override val serializer: KSerializer<PuzzleCompletionResult> = kotlinx.serialization.serializer()
+
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, PuzzleCompletionResult> =
         (oldState.puzzleStates[puzzleId] as? PuzzleState.Opened)?.let { puzzleState ->
             when {

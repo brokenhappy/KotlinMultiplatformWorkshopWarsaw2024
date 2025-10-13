@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalTime::class)
 
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.DiscoGameInstruction
@@ -10,6 +10,7 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
+
 
 @Serializable
 sealed class DiscoGameEvent : WorkshopEvent() {
@@ -127,7 +128,7 @@ fun ServerState.startingSecondDiscoGame(): ServerState = copy(
     .schedulingSingle(DiscoGameEvent.SecondPressTimeout(random.nextLong())).after(1.5.seconds)
 
 context(random: Random)
-internal fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now: Instant): ServerState = when (val gameState = discoGameState) {
+fun ServerState.afterDiscoGameGuessSubmission(participant: ApiKey, now: Instant): ServerState = when (val gameState = discoGameState) {
     is DiscoGameState.Second.Done,
     is DiscoGameState.First.Done,
     is DiscoGameState.NotStarted -> this
@@ -190,7 +191,7 @@ private fun DiscoGameState.Second.InProgress.currentParticipantThatShouldPress()
 private fun DiscoGameInstructionRequest.targetIn(game: DiscoGameState.Second.InProgress): ApiKey? =
     participant.findPointIn(game)?.move(instruction)?.findParticipantIn(game)
 
-internal fun DiscoGameState.First.InProgress.toSubmissionsIn(state: ServerState) = Submissions(
+fun DiscoGameState.First.InProgress.toSubmissionsIn(state: ServerState) = Submissions(
     startTime,
     participants = state.participants,
     completedSubmissions = states
@@ -200,19 +201,23 @@ internal fun DiscoGameState.First.InProgress.toSubmissionsIn(state: ServerState)
 )
 
 private data class DiscoPoint(val x: Int, val y: Int)
+
 private fun ApiKey.findPointIn(game: DiscoGameState.Second.InProgress): DiscoPoint? =
     game.orderedParticipants
         .indexOfFirst { it.participant == this }
         .takeUnless { it == -1 }
         ?.asOffsetToPointIn(game)
+
 private fun DiscoPoint.findParticipantIn(game: DiscoGameState.Second.InProgress): ApiKey? =
     this.toOffsetIn(game)?.let { game.orderedParticipants.getOrNull(it) }?.participant
+
 private fun DiscoPoint.toOffsetIn(game: DiscoGameState.Second.InProgress): Int? =
     if (y < 0 || x < 0 || x >= game.width) null else (y * game.width + x).takeIf { it < game.orderedParticipants.size }
+
 private fun Int.asOffsetToPointIn(game: DiscoGameState.Second.InProgress): DiscoPoint =
     DiscoPoint(y = this / game.width, x = this % game.width)
 
-internal val DiscoGameState.Second.InProgress.width: Int get() =
+val DiscoGameState.Second.InProgress.width: Int get() =
     orderedParticipants.size.widthOfNearestGreaterSquare() // TODO: Report bug if creating extension function in wrong file!
 
 private fun Int.widthOfNearestGreaterSquare(): Int =
@@ -271,7 +276,7 @@ internal fun DiscoGameState.Second.InProgress.createInstructionThatTargets(
         }
 }
 
-internal val secondDiscoGamePressTimeout = 2.5.seconds
+val secondDiscoGamePressTimeout = 2.5.seconds
 private val danceFloorChangeInterval = 0.8.seconds
 private val firstDiscoGamePrivateTickTimeout = 1.5.seconds
 private val firstDiscoGamePublicTickTimeout = 10.seconds

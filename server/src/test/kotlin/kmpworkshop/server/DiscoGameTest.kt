@@ -4,6 +4,11 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.DiscoGameInstruction.*
 import org.junit.jupiter.api.Test
+import workshop.adminaccess.DiscoGameInstructionRequest
+import workshop.adminaccess.DiscoGameState
+import workshop.adminaccess.SecondDiscoGameParticipantState
+import workshop.adminaccess.ServerState
+import workshop.adminaccess.afterDiscoGameGuessSubmission
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime

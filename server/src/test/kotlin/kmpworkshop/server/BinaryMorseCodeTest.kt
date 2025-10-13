@@ -2,6 +2,7 @@ package kmpworkshop.server
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import workshop.adminaccess.binaryMoreCodeIdentifiers
 import kotlin.random.Random
 
 class BinaryMorseCodeTest {
