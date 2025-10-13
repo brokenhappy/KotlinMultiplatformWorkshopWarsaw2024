@@ -27,11 +27,25 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import io.ktor.client.HttpClient
+import io.ktor.http.encodedPath
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SerializableColor
+import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopStage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
+import kotlinx.rpc.krpc.ktor.client.installKrpc
+import kotlinx.rpc.krpc.ktor.client.rpc
+import kotlinx.rpc.krpc.ktor.client.rpcConfig
+import kotlinx.rpc.krpc.serialization.json.json
+import kotlinx.rpc.withService
+import kotlinx.serialization.json.Json
+import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.Backup
 import workshop.adminaccess.DiscoGameEvent
 import workshop.adminaccess.DiscoGameState
@@ -46,6 +60,8 @@ import workshop.adminaccess.PressiveGameEvent
 import workshop.adminaccess.PressiveGameState
 import workshop.adminaccess.PuzzleStartEvent
 import workshop.adminaccess.PuzzleState
+import workshop.adminaccess.ScheduledWorkshopEvent.AwaitingResult
+import workshop.adminaccess.ScheduledWorkshopEvent.IgnoringResult
 import workshop.adminaccess.ServerSettings
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.SettingsChangeEvent
@@ -72,25 +88,81 @@ fun main(): Unit = application {
     AdminApp(onExit = ::exitApplication)
 }
 
+private const val adminPassword = "Not telling you!"
+
+suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
+    val ktorClient = HttpClient {
+        installKrpc {
+            waitForServices = true
+        }
+    }
+
+    val client: KtorRpcClient = ktorClient.rpc {
+        url {
+//            host = "192.168.0.67"
+//            host = "10.0.2.2"
+            host = "127.0.0.1"
+            port = 8080
+            encodedPath = WorkshopApiService::class.simpleName!!
+        }
+
+        rpcConfig {
+            serialization {
+                json()
+            }
+        }
+    }
+
+    val service = client.withService<AdminAccess>()
+    return try {
+        coroutineScope { onUse(service) }
+    } finally {
+        client.close()
+    }
+}
+
 @Composable
 fun AdminApp(onExit: () -> Unit) {
-    TODO()
-//    var server: HostedServer? by remember { mutableStateOf(null) }
-//    LaunchedEffect(Unit) {
-//        try {
-//            hostingServer {
-//                server = it
-//                awaitCancellation()
-//            }
-//        } finally {
-//            server = null
-//        }
-//    }
-//    server
-//        ?.let { ServerApp(it, onExit) }
-//        ?: Window(title = "Kotlin Workshop", onCloseRequest = { onExit() }) {
-//            Text("Workshop is starting!")
-//        }
+    var adminAccessService: AdminAccess? by remember { mutableStateOf(null) }
+    LaunchedEffect(Unit) {
+        try {
+            withAdminAccessService {
+                adminAccessService = it
+                awaitCancellation()
+            }
+        } finally {
+            adminAccessService = null
+        }
+    }
+
+    adminAccessService
+        ?.let { AdminApp(it, onExit) }
+        ?: Window(title = "Kotlin Workshop", onCloseRequest = { onExit() }) {
+            Text("Workshop is starting!")
+        }
+}
+
+@Composable
+fun AdminApp(adminAccessService: AdminAccess, onExit: () -> Unit) {
+    val state by remember { adminAccessService.serverState(adminPassword) }.collectAsState(initial = ServerState())
+    val scope = rememberCoroutineScope { Dispatchers.IO }
+    AdminApp(state, onEvent = { scheduledEvent ->
+        scope.launch {
+            when (scheduledEvent) {
+                is AwaitingResult<*> -> adminAccessService.continueWithEventResult(scheduledEvent)
+                is IgnoringResult -> adminAccessService.fire(adminPassword, scheduledEvent.event)
+            }
+        }
+    }, onExit)
+}
+
+private suspend fun <T> AdminAccess.continueWithEventResult(scheduledEvent: AwaitingResult<T>) {
+    scheduledEvent.continuation.resumeWith(runCatching {
+        Json.decodeFromJsonElement(
+            scheduledEvent.event.serializer,
+            fire(adminPassword, scheduledEvent.event) ?: error("Event with result did not return a result??")
+        )
+    })
 }
 
 @Composable
@@ -275,13 +347,13 @@ private fun DiscoGame(
                         is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst(Clock.System.now())
                         is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(
                             Clock.System.now(),
-                            Random.Default.nextLong()
+                            Random.nextLong()
                         )
 
                         is DiscoGameState.NotStarted,
                         is DiscoGameState.Second -> DiscoGameEvent.StartFirst(
                             Clock.System.now(),
-                            Random.Default.nextLong()
+                            Random.nextLong()
                         )
                     }
                 )
@@ -298,9 +370,9 @@ private fun DiscoGame(
                 onEvent.schedule(
                     when (state.discoGameState) {
                         is DiscoGameState.Second.InProgress -> DiscoGameEvent.StopSecond
-                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond(Random.Default.nextLong())
-                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond(Random.Default.nextLong())
-                        is DiscoGameState.First -> DiscoGameEvent.StartSecond(Random.Default.nextLong())
+                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond(Random.nextLong())
+                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond(Random.nextLong())
+                        is DiscoGameState.First -> DiscoGameEvent.StartSecond(Random.nextLong())
                     }
                 )
             },
@@ -365,7 +437,7 @@ private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
     Column(modifier = Modifier.padding(16.dp)) {
         TopButton(
             "Start First game",
-            onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.Default.nextLong())) })
+            onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.nextLong())) })
         TopButton(
             "Retain first game finishers",
             enabled = state.pressiveGameState is PressiveGameState.FirstGameDone ||
@@ -375,11 +447,11 @@ private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
         TopButton(
             "Start Second game",
             enabled = state.participants.size % 2 == 0,
-            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.Default.nextLong())) },
+            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.nextLong())) },
         )
         TopButton(
             "Start Third game",
-            onClick = { onEvent.schedule(PressiveGameEvent.StartThird(Random.Default.nextLong())) })
+            onClick = { onEvent.schedule(PressiveGameEvent.StartThird(Random.nextLong())) })
     }
     when (val gameState = state.pressiveGameState) {
         PressiveGameState.NotStarted -> Unit
@@ -468,14 +540,14 @@ private fun SliderGame(state: ServerState, onEvent: OnEvent) {
     // TODO: Names don't line up with sliders.
     when (val gameState = state.sliderGameState) {
         SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start(Random.Default.nextLong())) }
+            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start(Random.nextLong())) }
         }
         is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
             TopButton("Stop game") { onEvent.schedule(SliderGameEvent.Finished(gameState)) }
             UninteractiveSliderGame(gameState, getParticipant = { state.getParticipantBy(it) })
         }
         is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart(Random.Default.nextLong())) }
+            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart(Random.nextLong())) }
             UninteractiveSliderGame(gameState.lastState, getParticipant = { state.getParticipantBy(it) })
         }
     }
@@ -687,7 +759,7 @@ private fun Registration(
                     onEvent.schedule(
                         ParticipantReactivationEvent(
                             participant,
-                            Random.Default.nextLong()
+                            Random.nextLong()
                         )
                     )
                 }) {

@@ -8,10 +8,12 @@ import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
 import kmpworkshop.common.WorkshopStage.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -22,35 +24,38 @@ import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-interface HostedServer {
-    fun serverState(): Flow<ServerState>
-    suspend fun sendEvent(event: ScheduledWorkshopEvent)
-//    suspend fun setInterestedInBackups(newInterest: Boolean)
+suspend fun main() {
+    hostServer()
 }
 
-suspend fun <T> hostingServer(useServer: suspend CoroutineScope.(HostedServer) -> T): T = coroutineScope {
+suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
 //    val proposedState = MutableStateFlow<ServerState?>(null)
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
 //    val isInterestedInBackups = MutableStateFlow(false)
 //    val recentBackups = MutableStateFlow(listOf<Backup>())
 
-    launch(Dispatchers.Default) {
-        coroutineScope {
-            mainEventLoopWithCommittedStateChannelWritingTo(
-                serverState,
-                eventBus,
-                onEvent = { launch { eventBus.send(it) } }
-            ) { initialState, channel ->
-                withBackupLoop(initialState, channel) { backupRequests, trailingBackup ->
-                    val flow = backupRequests.consumeAsFlow()
-                        .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
-                    val channelCopy = Channel<BackupRequest>()
-                    launch {
-                        flow.collect { event ->
-                            channelCopy.send(event)
-                        }
+    launch {
+        serve(
+            rpcService { workshopService(serverState, onEvent = { eventBus.trySend(it) }) },
+            rpcService { adminAccess(serverState, onEvent = { eventBus.trySend(it) }) },
+        )
+    }
+    coroutineScope {
+        mainEventLoopWithCommittedStateChannelWritingTo(
+            serverState,
+            eventBus,
+            onEvent = { launch { eventBus.send(it) } }
+        ) { initialState, channel ->
+            withBackupLoop(initialState, channel) { backupRequests, trailingBackup ->
+                val flow = backupRequests.consumeAsFlow()
+                    .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
+                val channelCopy = Channel<BackupRequest>()
+                launch {
+                    flow.collect { event ->
+                        channelCopy.send(event)
                     }
+                }
 //                    launch {
 //                        isInterestedInBackups.collectLatest { isInterestedInBackups ->
 //                            if (!isInterestedInBackups) {
@@ -65,26 +70,13 @@ suspend fun <T> hostingServer(useServer: suspend CoroutineScope.(HostedServer) -
 //                        }
 //                    }
 
-                    store(channelCopy)
-                }
+                store(channelCopy)
             }
         }
     }
-    useServer(object: HostedServer {
-        override fun serverState(): Flow<ServerState> = serverState
-//            serverState.combine(proposedState) { realState, proposedState -> proposedState ?: realState }
-
-        override suspend fun sendEvent(event: ScheduledWorkshopEvent) {
-            eventBus.send(event)
-        }
-//        override suspend fun setInterestedInBackups(newInterest: Boolean) {
-//            isInterestedInBackups.value = newInterest
-//            proposedState.update { null }
-//        }
-    })
 }
 
-fun workshopService(
+private fun workshopService(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
 ): WorkshopApiService = object : WorkshopApiService {
