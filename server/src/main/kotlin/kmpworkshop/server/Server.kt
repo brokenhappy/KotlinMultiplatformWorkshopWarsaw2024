@@ -3,182 +3,85 @@
 
 package kmpworkshop.server
 
-import androidx.compose.material.MaterialTheme
-import androidx.compose.runtime.*
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyShortcut
-import androidx.compose.ui.window.MenuBar
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.application
 import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
 import kmpworkshop.common.WorkshopStage.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
-import kotlin.math.absoluteValue
+import workshop.adminaccess.*
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-fun main(): Unit = application {
-    ServerApp(onExit = ::exitApplication)
+interface HostedServer {
+    fun serverState(): Flow<ServerState>
+    suspend fun sendEvent(event: ScheduledWorkshopEvent)
+//    suspend fun setInterestedInBackups(newInterest: Boolean)
 }
 
-@Composable
-fun ServerApp(onExit: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val serverState = remember { MutableStateFlow(ServerState()) }
-    var proposedState by remember { mutableStateOf<ServerState?>(null) }
-    val serverOrProposedState = remember {
-        serverState.combine(snapshotFlow { proposedState }) { realState, proposedState -> proposedState ?: realState }
-    }
-    val eventBus = remember { Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED) }
-    var isInterestedInBackups by remember { mutableStateOf(false) }
-    var recentBackups by remember { mutableStateOf(listOf<Backup>()) }
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.Default) {
-            serveSingleService<WorkshopApiService> {
-                workshopService(serverOrProposedState, onEvent = { launch { eventBus.send(it) } })
-            }
-        }
-    }
+suspend fun <T> hostingServer(useServer: suspend CoroutineScope.(HostedServer) -> T): T = coroutineScope {
+    val serverState = MutableStateFlow(ServerState())
+//    val proposedState = MutableStateFlow<ServerState?>(null)
+    val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
+//    val isInterestedInBackups = MutableStateFlow(false)
+//    val recentBackups = MutableStateFlow(listOf<Backup>())
 
-    val job = remember {
-        scope.launch(Dispatchers.Default) {
-            try {
-                coroutineScope {
-                    mainEventLoopWithCommittedStateChannelWritingTo(
-                        serverState,
-                        eventBus,
-                        onEvent = { launch { eventBus.send(it) } }
-                    ) { initialState, channel ->
-                        withBackupLoop(initialState, channel) { backupRequests, trailingBackup ->
-                            val flow = backupRequests.consumeAsFlow()
-                                .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
-                            val channelCopy = Channel<BackupRequest>()
-                            launch {
-                                try {
-                                    flow.collectLatest { event ->
-                                        channelCopy.send(event)
-                                    }
-                                } catch (e: Throwable) {
-                                    e.printStackTrace()
-                                    throw e
-                                }
-                            }
-                            launch {
-                                try {
-                                    snapshotFlow { isInterestedInBackups }.collectLatest { isInterestedInBackups ->
-                                        if (!isInterestedInBackups) {
-                                            recentBackups = emptyList()
-                                            return@collectLatest
-                                        }
-                                        flow
-                                            .mapNotNull { it.backup }
-                                            .runningFold(emptyList<Backup>()) { acc, event -> acc + event }
-                                            .combine(trailingBackup) { backups, trailingBackup -> backups + trailingBackup }
-                                            .collect { recentBackups = it }
-                                    }
-                                } catch (t: Throwable) {
-                                    t.printStackTrace()
-                                    throw t
-                                }
-                            }
-
-                            try {
-                                store(channelCopy)
-                            } catch (e: Throwable) {
-                                e.printStackTrace()
-                                throw e
-                            }
+    launch(Dispatchers.Default) {
+        coroutineScope {
+            mainEventLoopWithCommittedStateChannelWritingTo(
+                serverState,
+                eventBus,
+                onEvent = { launch { eventBus.send(it) } }
+            ) { initialState, channel ->
+                withBackupLoop(initialState, channel) { backupRequests, trailingBackup ->
+                    val flow = backupRequests.consumeAsFlow()
+                        .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
+                    val channelCopy = Channel<BackupRequest>()
+                    launch {
+                        flow.collect { event ->
+                            channelCopy.send(event)
                         }
                     }
+//                    launch {
+//                        isInterestedInBackups.collectLatest { isInterestedInBackups ->
+//                            if (!isInterestedInBackups) {
+//                                recentBackups.value = emptyList()
+//                                return@collectLatest
+//                            }
+//                            flow
+//                                .mapNotNull { it.backup }
+//                                .runningFold(emptyList<Backup>()) { acc, event -> acc + event }
+//                                .combine(trailingBackup) { backups, trailingBackup -> backups + trailingBackup }
+//                                .collect { recentBackups.value = it }
+//                        }
+//                    }
+
+                    store(channelCopy)
                 }
-            } catch (t: Throwable) {
-                t.printStackTrace()
-                throw t
             }
         }
     }
+    useServer(object: HostedServer {
+        override fun serverState(): Flow<ServerState> = serverState
+//            serverState.combine(proposedState) { realState, proposedState -> proposedState ?: realState }
 
-    WorkshopWindow(
-        serverState = serverOrProposedState,
-        title = "KMP Workshop",
-        onCloseRequest = {
-            scope.launch {
-                job.cancelAndJoin()
-                onExit()
-            }
-        },
-        onEvent = { scope.launch { eventBus.send(it) } },
-        recentBackups = recentBackups,
-        whileTimeLineOpen = {
-            try {
-                isInterestedInBackups = true
-                proposedState = null
-                awaitCancellation()
-            } finally {
-                isInterestedInBackups = false
-                proposedState = null
-            }
-        },
-        onTimeLineSelectionChange = { proposedState = it },
-        serverUi = { state, onEvent -> ServerUi(state, onEvent) },
-        onTimeLineAccept = {
-            proposedState?.let {
-                scope.launch { eventBus.send(ScheduledWorkshopEvent.IgnoringResult(RevertWholeStateEvent(it))) }
-            }
-        },
-    )
-}
-
-@Composable
-fun WorkshopWindow(
-    serverState: Flow<ServerState>,
-    title: String,
-    onCloseRequest: () -> Unit,
-    onEvent: OnEvent,
-    recentBackups: List<Backup> = emptyList(),
-    whileTimeLineOpen: suspend () -> Nothing = ::awaitCancellation,
-    onTimeLineSelectionChange: (ServerState?) -> Unit = {},
-    onTimeLineAccept: () -> Unit = {},
-    serverUi: @Composable (ServerState, onEvent: OnEvent) -> Unit,
-) {
-    Window(onCloseRequest = onCloseRequest, title = title) {
-        var settingsIsOpen by remember { mutableStateOf(false) }
-        var timelineIsOpen by remember { mutableStateOf(false) }
-        MenuBar {
-            Menu("Edit") {
-                Item("Settings", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { settingsIsOpen = true })
-                Item("TimeLine", shortcut = KeyShortcut(Key.T, meta = true), onClick = { timelineIsOpen = true })
-            }
+        override suspend fun sendEvent(event: ScheduledWorkshopEvent) {
+            eventBus.send(event)
         }
-        val state by serverState.collectAsState(initial = ServerState())
-        if (settingsIsOpen) {
-            SettingsDialog(
-                state.settings,
-                onDismiss = { settingsIsOpen = false },
-                onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
-            )
-        }
-        MaterialTheme { serverUi(state, onEvent) }
-        if (timelineIsOpen) {
-            TimeLine(
-                state.participants,
-                onClose = { timelineIsOpen = false },
-                recentBackups,
-                whileTimeLineOpen,
-                onSelectionChange = onTimeLineSelectionChange,
-                onTimeLineAccept,
-            )
-        }
-    }
+//        override suspend fun setInterestedInBackups(newInterest: Boolean) {
+//            isInterestedInBackups.value = newInterest
+//            proposedState.update { null }
+//        }
+    })
 }
 
 fun workshopService(
@@ -361,15 +264,6 @@ fun workshopService(
         .map { isBeingRung -> SerializableColor(0, 0, 0).takeIf { isBeingRung } }
 }
 
-internal fun SerializableColor.applyingDimming(dimmingRatio: Float): SerializableColor = transitionTo(
-    other = if (dimmingRatio < 0) SerializableColor(0, 0, 0)
-            else SerializableColor(255, 255, 255),
-    ratio = dimmingRatio.absoluteValue,
-)
-
-internal const val PegWidth = 0.075
-internal const val SliderGapWidth = 0.1
-
 private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
     Json.encodeToJsonElement(tSerializer, inAndOutputs[puzzleIndex].first)
 
@@ -438,5 +332,3 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
 
 fun deserializeEndpoint(endpointId: String): CoroutinePuzzleEndPoint<*, *> =
     CoroutinePuzzleEndPoint<Nothing, Nothing>(endpointId)
-
-inline fun <T : R, R> T.applyIf(predicate: (T) -> Boolean, mapper: (T) -> R): R = if (predicate(this)) mapper(this) else this

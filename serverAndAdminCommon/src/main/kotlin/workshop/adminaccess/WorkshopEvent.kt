@@ -1,6 +1,7 @@
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlin.coroutines.Continuation
 
@@ -10,6 +11,8 @@ typealias OnEvent = (ScheduledWorkshopEvent) -> Unit
 sealed class WorkshopEvent
 @Serializable
 sealed class WorkshopEventWithResult<Result>: WorkshopEvent() {
+    abstract val serializer: KSerializer<Result>
+    // TODO: Fix this ugly-ass function, it shouldn't be here and currently tightly couples this module to server implementation
     abstract fun applyWithResultTo(oldState: ServerState): Pair<ServerState, Result>
 }
 

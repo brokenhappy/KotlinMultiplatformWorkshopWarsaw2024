@@ -9,17 +9,15 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import workshop.adminaccess.Backup
+import workshop.adminaccess.ServerState
+import workshop.adminaccess.after
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
-
-@Serializable
-data class Backup(val instant: Instant, val initial: ServerState, val events: List<TimedEvent>)
 
 internal data class BackupRequest(/** null means we want to stop */ val backup: Backup?, val isLast: Boolean)
 

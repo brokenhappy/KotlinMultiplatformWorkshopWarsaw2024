@@ -1,6 +1,9 @@
 package kmpworkshop.server
 
-import org.junit.jupiter.api.Test
+import workshop.adminaccess.PegWidth
+import workshop.adminaccess.SliderGapWidth
+import workshop.adminaccess.SliderState
+import workshop.adminaccess.positionRangeInWhichPegWouldFallThrough
 import kotlin.test.assertEquals
 
 class PositionRangeInWhichPegWouldFallThroughTest {

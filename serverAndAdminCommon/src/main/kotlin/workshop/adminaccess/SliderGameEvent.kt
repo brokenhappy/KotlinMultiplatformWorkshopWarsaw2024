@@ -1,12 +1,15 @@
-@file:Suppress("ReplaceToWithInfixForm")
-
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.SlideResult
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
+
+const val PegWidth = 0.075
+const val SliderGapWidth = 0.1
 
 @Serializable
 sealed class SliderGameEvent : WorkshopEvent() {
@@ -19,7 +22,13 @@ sealed class SliderGameEvent : WorkshopEvent() {
 }
 
 @Serializable
-data class SliderSuggestionEvent(val participant: ApiKey, val suggestedRatio: Double) : WorkshopEventWithResult<SlideResult>() {
+data class SliderSuggestionEvent(
+    val participant: ApiKey,
+    val suggestedRatio: Double,
+) : WorkshopEventWithResult<SlideResult>() {
+    @Transient
+    override val serializer: KSerializer<SlideResult> = kotlinx.serialization.serializer()
+
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, SlideResult> =
         if (oldState.participantFor(participant) == null) oldState to SlideResult.InvalidApiKey
         else {
@@ -40,22 +49,9 @@ data class SliderSuggestionEvent(val participant: ApiKey, val suggestedRatio: Do
                     }
             } ?: oldState.to(SlideResult.NoSliderGameInProgress)
         }
-
 }
 
 internal fun ServerState.participantFor(apiKey: ApiKey) = participants.firstOrNull { it.apiKey == apiKey }
-
-private fun SliderGameState.InProgress.withGravityApplied(): SliderGameState =
-    participantStates.values.elementAtOrNull(pegLevel + 1)?.let { slider ->
-        if (slider.letsThroughPegPositionedAt(pegPosition)) copy(pegLevel = pegLevel + 1).withGravityApplied()
-        else this
-    } ?: SliderGameState.Done(copy(pegLevel = participantStates.size))
-
-private fun SliderGameState.InProgress.findLevelOfParticipant(key: ApiKey): Int =
-    participantStates.entries.indexOfFirst { it.key == key.stringRepresentation }
-
-private fun SliderGameState.InProgress.findPositionOfParticipant(key: ApiKey): Double =
-    participantStates.entries.first { it.key == key.stringRepresentation }.value.position
 
 private fun SliderGameState.InProgress.moveSlider(key: ApiKey, ratio: Double): SliderGameState.InProgress {
     val sliderState = participantStates[key.stringRepresentation]!!
@@ -69,6 +65,18 @@ private fun SliderGameState.InProgress.moveSlider(key: ApiKey, ratio: Double): S
         )).toSortedMap()
     )
 }
+
+private fun SliderGameState.InProgress.findLevelOfParticipant(key: ApiKey): Int =
+    participantStates.entries.indexOfFirst { it.key == key.stringRepresentation }
+
+private fun SliderGameState.InProgress.findPositionOfParticipant(key: ApiKey): Double =
+    participantStates.entries.first { it.key == key.stringRepresentation }.value.position
+
+private fun SliderGameState.InProgress.withGravityApplied(): SliderGameState =
+    participantStates.values.elementAtOrNull(pegLevel + 1)?.let { slider ->
+        if (slider.letsThroughPegPositionedAt(pegPosition)) copy(pegLevel = pegLevel + 1).withGravityApplied()
+        else this
+    } ?: SliderGameState.Done(copy(pegLevel = participantStates.size))
 
 fun ServerState.after(event: SliderGameEvent): ServerState = when (event) {
     is SliderGameEvent.Finished -> copy(sliderGameState = SliderGameState.Done(event.lastGameState))
@@ -99,6 +107,6 @@ private fun newSliderGame(participants: List<ApiKey>, pegPosition: Double): Slid
 internal fun SliderState.letsThroughPegPositionedAt(pegPosition: Double): Boolean =
     position in positionRangeInWhichPegWouldFallThrough(pegPosition)
 
-internal fun SliderState.positionRangeInWhichPegWouldFallThrough(pegPosition: Double): ClosedFloatingPointRange<Double> =
+fun SliderState.positionRangeInWhichPegWouldFallThrough(pegPosition: Double): ClosedFloatingPointRange<Double> =
     ((pegPosition - gapOffset + 1.0) / 2)
         .let { end -> (end - (SliderGapWidth - PegWidth) * 3 / 2)..end }

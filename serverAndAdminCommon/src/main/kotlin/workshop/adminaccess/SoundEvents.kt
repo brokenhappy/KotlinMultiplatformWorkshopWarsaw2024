@@ -1,4 +1,4 @@
-package kmpworkshop.server
+package workshop.adminaccess
 
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
