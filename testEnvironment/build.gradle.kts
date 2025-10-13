@@ -20,6 +20,8 @@ dependencies {
     testImplementation(kotlin("test"))
     implementation(project(":common"))
     implementation(project(":server"))
+    implementation(project(":adminClient"))
+    implementation(project(":serverAndAdminCommon"))
     implementation(project(":client"))
     implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server:0.9.1")
     implementation(compose.desktop.currentOs)
