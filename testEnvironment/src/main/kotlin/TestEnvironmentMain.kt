@@ -19,6 +19,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import workshop.adminaccess.OnEvent
+import workshop.adminaccess.Participant
+import workshop.adminaccess.ScheduledWorkshopEvent
+import workshop.adminaccess.ServerState
 
 suspend fun main(): Unit = coroutineScope {
     val serverState = MutableStateFlow(ServerState(
@@ -37,16 +41,18 @@ suspend fun main(): Unit = coroutineScope {
         mainEventLoopWritingTo(serverState, eventBus, onCommittedState = {}, onEvent = { launch { eventBus.send(it) } })
     }
 
+
     application {
+        val state by serverState.collectAsState(initial = ServerState())
         val server = remember {
             workshopService(serverState, onEvent = { launch { eventBus.send(it) } })
         }
         WorkshopWindow(
             onCloseRequest = ::exitApplication,
             title = "Test environment",
-            serverState = serverState,
+            state = state,
             onEvent = { launch { eventBus.send(it) } },
-            serverUi = { state, onEvent -> CanvasScreen(state, server, onEvent) }
+            adminUi = { state, onEvent -> CanvasScreen(state, server, onEvent) }
         )
     }
 }
@@ -116,7 +122,7 @@ fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: OnEve
             .background(Color.LightGray)
     ) {
         ResizableDraggableItem(initialWidth = 500.dp, initialHeight = 750.dp) {
-            ServerUi(state, onEvent)
+            AdminUi(state, onEvent)
         }
         state.participants.forEachIndexed { index, participant ->
             val server = remember { service.asServer(participant.apiKey) }
