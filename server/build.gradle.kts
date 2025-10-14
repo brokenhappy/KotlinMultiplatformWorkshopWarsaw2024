@@ -5,19 +5,14 @@ plugins {
     id("io.ktor.plugin")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")
-    id("com.google.cloud.tools.jib")
 }
 
 group = "com.woutwerkman"
 version = "unspecified"
 
 jib {
-    to {
-        image = "registry.jetbrains.team/p/wout-werkman-space-clone-of-interactive-workshop/containers/myimage:latest"
-        auth {
-            username = findProperty("docker.user") as String?
-            password = findProperty("docker.password") as String?
-        }
+    from {
+        image = "alpine:latest"
     }
 }
 
