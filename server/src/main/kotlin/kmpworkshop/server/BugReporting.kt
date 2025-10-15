@@ -2,7 +2,6 @@
 
 package kmpworkshop.server
 
-import kmpworkshop.common.bugDirectory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -53,7 +52,7 @@ suspend fun reportBug(bug: ReportedBug) {
     """.trimIndent())
     withContext(Dispatchers.IO) {
         val file = generateSequence(0) { it + 1 }
-            .map { File("$bugDirectory").resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
+            .map { File(bugDirectory).resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
             .first { !it.exists() }
         file.writeText(Json.encodeToString(bug))
     }
