@@ -30,10 +30,7 @@ suspend fun main() {
 
 suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
-//    val proposedState = MutableStateFlow<ServerState?>(null)
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
-//    val isInterestedInBackups = MutableStateFlow(false)
-//    val recentBackups = MutableStateFlow(listOf<Backup>())
 
     launch {
         serve(
@@ -56,19 +53,6 @@ suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
                         channelCopy.send(event)
                     }
                 }
-//                    launch {
-//                        isInterestedInBackups.collectLatest { isInterestedInBackups ->
-//                            if (!isInterestedInBackups) {
-//                                recentBackups.value = emptyList()
-//                                return@collectLatest
-//                            }
-//                            flow
-//                                .mapNotNull { it.backup }
-//                                .runningFold(emptyList<Backup>()) { acc, event -> acc + event }
-//                                .combine(trailingBackup) { backups, trailingBackup -> backups + trailingBackup }
-//                                .collect { recentBackups.value = it }
-//                        }
-//                    }
 
                 store(channelCopy)
             }

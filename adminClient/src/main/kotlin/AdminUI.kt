@@ -168,7 +168,6 @@ private suspend fun <T> AdminAccess.continueWithEventResult(scheduledEvent: Awai
 @Composable
 fun AdminApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var proposedState by remember { mutableStateOf<ServerState?>(null) }
 
     WorkshopWindow(
         state = state,
@@ -180,21 +179,10 @@ fun AdminApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
         },
         onEvent = onEvent,
         recentBackups = emptyList(),
-        whileTimeLineOpen = {
-            try {
-//                server.setInterestedInBackups(true)
-                awaitCancellation()
-            } finally {
-//                server.setInterestedInBackups(false)
-            }
-        },
-        onTimeLineSelectionChange = { proposedState = it },
+        whileTimeLineOpen = { awaitCancellation() },
+        onTimeLineSelectionChange = { },
         adminUi = { state, onEvent -> AdminUi(state, onEvent) },
-        onTimeLineAccept = {
-//            proposedState?.let {
-//                onEvent(state.sendEvent(ScheduledWorkshopEvent.IgnoringResult(RevertWholeStateEvent(it))))
-//            }
-        },
+        onTimeLineAccept = {},
     )
 }
 
@@ -212,11 +200,9 @@ fun WorkshopWindow(
 ) {
     Window(onCloseRequest = onCloseRequest, title = title) {
         var settingsIsOpen by remember { mutableStateOf(false) }
-        var timelineIsOpen by remember { mutableStateOf(false) }
         MenuBar {
             Menu("Edit") {
                 Item("Settings", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { settingsIsOpen = true })
-                Item("TimeLine", shortcut = KeyShortcut(Key.T, meta = true), onClick = { timelineIsOpen = true })
             }
         }
         if (settingsIsOpen) {
@@ -227,16 +213,6 @@ fun WorkshopWindow(
             )
         }
         MaterialTheme { adminUi(state, onEvent) }
-        if (timelineIsOpen) {
-            TimeLine(
-                state.participants,
-                onClose = { timelineIsOpen = false },
-                recentBackups,
-                whileTimeLineOpen,
-                onSelectionChange = onTimeLineSelectionChange,
-                onTimeLineAccept,
-            )
-        }
     }
 }
 
