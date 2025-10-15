@@ -8,9 +8,6 @@ fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle? = when (stage
     WorkshopStage.PalindromeCheckTask,
     WorkshopStage.FindMinimumAgeOfUserTask,
     WorkshopStage.FindOldestUserTask,
-    WorkshopStage.SliderGameStage,
-    WorkshopStage.PressiveGameStage,
-    WorkshopStage.DiscoGame -> null
     WorkshopStage.SumOfTwoIntsSlow -> simpleSumPuzzle()
     WorkshopStage.SumOfTwoIntsFast -> timedSumPuzzle()
     WorkshopStage.SimpleFlow -> simpleFlowPuzzle()

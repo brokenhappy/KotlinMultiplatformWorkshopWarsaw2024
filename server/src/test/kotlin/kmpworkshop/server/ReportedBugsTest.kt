@@ -1,6 +1,5 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.bugDirectory
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test

@@ -32,9 +32,6 @@ suspend fun <T> OnEvent.fire(event: WorkshopEventWithResult<T>): T = suspendCanc
 fun ServerState.after(event: WorkshopEvent): ServerState = when (event) {
     is ServerWideEvents -> after(event)
     is PuzzleStartEvent -> after(event)
-    is SliderGameEvent -> after(event)
-    is PressiveGameEvent -> after(event)
-    is DiscoGameEvent -> after(event)
     is SoundPlayEvents -> after(event)
     is WorkshopEventWithResult<*> -> event.applyWithResultTo(this).first
 }
