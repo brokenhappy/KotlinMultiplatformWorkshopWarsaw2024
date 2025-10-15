@@ -130,56 +130,12 @@ private fun ServerState.deactivateParticipant(participant: Participant): ServerS
                 .copy(submissions = puzzleState.submissions - participant.apiKey.stringRepresentation)
         }
     },
-    sliderGameState = when (sliderGameState) {
-        is SliderGameState.NotStarted -> sliderGameState
-        is SliderGameState.InProgress -> sliderGameState.removeParticipant(participant)
-        is SliderGameState.Done -> sliderGameState.copy(
-            lastState = sliderGameState.lastState.removeParticipant(participant)
-        )
-    },
-    discoGameState = when (discoGameState) {
-        is DiscoGameState.Second.Done,
-        is DiscoGameState.NotStarted -> discoGameState
-        is DiscoGameState.Second.InProgress -> discoGameState.copy(
-            orderedParticipants = discoGameState.orderedParticipants.filterNot { it.participant == participant.apiKey },
-            instructionOrder = discoGameState.instructionOrder.filterNot { it.participant == participant.apiKey },
-        )
-        is DiscoGameState.First.Done -> discoGameState
-        is DiscoGameState.First.InProgress -> discoGameState.copy(
-            states = discoGameState.states - participant.apiKey.stringRepresentation,
-        )
-    },
 )
 
 context(_: Random)
 private fun ServerState.reactivateParticipant(participant: Participant): ServerState = copy(
     participants = participants + participant,
     deactivatedParticipants = deactivatedParticipants - participant,
-    discoGameState = when (val gameState = discoGameState) {
-        is DiscoGameState.Second.Done,
-        is DiscoGameState.NotStarted -> gameState
-        is DiscoGameState.Second.InProgress -> gameState.copy(
-            orderedParticipants = gameState.orderedParticipants
-                + SecondDiscoGameParticipantState(participant.apiKey, color = SerializableColor(0, 0, 0)),
-        ).let {
-            it.copy(
-                instructionOrder = it.instructionOrder
-                    + it.createInstructionThatInstructsFrom(participant.apiKey)
-                    + it.createInstructionThatTargets(participant.apiKey)
-            )
-        }
-        is DiscoGameState.First.Done -> discoGameState
-        is DiscoGameState.First.InProgress -> gameState.copy(
-            states = gameState.states.put(participant.apiKey, FirstDiscoGameParticipantState.InProgress(
-                ColorAndInstructionWithPrevious(randomColorAndInstruction(), randomColorAndInstruction()),
-                completionCount = 0,
-            )),
-        )
-    },
-)
-
-private fun SliderGameState.InProgress.removeParticipant(participant: Participant): SliderGameState.InProgress = copy(
-    participantStates = participantStates - participant.apiKey.stringRepresentation
 )
 
 private fun ServerState.removeParticipant(participant: Participant): ServerState = copy(

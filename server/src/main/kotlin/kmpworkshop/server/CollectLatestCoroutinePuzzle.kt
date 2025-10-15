@@ -11,7 +11,6 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
-import workshop.adminaccess.map
 import kotlin.time.Duration.Companion.seconds
 
 fun collectLatestPuzzle() = coroutinePuzzle {

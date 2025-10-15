@@ -5,12 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color
 import io.ktor.client.*
 import io.ktor.http.*
 import kmpworkshop.common.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
@@ -53,29 +50,19 @@ private fun createService(): WorkshopApiService = runBlocking {
 }
 
 @Composable
-fun ClientEntryPoint(
-    sliderGameSolution: @Composable () -> Unit = { SliderGameClient() },
-    pressiveGameSolution: @Composable () -> Unit = { AdaptingBackground { PressiveGame() } },
-    discoGameSolution: @Composable (DiscoGameServer) -> Unit = { DiscoGame(it) },
-) {
+fun ClientEntryPoint() {
     ClientEntryPoint(
         server = remember {
             workshopService.asServer(ApiKey(clientApiKey ?: error("You need to finish registration first!")))
         },
-        sliderGameSolution,
-        pressiveGameSolution,
-        discoGameSolution,
     )
 }
 
 @Composable
 fun ClientEntryPoint(
     server: WorkshopServer,
-    sliderGameSolution: @Composable () -> Unit = { SliderGameClient() },
-    pressiveGameSolution: @Composable () -> Unit = { AdaptingBackground { PressiveGame() } },
-    discoGameSolution: @Composable (DiscoGameServer) -> Unit = { DiscoGame(it) },
 ) {
-    val stage by remember { server.currentStage() }.collectAsState(initial = WorkshopStage.SliderGameStage)
+    val stage by remember { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
     when (stage) {
         WorkshopStage.Registration -> Text("""
             The host went back to the Registration phase.
@@ -93,14 +80,5 @@ fun ClientEntryPoint(
         WorkshopStage.FindOldestUserTask -> Text("""
             Hmm, we went back to one of the non UI tasks...
         """.trimIndent())
-        WorkshopStage.SliderGameStage -> sliderGameSolution()
-        WorkshopStage.PressiveGameStage -> pressiveGameSolution()
-        WorkshopStage.DiscoGame -> discoGameSolution(object: DiscoGameServer {
-            override fun backgroundColors(): Flow<Color> = server.discoGameBackground().map { it.toComposeColor() }
-            override fun instructions(): Flow<DiscoGameInstruction?> = server.discoGameInstructions()
-            override suspend fun submitGuess() {
-                server.discoGamePress()
-            }
-        })
     }
 }

@@ -27,17 +27,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import io.ktor.client.HttpClient
-import io.ktor.http.encodedPath
+import io.ktor.client.*
+import io.ktor.http.*
 import kmpworkshop.common.ApiKey
-import kmpworkshop.common.SerializableColor
 import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopStage
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
@@ -45,44 +40,15 @@ import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import kotlinx.serialization.json.Json
-import workshop.adminaccess.AdminAccess
-import workshop.adminaccess.Backup
-import workshop.adminaccess.DiscoGameEvent
-import workshop.adminaccess.DiscoGameState
-import workshop.adminaccess.OnEvent
-import workshop.adminaccess.Participant
-import workshop.adminaccess.ParticipantDeactivationEvent
-import workshop.adminaccess.ParticipantReactivationEvent
-import workshop.adminaccess.ParticipantRejectionEvent
-import workshop.adminaccess.ParticipantRemovalEvent
-import workshop.adminaccess.PegWidth
-import workshop.adminaccess.PressiveGameEvent
-import workshop.adminaccess.PressiveGameState
-import workshop.adminaccess.PuzzleStartEvent
-import workshop.adminaccess.PuzzleState
+import workshop.adminaccess.*
 import workshop.adminaccess.ScheduledWorkshopEvent.AwaitingResult
 import workshop.adminaccess.ScheduledWorkshopEvent.IgnoringResult
-import workshop.adminaccess.ServerSettings
-import workshop.adminaccess.ServerState
-import workshop.adminaccess.SettingsChangeEvent
-import workshop.adminaccess.SliderGameEvent
-import workshop.adminaccess.SliderGameState
-import workshop.adminaccess.SliderGapWidth
-import workshop.adminaccess.StageChangeEvent
-import workshop.adminaccess.Submissions
-import workshop.adminaccess.applyingDimming
-import workshop.adminaccess.schedule
-import workshop.adminaccess.secondDiscoGamePressTimeout
-import workshop.adminaccess.toSubmissionsIn
-import workshop.adminaccess.width
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 fun main(): Unit = application {
     AdminApp(onExit = ::exitApplication)
@@ -295,295 +261,8 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
                 WorkshopStage.PalindromeCheckTask,
                 WorkshopStage.FindMinimumAgeOfUserTask,
                 WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
-
-                WorkshopStage.SliderGameStage -> SliderGame(state, onEvent)
-                WorkshopStage.PressiveGameStage -> PressiveGame(state, onEvent)
-                WorkshopStage.DiscoGame -> DiscoGame(state, onEvent)
             }
         }
-    }
-}
-
-@Composable
-private fun DiscoGame(
-    state: ServerState,
-    onEvent: OnEvent,
-) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        TopButton(
-            text = when (state.discoGameState) {
-                is DiscoGameState.First.Done -> "Restart First game"
-                is DiscoGameState.First.InProgress -> "Stop First game"
-                is DiscoGameState.NotStarted,
-                is DiscoGameState.Second -> "Start First game"
-            },
-            onClick = {
-                onEvent.schedule(
-                    when (state.discoGameState) {
-                        is DiscoGameState.First.InProgress -> DiscoGameEvent.StopFirst(Clock.System.now())
-                        is DiscoGameState.First.Done -> DiscoGameEvent.RestartFirst(
-                            Clock.System.now(),
-                            Random.nextLong()
-                        )
-
-                        is DiscoGameState.NotStarted,
-                        is DiscoGameState.Second -> DiscoGameEvent.StartFirst(
-                            Clock.System.now(),
-                            Random.nextLong()
-                        )
-                    }
-                )
-            },
-        )
-        TopButton(
-            text = when (state.discoGameState) {
-                is DiscoGameState.Second.Done -> "Restart Second game"
-                is DiscoGameState.Second.InProgress -> "Stop Second game"
-                is DiscoGameState.NotStarted,
-                is DiscoGameState.First -> "Start Second game"
-            },
-            onClick = {
-                onEvent.schedule(
-                    when (state.discoGameState) {
-                        is DiscoGameState.Second.InProgress -> DiscoGameEvent.StopSecond
-                        is DiscoGameState.Second.Done -> DiscoGameEvent.RestartSecond(Random.nextLong())
-                        is DiscoGameState.NotStarted -> DiscoGameEvent.StartSecond(Random.nextLong())
-                        is DiscoGameState.First -> DiscoGameEvent.StartSecond(Random.nextLong())
-                    }
-                )
-            },
-        )
-    }
-    when (val gameState = state.discoGameState) {
-        is DiscoGameState.Second.Done -> Text("Second game finished!")
-        is DiscoGameState.NotStarted -> Text("Second game has not started yet!")
-        is DiscoGameState.Second.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Progress: ")
-                BigProgressBar(gameState.progress / gameState.orderedParticipants.size.toFloat())
-            }
-            state
-                .scheduledEvents
-                .firstOrNull { it.event is DiscoGameEvent.SecondPressTimeout }
-                ?.let { CountDownProgressBar(it.time) }
-                ?: BigProgressBar(0f)
-            gameState
-                .orderedParticipants
-                .chunked(gameState.width.takeIf { it > 0 } ?: 1)
-                .forEach { row ->
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        for ((_, color) in row) {
-                            Spacer(
-                                modifier = Modifier.weight(1f)
-                                    .fillMaxHeight()
-                                    .background(color.applyingDimming(state.settings.dimmingRatio).toComposeColor()),
-                            )
-                        }
-                        if (row.size < gameState.width) {
-                            Spacer(modifier = Modifier.weight((gameState.width - row.size).toFloat()))
-                        }
-                    }
-                }
-        }
-        is DiscoGameState.First.Done -> Submissions(gameState.submissions)
-        is DiscoGameState.First.InProgress -> Column {
-            Box {
-                Text(
-                    (gameState.target.current.instruction?.char ?: '·').toString(),
-                    modifier = Modifier.background(
-                        color = gameState.target.current.color
-                            .applyingDimming(state.settings.dimmingRatio)
-                            .toComposeColor(),
-                    ),
-                    fontSize = 250.sp,
-                )
-            }
-            Submissions(gameState.toSubmissionsIn(state))
-        }
-    }
-}
-
-private fun SerializableColor.toComposeColor(): Color = Color(red, green, blue)
-
-@Composable
-private fun PressiveGame(state: ServerState, onEvent: OnEvent) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        TopButton(
-            "Start First game",
-            onClick = { onEvent.schedule(PressiveGameEvent.StartFirst(Clock.System.now(), Random.nextLong())) })
-        TopButton(
-            "Retain first game finishers",
-            enabled = state.pressiveGameState is PressiveGameState.FirstGameDone ||
-                    state.pressiveGameState is PressiveGameState.FirstGameInProgress,
-            onClick = { onEvent.schedule(PressiveGameEvent.DisableAllWhoDidntFinishFirstGame) },
-        )
-        TopButton(
-            "Start Second game",
-            enabled = state.participants.size % 2 == 0,
-            onClick = { onEvent.schedule(PressiveGameEvent.StartSecond(Random.nextLong())) },
-        )
-        TopButton(
-            "Start Third game",
-            onClick = { onEvent.schedule(PressiveGameEvent.StartThird(Random.nextLong())) })
-    }
-    when (val gameState = state.pressiveGameState) {
-        PressiveGameState.NotStarted -> Unit
-        is PressiveGameState.FirstGameDone -> Submissions(gameState.asSubmissions(state.participants))
-        is PressiveGameState.FirstGameInProgress -> Submissions(gameState.asSubmissions(state.participants))
-        PressiveGameState.SecondGameDone -> SecondOrThirdPressiveGame(1f)
-        is PressiveGameState.SecondGameInProgress ->
-            SecondOrThirdPressiveGame(gameState.progress.toFloat() / gameState.states.size)
-        PressiveGameState.ThirdGameDone -> SecondOrThirdPressiveGame(1f)
-        is PressiveGameState.ThirdGameInProgress ->
-            SecondOrThirdPressiveGame(gameState.progress.toFloat() / gameState.order.size)
-    }
-}
-
-@Composable
-private fun SecondOrThirdPressiveGame(progress: Float) {
-    Row(modifier = Modifier.padding(horizontal = 32.dp)) {
-        Text("Progress: ")
-        BigProgressBar(progress)
-    }
-}
-
-@Composable
-private fun CountDownProgressBar(time: Instant) {
-    var progress by remember { mutableStateOf(1f) }
-
-    LaunchedEffect(time) {
-        val startInstant = Clock.System.now()
-        val startNanos = withFrameNanos { it }
-        fun frameNanosToInstant(frameNanos: Long): Instant = startInstant + (frameNanos - startNanos).nanoseconds
-        while (true) {
-            withFrameNanos { frameTimeNanos ->
-                progress = ((time - frameNanosToInstant(frameTimeNanos)) / secondDiscoGamePressTimeout).toFloat()
-                    .coerceIn(0f, 1f)
-            }
-        }
-    }
-
-    BigProgressBar(progress)
-}
-
-@Composable
-private fun BigProgressBar(progress: Float) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(width = 1.dp, color = Color.Black),
-    ) {
-        if (progress > 0f) {
-            Spacer(
-                modifier = Modifier
-                    .height(32.dp)
-                    .weight(progress)
-                    .background(Color.Red.transitionTo(Color.Green, ratio = progress))
-            )
-        }
-        if (progress < 1f) {
-            Spacer(modifier = Modifier.height(32.dp).weight(1 - progress))
-        }
-    }
-}
-
-fun Color.transitionTo(other: Color, ratio: Float): Color = Color(
-    red = this.red * (1 - ratio) + other.red * ratio,
-    green = this.green * (1 - ratio) + other.green * ratio,
-    blue = this.blue * (1 - ratio) + other.blue * ratio,
-    alpha = this.alpha * (1 - ratio) + other.alpha * ratio
-)
-
-private fun PressiveGameState.FirstGameInProgress.asSubmissions(participants: List<Participant>) = Submissions(
-    startTime = startTime,
-    participants = participants,
-    completedSubmissions = states
-        .mapNotNull { (key, state) -> state.finishTime?.let { ApiKey(key) to it } }
-        .toMap()
-)
-
-private fun PressiveGameState.FirstGameDone.asSubmissions(participants: List<Participant>) = Submissions(
-    startTime = startTime,
-    participants = participants,
-    completedSubmissions = finishTimes.mapKeys { (key, _) -> ApiKey(key) }
-)
-
-@Composable
-private fun SliderGame(state: ServerState, onEvent: OnEvent) {
-    // TODO: Names don't line up with sliders.
-    when (val gameState = state.sliderGameState) {
-        SliderGameState.NotStarted -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Start game") { onEvent.schedule(SliderGameEvent.Start(Random.nextLong())) }
-        }
-        is SliderGameState.InProgress -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Stop game") { onEvent.schedule(SliderGameEvent.Finished(gameState)) }
-            UninteractiveSliderGame(gameState, getParticipant = { state.getParticipantBy(it) })
-        }
-        is SliderGameState.Done -> Column(modifier = Modifier.padding(16.dp)) {
-            TopButton("Restart game") { onEvent.schedule(SliderGameEvent.Restart(Random.nextLong())) }
-            UninteractiveSliderGame(gameState.lastState, getParticipant = { state.getParticipantBy(it) })
-        }
-    }
-}
-
-@Composable
-private fun UninteractiveSliderGame(gameState: SliderGameState.InProgress, getParticipant: (ApiKey) -> Participant) {
-    Row(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        fun Modifier.weight(d: Double): Modifier = if (d == .0) this else this.weight(d.toFloat())
-        Column {
-            Spacer(modifier = Modifier.height(32.dp))
-            gameState.participantStates.map { getParticipant(ApiKey(it.key)) }.forEach { participant ->
-                Text("${participant.name}: ", modifier = Modifier.height(32.dp))
-//                Spacer(modifier = Modifier.width(16.dp))
-            }
-        }
-        Box {
-            Column {
-                Spacer(modifier = Modifier.height(32.dp))
-                gameState.participantStates.values.forEach { slider ->
-                    Row(modifier = Modifier.height(32.dp)) {
-                        val leftOffset = slider.position * 2 / 3 + slider.gapOffset / 3
-                        Spacer(
-                            modifier = Modifier
-                                .weight(leftOffset)
-                                .height(32.dp)
-                                .background(Color.Black)
-                        )
-                        Spacer(modifier = Modifier.weight(SliderGapWidth).height(32.dp))
-                        Spacer(
-                            modifier = Modifier
-                                .weight(1.0 - SliderGapWidth - leftOffset)
-                                .height(32.dp)
-                                .background(Color.Black)
-                        )
-                    }
-                }
-            }
-            Column {
-                Spacer(modifier = Modifier.height(32.dp * (gameState.pegLevel + 1)))
-                Row {
-                    Spacer(modifier = Modifier.weight(1.0 + gameState.pegPosition))
-                    Spacer(
-                        modifier = Modifier.weight(PegWidth * 3).background(Color.Red).height(32.dp)
-                    )
-                    Spacer(modifier = Modifier.weight(2.0 - gameState.pegPosition - PegWidth * 3))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Row {
-        Spacer(modifier = Modifier.weight(1f))
-        Button(enabled = enabled, onClick = onClick) {
-            Text(text)
-        }
-        Spacer(modifier = Modifier.weight(1f))
     }
 }
 

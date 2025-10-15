@@ -22,9 +22,6 @@ suspend fun main() {
             WorkshopStage.SumOfTwoIntsFast -> checkCoroutinePuzzle(stage.name, ::numberSummer) { getNumberAndSubmit() }
             WorkshopStage.SimpleFlow,
             WorkshopStage.CollectLatest -> checkCoroutinePuzzle(stage.name, ::showingHowItsFlowing) { numberFlowAndSubmit() }
-            WorkshopStage.SliderGameStage,
-            WorkshopStage.PressiveGameStage,
-            WorkshopStage.DiscoGame -> WorkshopApp("Workshop Client") { ClientEntryPoint(server) }
         }
     } finally {
         println("\u001B[92mTHIS IS THE \u001B[91mEND\u001B[0m\u001B[92m OF THE APP OUTPUT ########################################################################################################\u001B[0m")

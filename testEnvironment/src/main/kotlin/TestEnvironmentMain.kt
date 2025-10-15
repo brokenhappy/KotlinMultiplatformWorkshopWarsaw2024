@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.application
-import kmpworkshop.client.AdaptingBackground
 import kmpworkshop.client.ClientEntryPoint
 import kmpworkshop.common.*
 import kmpworkshop.server.*
@@ -33,7 +32,7 @@ suspend fun main(): Unit = coroutineScope {
             Participant("Jobber", ApiKey("JobberKey")),
         ),
 //        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
-        currentStage = WorkshopStage.SliderGameStage,
+        currentStage = WorkshopStage.Registration,
     ))
 
     val eventBus = Channel<ScheduledWorkshopEvent>()
@@ -142,8 +141,5 @@ fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: OnEve
 fun FunctionUnderTest(server: WorkshopServer) {
     ClientEntryPoint(
         server,
-        sliderGameSolution = { SliderGameSolution(server) },
-        pressiveGameSolution = { AdaptingBackground(server) { PressiveGameSolution(server) } },
-        discoGameSolution = { DiscoGameSolution(it) },
     )
 }

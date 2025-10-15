@@ -60,7 +60,7 @@ suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     }
 }
 
-private fun workshopService(
+fun workshopService(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
 ): WorkshopApiService = object : WorkshopApiService {
@@ -158,86 +158,6 @@ private fun workshopService(
             CoroutinePuzzleEndpointAnswer.IncorrectInput
         })
     }
-
-    override suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult =
-        onEvent.fire(SliderSuggestionEvent(key, suggestedRatio))
-
-    override fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String> =
-        channelFlow {
-            launch {
-                pressEvents.collect { pressEvent ->
-                    onEvent
-                        .fire(PressiveGameEvent.Press(Clock.System.now(), Random.nextLong(), key, pressEvent))
-                        ?.let { send(it) }
-                }
-            }
-
-            serverState
-                .map { state ->
-                    when (val gameState = state.pressiveGameState) {
-                        PressiveGameState.NotStarted -> "The Pressive game has not started yet! Please wait for the workshop host to start it."
-                        is PressiveGameState.FirstGameDone -> "Waiting for the second game to start!"
-                        is PressiveGameState.FirstGameInProgress -> gameState.states[key.stringRepresentation]?.toHint()
-                            ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
-                        is PressiveGameState.SecondGameDone -> "Waiting for the third game to start!"
-                        is PressiveGameState.SecondGameInProgress -> gameState.states[key.stringRepresentation]?.toHint(state)
-                            ?: "I'm so sorry! You have not been included in this game somehow :((. Please contact the workshop host!"
-                        PressiveGameState.ThirdGameDone-> "The game has finished! Thank you for playing!"
-                        is PressiveGameState.ThirdGameInProgress -> ""
-                    }
-                }
-                .distinctUntilChanged()
-                .collect { send(it) }
-        }
-
-    override fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?> = serverState
-        .map { it.discoGameState }
-        .map { gameState ->
-            when (gameState) {
-                is DiscoGameState.Second.Done,
-                is DiscoGameState.First.Done,
-                is DiscoGameState.NotStarted -> null
-                is DiscoGameState.Second.InProgress -> gameState
-                    .instructionOrder
-                    .getOrNull(gameState.progress)
-                    ?.takeIf { it.participant == key }
-                    ?.instruction
-                is DiscoGameState.First.InProgress -> when (val state = gameState.states[key.stringRepresentation]) {
-                    null,
-                    is FirstDiscoGameParticipantState.Done -> null
-                    is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.instruction
-                }
-            }
-        }
-        .distinctUntilChanged()
-
-    override suspend fun discoGamePress(key: ApiKey) {
-        onEvent.schedule(DiscoGameEvent.GuessSubmissionEvent(key, Random.nextLong(), Clock.System.now()))
-    }
-
-    override fun discoGameBackground(key: ApiKey): Flow<SerializableColor> = serverState
-        .map { serverState ->
-            when (val gameState = serverState.discoGameState) {
-                is DiscoGameState.Second.Done,
-                is DiscoGameState.First.Done,
-                is DiscoGameState.NotStarted -> null
-                is DiscoGameState.Second.InProgress -> gameState
-                    .orderedParticipants
-                    .firstOrNull { it.participant == key }
-                    ?.color
-                is DiscoGameState.First.InProgress -> when (val state = gameState.states[key.stringRepresentation]) {
-                    null,
-                    is FirstDiscoGameParticipantState.Done -> null
-                    is FirstDiscoGameParticipantState.InProgress -> state.colorAndInstructionState.current.color
-                }
-            }.let { it ?: SerializableColor(0, 0, 0) }.applyingDimming(serverState.settings.dimmingRatio)
-        }
-        .distinctUntilChanged()
-
-    override fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?> = serverState
-        .map { (it.pressiveGameState as? PressiveGameState.ThirdGameInProgress)?.participantThatIsBeingRung == key }
-        .distinctUntilChanged()
-        .map { isBeingRung -> SerializableColor(0, 0, 0).takeIf { isBeingRung } }
 }
 
 private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
@@ -257,13 +177,10 @@ private data class Puzzle<T, R>(
 
 private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
     Registration,
-    PressiveGameStage,
-    DiscoGame,
     SumOfTwoIntsSlow,
     SumOfTwoIntsFast,
     CollectLatest,
     SimpleFlow,
-    SliderGameStage -> null
     PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,

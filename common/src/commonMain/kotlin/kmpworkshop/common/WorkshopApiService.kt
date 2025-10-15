@@ -19,12 +19,6 @@ interface WorkshopServer {
         puzzleId: String,
         callback: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
     ): CoroutinePuzzleSolutionResult
-    suspend fun setSlider(suggestedRatio: Double): SlideResult
-    fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String>
-    fun pressiveGameBackground(): Flow<SerializableColor?>
-    fun discoGameInstructions(): Flow<DiscoGameInstruction?>
-    fun discoGameBackground(): Flow<SerializableColor>
-    suspend fun discoGamePress()
 }
 
 @Rpc interface WorkshopApiService {
@@ -33,12 +27,6 @@ interface WorkshopServer {
     fun currentStage(): Flow<WorkshopStage>
     fun doCoroutinePuzzleSolveAttempt(key: ApiKey, puzzleId: String, calls: Flow<CoroutinePuzzleEndpointCall>): Flow<CoroutinePuzzleEndpointAnswer>
     fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
-    suspend fun setSlider(key: ApiKey, suggestedRatio: Double): SlideResult
-    fun playPressiveGame(key: ApiKey, pressEvents: Flow<PressiveGamePressType>): Flow<String>
-    fun pressiveGameBackground(key: ApiKey): Flow<SerializableColor?>
-    fun discoGameInstructions(key: ApiKey): Flow<DiscoGameInstruction?>
-    fun discoGameBackground(key: ApiKey): Flow<SerializableColor>
-    suspend fun discoGamePress(key: ApiKey)
 }
 
 fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
@@ -86,17 +74,6 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
             }
         }.first()
     }
-
-    override suspend fun setSlider(suggestedRatio: Double): SlideResult =
-        this@asServer.setSlider(apiKey, suggestedRatio)
-    override fun playPressiveGame(pressEvents: Flow<PressiveGamePressType>): Flow<String> =
-        this@asServer.playPressiveGame(apiKey, pressEvents)
-    override fun pressiveGameBackground(): Flow<SerializableColor?> = this@asServer.pressiveGameBackground(apiKey)
-    override fun discoGameInstructions(): Flow<DiscoGameInstruction?> = this@asServer.discoGameInstructions(apiKey)
-    override fun discoGameBackground(): Flow<SerializableColor> = this@asServer.discoGameBackground(apiKey)
-    override suspend fun discoGamePress() {
-        this@asServer.discoGamePress(apiKey)
-    }
 }
 
 @Serializable
@@ -109,43 +86,10 @@ enum class WorkshopStage(val kotlinFile: String) {
     SumOfTwoIntsFast("NumSumYum.kt"),
     SimpleFlow("FlowsAndCollecting.kt"),
     CollectLatest("FlowsAndCollecting.kt"),
-    // TODO: Handle deletion of user!
-    // TODO: Test scroll ability with 30 users!
-    SliderGameStage("SliderGameClient.kt"),
-    // TODO: Handle deletion of user!
-    PressiveGameStage("PressiveGameClient.kt"),
-    DiscoGame("DiscoGameClient.kt"),
 }
 
 @Serializable
 data class SerializableColor(val red: Int, val green: Int, val blue: Int)
-
-@Serializable
-enum class PressiveGamePressType {
-    SinglePress, DoublePress, LongPress;
-}
-
-@Serializable
-enum class DiscoGameInstruction(val char: Char, val dx: Int, val dy: Int) {
-    Left('←', -1, 0),
-    LeftUp('↖', -1, -1),
-    Up('↑', 0, -1),
-    RightUp('↗', 1, -1),
-    Right('→', 1, 0),
-    RightDown('↘', 1, 1),
-    Down('↓', 0, 1),
-    LeftDown('↙', -1, 1),
-}
-
-@Serializable
-sealed class SlideResult {
-    @Serializable
-    data class Success(val setRatio: Double) : SlideResult()
-    @Serializable
-    data object NoSliderGameInProgress : SlideResult()
-    @Serializable
-    data object InvalidApiKey : SlideResult()
-}
 
 @Serializable
 data class CoroutinePuzzleEndpointCall(

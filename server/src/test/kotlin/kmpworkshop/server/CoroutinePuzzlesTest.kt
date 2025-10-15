@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
+import kotlin.test.assertEquals
 
 class CoroutinePuzzlesTest {
     @Test
@@ -109,11 +110,21 @@ class CoroutinePuzzlesTest {
     }
 }
 
-fun CoroutinePuzzleSolutionResult.assertIsOk(): Unit = when (this) {
+private fun CoroutinePuzzleSolutionResult.assertIsOk(): Unit = when (this) {
     is CoroutinePuzzleSolutionResult.Failure -> fail { this.description }
     CoroutinePuzzleSolutionResult.Success -> { /** All OK! */ }
 }
 
-fun CoroutinePuzzleSolutionResult.assertIsNotOk() {
+private fun CoroutinePuzzleSolutionResult.assertIsNotOk() {
     assertIs<CoroutinePuzzleSolutionResult.Failure> { "Puzzle succeeded unexpectedly" }
 }
+
+internal inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =
+    if (this is T) this else kotlin.test.fail(message(this))
+
+internal inline fun Any?.assertIs(other: Any?, message: (Any?) -> String) {
+    assertEquals(this, message(this))
+}
+
+internal inline fun <T> T.assert(test: (T) -> Boolean, message: (T) -> String): T =
+    this.also { if (!test(this)) kotlin.test.fail(message(this) + "\nActual value was: $this") }
