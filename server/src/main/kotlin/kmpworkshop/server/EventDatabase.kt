@@ -2,7 +2,6 @@
 
 package kmpworkshop.server
 
-import kmpworkshop.common.serverEventBackupDirectory
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
