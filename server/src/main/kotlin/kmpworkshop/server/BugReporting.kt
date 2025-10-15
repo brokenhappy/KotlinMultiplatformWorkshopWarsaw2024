@@ -8,7 +8,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.WorkshopEvent
-import java.io.File
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -46,13 +45,13 @@ suspend fun reportIndeterministicEvent(initialState: ServerState, event: Worksho
 }
 
 suspend fun reportBug(bug: ReportedBug) {
-    if (!File(bugDirectory!!).exists()) error("""
+    if (!bugDirectory!!.toFile().exists()) error("""
         Server not set up to store bugs! But the following bug happened:
         ${Json.encodeToString(bug)}
     """.trimIndent())
     withContext(Dispatchers.IO) {
         val file = generateSequence(0) { it + 1 }
-            .map { File(bugDirectory).resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
+            .map { bugDirectory.toFile().resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
             .first { !it.exists() }
         file.writeText(Json.encodeToString(bug))
     }
