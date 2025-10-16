@@ -66,7 +66,7 @@ data class RegistrationVerificationEvent(
         else stateWithoutUnverifiedParticipant.copy(
             participants = stateWithoutUnverifiedParticipant.participants + newParticipant,
             tables = stateWithoutUnverifiedParticipant.tables + Table(0, 0, newParticipant),
-        ).scheduling(SoundPlayEvents.Success)
+        ).scheduling(SoundPlayEvent.Success)
             .after(0.seconds)
             .to(NameVerificationResult.Success)
     }
@@ -91,7 +91,7 @@ data class PuzzleFinishedEvent(
                             submissions = puzzleState.submissions + (participant.stringRepresentation to now)
                         )
                     )
-                ).scheduling(SoundPlayEvents.Success).after(0.seconds)
+                ).scheduling(SoundPlayEvent.Success).after(0.seconds)
                     .to(PuzzleCompletionResult.Done)
             }
         } ?: (oldState to PuzzleCompletionResult.PuzzleNotOpenedYet)

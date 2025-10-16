@@ -8,19 +8,19 @@ import javax.sound.sampled.*
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
-sealed class SoundPlayEvents : WorkshopEvent() {
+sealed class SoundPlayEvent : WorkshopEvent() {
     @Serializable
-    data object Success: SoundPlayEvents()
+    data object Success: SoundPlayEvent()
     @Serializable
-    data class Increment(val pitch: Double): SoundPlayEvents()
+    data class Increment(val pitch: Double): SoundPlayEvent()
     @Serializable
-    data object ProgressLoss: SoundPlayEvents()
+    data object ProgressLoss: SoundPlayEvent()
 }
 
-fun ServerState.after(event: SoundPlayEvents): ServerState = when (event) {
-    is SoundPlayEvents.Success -> this.also { GlobalScope.launch { playSuccessSound() } }
-    is SoundPlayEvents.Increment -> this.also { GlobalScope.launch { playProgressSound(event.pitch) } }
-    is SoundPlayEvents.ProgressLoss -> this.also { GlobalScope.launch { playFailSound() } }
+fun ServerState.after(event: SoundPlayEvent): ServerState = when (event) {
+    is SoundPlayEvent.Success -> this.also { GlobalScope.launch { playSuccessSound() } }
+    is SoundPlayEvent.Increment -> this.also { GlobalScope.launch { playProgressSound(event.pitch) } }
+    is SoundPlayEvent.ProgressLoss -> this.also { GlobalScope.launch { playFailSound() } }
 }
 
 private suspend fun playSuccessSound() {
