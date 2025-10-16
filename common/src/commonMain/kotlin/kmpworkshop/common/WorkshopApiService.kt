@@ -82,10 +82,10 @@ enum class WorkshopStage(val kotlinFile: String) {
     PalindromeCheckTask("PalindromeCheck.kt"),
     FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
     FindOldestUserTask("OldestUserFinding.kt"),
-    SumOfTwoIntsSlow("NumSumYum.kt"),
-    SumOfTwoIntsFast("NumSumYum.kt"),
-    SimpleFlow("FlowsAndCollecting.kt"),
-    CollectLatest("FlowsAndCollecting.kt"),
+    SumOfTwoIntsSlow("NumSumFun.kt"),
+    SumOfTwoIntsFast("NumSumFun.kt"),
+    SimpleFlow("FlowShow.kt"),
+    CollectLatest("FlowShow.kt"),
 }
 
 @Serializable
