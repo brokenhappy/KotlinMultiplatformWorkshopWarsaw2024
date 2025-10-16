@@ -1,4 +1,4 @@
-package com.woutwerkman
+package kmpworkshop.client
 
 import kmpworkshop.client.*
 import kmpworkshop.common.ApiKey

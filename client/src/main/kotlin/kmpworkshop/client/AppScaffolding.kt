@@ -1,6 +1,6 @@
 @file:Suppress("FunctionName")
 
-package com.woutwerkman
+package kmpworkshop.client
 
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
