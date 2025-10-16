@@ -11,7 +11,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @Serializable
-data class Participant(val name: String, val apiKey: ApiKey)
+data class Participant(val name: String, val apiKey: ApiKey, val team: TeamColor = TeamColor.entries.first())
 
 @Serializable
 data class ServerState(
@@ -22,7 +22,12 @@ data class ServerState(
     val settings: ServerSettings = ServerSettings(),
     val scheduledEvents: List<TimedEvent> = emptyList(),
     val puzzleStates: Map<String, PuzzleState> = emptyMap(),
+    val tables: List<Table> = emptyList(),
+    val teamCount: Int = 2,
 )
+
+@Serializable
+data class Table(val x: Int, val y: Int, val assignee: Participant?)
 
 @Serializable
 data class TimedEvent(
