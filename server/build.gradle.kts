@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm")
     application
     kotlin("plugin.serialization")
-    id("io.ktor.plugin")
+    id("com.google.cloud.tools.jib")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")
 }
