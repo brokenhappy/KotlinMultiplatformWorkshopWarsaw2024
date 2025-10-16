@@ -114,7 +114,10 @@ data class TableRemoved(val table: Table) : ServerWideEvents()
 @Serializable
 data class TeamChanged(val apiKey: ApiKey, val newTeam: TeamColor) : ServerWideEvents()
 
-internal fun ServerState.after(event: ServerWideEvents): ServerState = when (event) {
+internal fun ServerState.after(
+    event: ServerWideEvents,
+    onSoundEvent: (SoundPlayEvent) -> Unit,
+): ServerState = when (event) {
     is StageChangeEvent -> copy(currentStage = event.stage)
     is SettingsChangeEvent -> copy(settings = event.newSettings)
     is ParticipantDeactivationEvent -> deactivateParticipant(event.participant)
@@ -123,7 +126,7 @@ internal fun ServerState.after(event: ServerWideEvents): ServerState = when (eve
     is ParticipantRejectionEvent -> copy(unverifiedParticipants = unverifiedParticipants - event.participant)
     is ApplyScheduledEvent -> copy(
         scheduledEvents = scheduledEvents - event.timedEvent,
-    ).after(event.timedEvent.event)
+    ).after(event.timedEvent.event, onSoundEvent = {})
     is RevertWholeStateEvent -> event.newState
     is TeamAssignmentChange -> copy(
         participants = participants
@@ -135,12 +138,12 @@ internal fun ServerState.after(event: ServerWideEvents): ServerState = when (eve
     is RemoveTeam -> applyIf(teamCount > 2) { copy(teamCount = teamCount - 1).redistributeRemovedTeam() }
     is TableAdded -> when {
         tables.any { it.x == event.table.x && it.y == event.table.y } ->
-            this.after(TableAdded(event.table.copy(x = event.table.x + 1, y = event.table.y + 1)))
+            this.after(TableAdded(event.table.copy(x = event.table.x + 1, y = event.table.y + 1)), onSoundEvent)
         event.table.assignee == null -> tables
             .map { it.assignee?.apiKey }
             .toSet()
             .let { allAssignedKeys -> participants.firstOrNull { it.apiKey !in allAssignedKeys } }
-            ?.let { this.after(TableAdded(event.table.copy(assignee = it))) }
+            ?.let { this.after(TableAdded(event.table.copy(assignee = it)), onSoundEvent) }
             ?: copy(tables = tables + event.table)
         else -> copy(tables = tables + event.table)
     }

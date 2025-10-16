@@ -6,13 +6,22 @@ import kotlinx.serialization.json.JsonElement
 import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.OnEvent
 import workshop.adminaccess.ServerState
+import workshop.adminaccess.SoundPlayEvent
 import workshop.adminaccess.WorkshopEvent
 import workshop.adminaccess.WorkshopEventWithResult
 import workshop.adminaccess.fire
 import workshop.adminaccess.schedule
 
-fun adminAccess(serverState: Flow<ServerState>, onEvent: OnEvent): AdminAccess = object : AdminAccess {
+fun adminAccess(
+    serverState: Flow<ServerState>,
+    onEvent: OnEvent,
+    sounds: Flow<SoundPlayEvent>,
+): AdminAccess = object : AdminAccess {
     override fun serverState(password: String): Flow<ServerState> = serverState.also { _ ->
+        if (password != System.getenv("admin_access_password")) error("Incorrect password")
+    }
+
+    override fun soundEvents(password: String): Flow<SoundPlayEvent> = sounds.also { _ ->
         if (password != System.getenv("admin_access_password")) error("Incorrect password")
     }
 

@@ -29,9 +29,9 @@ suspend fun <T> OnEvent.fire(event: WorkshopEventWithResult<T>): T = suspendCanc
     this(ScheduledWorkshopEvent.AwaitingResult(event, continuation))
 }
 
-fun ServerState.after(event: WorkshopEvent): ServerState = when (event) {
-    is ServerWideEvents -> after(event)
+fun ServerState.after(event: WorkshopEvent, onSoundEvent: (SoundPlayEvent) -> Unit): ServerState = when (event) {
+    is ServerWideEvents -> after(event, onSoundEvent)
     is PuzzleStartEvent -> after(event)
-    is SoundPlayEvent -> after(event)
+    is SoundPlayEvent -> this.also { onSoundEvent(event) }
     is WorkshopEventWithResult<*> -> event.applyWithResultTo(this).first
 }

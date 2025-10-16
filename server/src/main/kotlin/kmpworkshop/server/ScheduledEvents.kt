@@ -14,6 +14,7 @@ import kotlin.time.Instant
 suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
     serverState: MutableStateFlow<ServerState>,
     eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
+    onSoundEvent: (SoundPlayEvent) -> Unit,
     onEvent: OnEvent,
     block: suspend CoroutineScope.(initial: ServerState, Channel<CommittedState>) -> Unit,
 ): Nothing = coroutineScope {
@@ -28,13 +29,20 @@ suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
             throw t
         }
     }
-    mainEventLoopWritingTo(serverState, eventBus, onCommittedState = { launch { events.send(it) } }, onEvent = onEvent)
+    mainEventLoopWritingTo(
+        serverState,
+        eventBus,
+        onCommittedState = { launch { events.send(it) } },
+        onEvent = onEvent,
+        onSoundEvent = onSoundEvent,
+    )
 }
 
 suspend fun mainEventLoopWritingTo(
     serverState: MutableStateFlow<ServerState>,
     eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
     onCommittedState: (CommittedState) -> Unit = {},
+    onSoundEvent: (SoundPlayEvent) -> Unit,
     onEvent: OnEvent,
 ): Nothing = coroutineScope {
     launch {
@@ -48,7 +56,7 @@ suspend fun mainEventLoopWritingTo(
                         var persistedState: CommittedState? = null
                         serverState.update { oldState ->
                             try {
-                                oldState.after(scheduledEvent.event).also { newState ->
+                                oldState.after(scheduledEvent.event, onSoundEvent).also { newState ->
                                     persistedState = CommittedState(
                                         oldState,
                                         TimedEvent(Clock.System.now(), scheduledEvent.event),

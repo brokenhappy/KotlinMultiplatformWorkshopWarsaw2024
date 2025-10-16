@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 @Rpc interface AdminAccess {
     /** The full current state of the app */
     fun serverState(password: String): Flow<ServerState>
+    fun soundEvents(password: String): Flow<SoundPlayEvent>
     /**
      * Either:
      *  - Schedules the event if [event] !is [WorkshopEventWithResult] and returns null.
