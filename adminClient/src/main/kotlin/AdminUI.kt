@@ -571,16 +571,20 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
 private fun Puzzle(state: ServerState, puzzleName: String, onEvent: OnEvent) {
     val puzzleState = state.puzzleStates[puzzleName] ?: PuzzleState.Unopened
     when (puzzleState) {
-        PuzzleState.Unopened -> {
-            Row {
-                Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent.schedule(PuzzleStartEvent(puzzleName, Clock.System.now())) }) {
-                    Text("Open puzzle!")
+        PuzzleState.Unopened -> Row {
+            Spacer(modifier = Modifier.weight(1f))
+            Button(onClick = { onEvent.schedule(PuzzleStartEvent(puzzleName, Clock.System.now())) }) {
+                Text("Open puzzle!")
+            }
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        is PuzzleState.Opened -> Row {
+            state.participants.map { it.team }.distinct().sortedBy { it.ordinal }.forEach { team ->
+                Box(Modifier.weight(1f)) {
+                    Submissions(puzzleState.asSubmissions(state.participants, team))
                 }
-                Spacer(modifier = Modifier.weight(1f))
             }
         }
-        is PuzzleState.Opened -> Submissions(puzzleState.asSubmissions(state.participants))
     }
 }
 
@@ -612,11 +616,17 @@ private fun Submissions(submissions: Submissions) {
     }
 }
 
-private fun PuzzleState.Opened.asSubmissions(participants: List<Participant>): Submissions = Submissions(
-    startTime,
-    participants,
-    submissions.mapKeys { (key, _) -> ApiKey(key) },
-)
+private fun PuzzleState.Opened.asSubmissions(participants: List<Participant>, team: TeamColor): Submissions {
+    val participantsOfThisTeam = participants.filter { it.team == team }
+    val keysOfThisTeam = participantsOfThisTeam.map { it.apiKey }.toSet()
+    return Submissions(
+        startTime,
+        participantsOfThisTeam,
+        submissions
+            .mapKeys { (key, _) -> ApiKey(key) }
+            .filter { (key, _) -> key in keysOfThisTeam },
+    )
+}
 
 private fun formatDuration(duration: Duration): String = when {
     duration < 1.seconds -> "${duration.inWholeMilliseconds}ms"
