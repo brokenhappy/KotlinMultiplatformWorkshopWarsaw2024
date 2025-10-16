@@ -72,7 +72,7 @@ fun main(): Unit = application {
     AdminApp(onExit = ::exitApplication)
 }
 
-private const val adminPassword = "Not telling you!"
+private val adminPassword = System.getenv("ADMIN_PASSWORD")
 
 suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
     val ktorClient = HttpClient {
