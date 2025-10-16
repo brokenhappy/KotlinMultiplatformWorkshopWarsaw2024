@@ -13,11 +13,11 @@ class ReportedBugsTest {
     fun `check that all reported determinism bugs are fixed`() {
         for (bug in loadReportedBugs()) {
             val type = bug.type as? BugType.IndeterministicEvent ?: continue
-            val expectedResult = bug.initialState.after(type.event).droppingScheduledEventTimes()
+            val expectedResult = bug.initialState.after(type.event, onSoundEvent = {}).droppingScheduledEventTimes()
             repeat(100) {
                 assertEquals(
                     expectedResult,
-                    bug.initialState.after(type.event).droppingScheduledEventTimes(),
+                    bug.initialState.after(type.event, onSoundEvent = {}).droppingScheduledEventTimes(),
                     "Expected result to be the same each time, but it changed at some point :("
                 )
             }
@@ -28,13 +28,13 @@ class ReportedBugsTest {
     fun `check that all reported errors are fixed`() {
         for (bug in loadReportedBugs()) {
             (bug.type as? BugType.Error)
-                ?.let { bug.initialState.after(it.failingEvent) }
+                ?.let { bug.initialState.after(it.failingEvent, onSoundEvent = {}) }
         }
     }
 }
 
-private fun loadReportedBugs() = (bugDirectory ?: fail("Bug directory has not been configured"))
-    .let(::File)
+private fun loadReportedBugs(): List<ReportedBug> = (bugDirectory ?: fail("Bug directory has not been configured"))
+    .toFile()
     .listFiles()!!
     .mapNotNull {
         try {

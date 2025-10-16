@@ -22,6 +22,7 @@ import workshop.adminaccess.OnEvent
 import workshop.adminaccess.Participant
 import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
+import workshop.adminaccess.play
 
 suspend fun main(): Unit = coroutineScope {
     val serverState = MutableStateFlow(ServerState(
@@ -37,7 +38,13 @@ suspend fun main(): Unit = coroutineScope {
 
     val eventBus = Channel<ScheduledWorkshopEvent>()
     launch(Dispatchers.Default) {
-        mainEventLoopWritingTo(serverState, eventBus, onCommittedState = {}, onEvent = { launch { eventBus.send(it) } })
+        mainEventLoopWritingTo(
+            serverState,
+            eventBus,
+            onCommittedState = {},
+            onSoundEvent = { launch { it.play() } },
+            onEvent = { launch { eventBus.send(it) } }
+        )
     }
 
 

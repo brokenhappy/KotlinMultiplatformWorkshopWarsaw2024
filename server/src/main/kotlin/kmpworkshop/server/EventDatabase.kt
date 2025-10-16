@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import workshop.adminaccess.Backup
 import workshop.adminaccess.ServerState
+import workshop.adminaccess.SoundPlayEvent
 import workshop.adminaccess.after
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
@@ -40,6 +41,7 @@ private fun backupFileName(backup: Backup, index: Int) =
 internal suspend fun withBackupLoop(
     initial: ServerState,
     channel: ReceiveChannel<CommittedState>,
+    onSoundEvent: (SoundPlayEvent) -> Unit,
     block: suspend CoroutineScope.(backups: ReceiveChannel<BackupRequest>, trailingBackup: Flow<Backup>) -> Nothing,
 ): Nothing = coroutineScope {
     val backupsChannel = Channel<BackupRequest>()
@@ -49,7 +51,7 @@ internal suspend fun withBackupLoop(
     }
     try {
         for ((oldState, event, newState) in channel) {
-            if (oldState.after(event.event).droppingScheduledEventTimes() != newState.droppingScheduledEventTimes())
+            if (oldState.after(event.event, onSoundEvent).droppingScheduledEventTimes() != newState.droppingScheduledEventTimes())
                 launch { reportIndeterministicEvent(oldState, event.event) }
             trailingBackup.update { it.copy(events = it.events + event) }
             if (trailingBackup.value.events.size < 10) continue
@@ -92,7 +94,7 @@ private suspend fun getAllDatabaseFilesInChronologicalOrder(): List<File> = with
         .sortedBy { it.name }
 }
 
-private fun Backup.lastState(): ServerState = events.fold(initial) { state, event -> state.after(event.event) }
+private fun Backup.lastState(): ServerState = events.fold(initial) { state, event -> state.after(event.event, onSoundEvent = {}) }
 
 sealed class BackupFetchResult {
     data class Success(val backup: Backup): BackupFetchResult()

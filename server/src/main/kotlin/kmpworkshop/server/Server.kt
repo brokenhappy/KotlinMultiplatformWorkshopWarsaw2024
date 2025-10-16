@@ -31,20 +31,22 @@ suspend fun main() {
 suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
-
+    val soundEvents = MutableSharedFlow<SoundPlayEvent>(replay = 0)
+    val onSoundEvent: (SoundPlayEvent) -> Unit = { soundEvents.tryEmit(it) }
     launch {
         serve(
             rpcService { workshopService(serverState, onEvent = { eventBus.trySend(it) }) },
-            rpcService { adminAccess(serverState, onEvent = { eventBus.trySend(it) }) },
+            rpcService { adminAccess(serverState, onEvent = { eventBus.trySend(it) }, soundEvents) },
         )
     }
     coroutineScope {
         mainEventLoopWithCommittedStateChannelWritingTo(
             serverState,
             eventBus,
-            onEvent = { launch { eventBus.send(it) } }
+            onSoundEvent = onSoundEvent,
+            onEvent = { launch { eventBus.send(it) } },
         ) { initialState, channel ->
-            withBackupLoop(initialState, channel) { backupRequests, trailingBackup ->
+            withBackupLoop(initialState, channel, onSoundEvent) { backupRequests, trailingBackup ->
                 val flow = backupRequests.consumeAsFlow()
                     .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
                 val channelCopy = Channel<BackupRequest>()
