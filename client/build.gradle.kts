@@ -42,6 +42,6 @@ kotlin {
 
 compose.desktop {
     application {
-        mainClass = "com.woutwerkman.MainKt"
+        mainClass = "kmpworkshop.client.MainKt"
     }
 }
