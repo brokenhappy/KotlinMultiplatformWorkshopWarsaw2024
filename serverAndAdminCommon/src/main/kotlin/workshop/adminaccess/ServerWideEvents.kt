@@ -8,9 +8,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import java.util.*
-import kotlin.plus
 import kotlin.random.Random
-import kotlin.text.contains
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -62,11 +60,14 @@ data class RegistrationVerificationEvent(
         val stateWithoutUnverifiedParticipant = oldState.copy(
             unverifiedParticipants = oldState.unverifiedParticipants.filter { it.apiKey != key },
         )
+        val newParticipant = Participant(name, key)
         return if (oldState.participants.any { it.name == name })
             stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
         else stateWithoutUnverifiedParticipant.copy(
-            participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key),
-        ).scheduling(SoundPlayEvents.Success).after(0.seconds)
+            participants = stateWithoutUnverifiedParticipant.participants + newParticipant,
+            tables = stateWithoutUnverifiedParticipant.tables + Table(0, 0, newParticipant),
+        ).scheduling(SoundPlayEvents.Success)
+            .after(0.seconds)
             .to(NameVerificationResult.Success)
     }
 }
@@ -106,6 +107,12 @@ data class ParticipantRemovalEvent(val participant: Participant) : ServerWideEve
 data class ParticipantRejectionEvent(val participant: Participant) : ServerWideEvents()
 @Serializable
 data class ApplyScheduledEvent(val timedEvent: TimedEvent) : ServerWideEvents()
+@Serializable
+data class TableAdded(val table: Table) : ServerWideEvents()
+@Serializable
+data class TableRemoved(val table: Table) : ServerWideEvents()
+@Serializable
+data class TeamChanged(val apiKey: ApiKey, val newTeam: TeamColor) : ServerWideEvents()
 
 internal fun ServerState.after(event: ServerWideEvents): ServerState = when (event) {
     is StageChangeEvent -> copy(currentStage = event.stage)
@@ -118,6 +125,45 @@ internal fun ServerState.after(event: ServerWideEvents): ServerState = when (eve
         scheduledEvents = scheduledEvents - event.timedEvent,
     ).after(event.timedEvent.event)
     is RevertWholeStateEvent -> event.newState
+    is TeamAssignmentChange -> copy(
+        participants = participants
+            .firstOrNull { it.apiKey == event.apiKey }
+            ?.let { participants - it + it.copy(team = event.team) }
+            ?: participants
+    )
+    is AddTeam -> applyIf(teamCount < TeamColor.entries.size) { copy(teamCount = teamCount + 1) }
+    is RemoveTeam -> applyIf(teamCount > 2) { copy(teamCount = teamCount - 1).redistributeRemovedTeam() }
+    is TableAdded -> when {
+        tables.any { it.x == event.table.x && it.y == event.table.y } ->
+            this.after(TableAdded(event.table.copy(x = event.table.x + 1, y = event.table.y + 1)))
+        event.table.assignee == null -> tables
+            .map { it.assignee?.apiKey }
+            .toSet()
+            .let { allAssignedKeys -> participants.firstOrNull { it.apiKey !in allAssignedKeys } }
+            ?.let { this.after(TableAdded(event.table.copy(assignee = it))) }
+            ?: copy(tables = tables + event.table)
+        else -> copy(tables = tables + event.table)
+    }
+    is TableRemoved -> copy(tables = tables - event.table)
+    is TeamChanged -> copy(
+        participants = participants.map {
+            if (it.apiKey == event.apiKey) it.copy(team = event.newTeam) else it
+        },
+        deactivatedParticipants = deactivatedParticipants.map {
+            if (it.apiKey == event.apiKey) it.copy(team = event.newTeam) else it
+        },
+        tables = tables.map {
+            if (it.assignee?.apiKey == event.apiKey) it.copy(assignee = it.assignee.copy(team = event.newTeam))
+            else it
+        },
+    )
+}
+
+private fun ServerState.redistributeRemovedTeam(): ServerState {
+    val (teamIsOkay, needsNewTeam) = participants.partition { it.team.ordinal < teamCount }
+    return copy(participants = teamIsOkay + needsNewTeam.mapIndexed { i, oldParticipant ->
+        oldParticipant.copy(team = TeamColor.entries[i % teamCount])
+    })
 }
 
 private fun ServerState.deactivateParticipant(participant: Participant): ServerState = copy(
@@ -140,4 +186,5 @@ private fun ServerState.reactivateParticipant(participant: Participant): ServerS
 
 private fun ServerState.removeParticipant(participant: Participant): ServerState = copy(
     deactivatedParticipants = deactivatedParticipants - participant,
+    tables = tables.map { if (it.assignee == participant) it.copy(assignee = null) else it }
 )

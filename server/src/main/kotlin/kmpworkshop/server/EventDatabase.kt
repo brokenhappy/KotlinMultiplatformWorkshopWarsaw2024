@@ -25,7 +25,7 @@ internal suspend fun store(backupRequests: ReceiveChannel<BackupRequest>): Nothi
         for (request in backupRequests) {
             val backup = request.backup ?: break
             generateSequence(0) { it + 1 }
-                .map { File(serverEventBackupDirectory!!).resolve(backupFileName(backup, it)) }
+                .map { serverEventBackupDirectory!!.resolve(backupFileName(backup, it)).toFile() }
                 .first { !it.exists() }
                 .writeText(Json.encodeToString(request.backup))
             if (request.isLast) break
@@ -84,7 +84,8 @@ private suspend fun getMostRecentDatabaseFileContent(): String? = withContext(Di
 }
 
 private suspend fun getAllDatabaseFilesInChronologicalOrder(): List<File> = withContext(Dispatchers.IO) {
-    File(serverEventBackupDirectory!!)
+    serverEventBackupDirectory!!
+        .toFile()
         .also { require(it.exists()) { "Server not set up to store events!" } } // TODO: Clearer error!
         .also { require(it.isDirectory) { "Server not set up to store events!" } } // TODO: Clearer error!
         .listFiles()!!

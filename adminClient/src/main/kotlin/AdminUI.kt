@@ -1,26 +1,44 @@
 @file:OptIn(ExperimentalTime::class)
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isAltPressed
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -243,6 +261,289 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
     }
 }
 
+private const val tableSize = 5
+private const val defaultViewSize = 60.0
+private const val gridCellSizeInPixels = 10.0
+
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@Composable
+private fun TableSetup(state: ServerState, onEvent: OnEvent) {
+    var zoom by remember { mutableStateOf(2.0) }
+    var currentEnd by remember { mutableStateOf(state.tables.map { it.x }.average() + defaultViewSize / 2) }
+    var widthPixels by remember { mutableStateOf(defaultViewSize) }
+    var currentX by remember { mutableStateOf(0.0) }
+    var currentY by remember { mutableStateOf(0.0) }
+    var mousePosition by remember { mutableStateOf(Offset.Zero) }
+    var currentMovingTable by remember { mutableStateOf<Table?>(null) }
+    var currentTarget by remember { mutableStateOf<Offset?>(null) }
+    var currentSelectedTeam by remember { mutableStateOf(TeamColor.entries.first()) }
+    var tipsWindowIsOpen by remember { mutableStateOf(false) }
+    // There is a bug in the gesture logic that makes it so that it stores the lambdas between compositions.
+    // This means that a direct reference to `state` will result in tables not updating in this lambda.
+    // This way it points to a reference to the tables instead. The reference won't update, but the `getValue()` will.
+    var stateMutable by remember { mutableStateOf(state) }
+    LaunchedEffect(state) {
+        stateMutable = state
+    }
+    LaunchedEffect(state.teamCount) {
+        currentSelectedTeam = TeamColor.entries[currentSelectedTeam.ordinal.coerceAtMost(state.teamCount - 1)]
+    }
+
+    fun Int.xGridToPixel(): Double = (this * gridCellSizeInPixels - currentX) * zoom
+    fun Int.yGridToPixel(): Double = (this * gridCellSizeInPixels - currentY) * zoom
+    fun Double.xPixelToGrid(): Int = (((this / zoom) + currentX) / gridCellSizeInPixels).toInt()
+    fun Double.yPixelToGrid(): Int = (((this / zoom) + currentY) / gridCellSizeInPixels).toInt()
+
+    Column {
+        Row {
+            Button(onClick = { onEvent.schedule(TableAdded(Table(0, 0, null))) }) {
+                Text("Add Table")
+            }
+            Spacer(Modifier.width(10.dp))
+            Text("# of participants without table: ${
+                state
+                    .tables
+                    .map { it.assignee?.apiKey }
+                    .toSet()
+                    .let { assignedApiKeys -> state.participants.count { it.apiKey !in assignedApiKeys } }
+            }")
+            Spacer(Modifier.weight(1f))
+            Button(onClick = { tipsWindowIsOpen = true }) {
+                Text("?")
+            }
+        }
+        Row {
+            Button(
+                enabled = state.teamCount < TeamColor.entries.size,
+                onClick = { onEvent.schedule(AddTeam) },
+            ) {
+                Text("Add Team")
+            }
+            Spacer(Modifier.width(10.dp))
+            Button(
+                enabled = state.teamCount > 2,
+                onClick = { onEvent.schedule(RemoveTeam) },
+            ) {
+                Text("Remove Team")
+            }
+            Spacer(Modifier.width(10.dp))
+            Button(onClick = {
+                currentSelectedTeam = TeamColor.entries[(currentSelectedTeam.ordinal + 1) % state.teamCount]
+            }) {
+                Text("Currently selecting: ${currentSelectedTeam.name}")
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(5.dp, Color.DarkGray)
+                .onPointerEvent(PointerEventType.Scroll) { event ->
+                    val (dx, dy) = event.changes.first().scrollDelta
+                    if (event.keyboardModifiers.isMetaPressed) {
+                        val zoomFactor = 1 + dy / 20
+                        zoom *= zoomFactor
+                        currentEnd -= (zoom * (widthPixels - mousePosition.x)) * (1 - zoomFactor)
+                    } else {
+                        currentY += dy
+                        currentX += dx
+                        currentEnd += zoom * dx
+                    }
+                }
+                .onPointerEvent(PointerEventType.Press) { event ->
+                    if (
+                        event.button == PointerButton.Secondary && (
+                            !event.keyboardModifiers.isShiftPressed &&
+                                !event.keyboardModifiers.isMetaPressed &&
+                                !event.keyboardModifiers.isCtrlPressed &&
+                                !event.keyboardModifiers.isAltPressed
+                            )
+                    ) {
+                        val position = event.changes.first().position
+                        val x = position.x.toDouble().xPixelToGrid()
+                        val y = position.y.toDouble().yPixelToGrid()
+                        stateMutable.tables.reversed().firstOrNull { table ->
+                            x in table.x..< (table.x + tableSize) && y in table.y..< (table.y + tableSize)
+                        }?.sideEffect {
+                            onEvent.schedule(TableRemoved(it))
+                        }
+                    }
+                }
+                .onPointerEvent(PointerEventType.Press) { event ->
+                    if (event.button != PointerButton.Primary) return@onPointerEvent
+                    val isShift = event.keyboardModifiers.isShiftPressed && (
+                        !event.keyboardModifiers.isMetaPressed &&
+                        !event.keyboardModifiers.isCtrlPressed &&
+                        !event.keyboardModifiers.isAltPressed
+                    )
+                    val isMeta = event.keyboardModifiers.isMetaPressed && (
+                        !event.keyboardModifiers.isShiftPressed &&
+                        !event.keyboardModifiers.isCtrlPressed &&
+                        !event.keyboardModifiers.isAltPressed
+                    )
+                    if (isShift || isMeta) {
+                        val position = event.changes.first().position
+                        val x = position.x.toDouble().xPixelToGrid()
+                        val y = position.y.toDouble().yPixelToGrid()
+                        stateMutable.tables.reversed().firstOrNull { table ->
+                            x in table.x..< (table.x + tableSize) && y in table.y..< (table.y + tableSize)
+                        }
+                            ?.assignee
+                            ?.let { assignee ->
+                                if (isShift) onEvent.schedule(TeamChanged(assignee.apiKey, currentSelectedTeam))
+                                else {
+                                    if (assignee in stateMutable.deactivatedParticipants)
+                                        onEvent.schedule(ParticipantReactivationEvent(assignee, Random.nextLong()))
+                                    else
+                                        onEvent.schedule(ParticipantDeactivationEvent(assignee))
+                                }
+                            }
+                    }
+                }
+                .onPointerEvent(PointerEventType.Move) { event ->
+                    mousePosition = event.changes.first().position
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        matcher = {
+                            it.button == PointerButton.Tertiary
+                                || (it.keyboardModifiers.isShiftPressed && it.button == PointerButton.Primary)
+                        },
+                        onDragStart = { },
+                        onDragEnd = {},
+                        onDragCancel = {},
+                        onDrag = { (x, y) ->
+                            currentEnd -= zoom * x
+                            currentX -= x / zoom
+                            currentY -= y / zoom
+                        },
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        matcher = {
+                            it.button == PointerButton.Primary && (
+                                !it.keyboardModifiers.isShiftPressed &&
+                                    !it.keyboardModifiers.isMetaPressed &&
+                                    !it.keyboardModifiers.isCtrlPressed &&
+                                    !it.keyboardModifiers.isAltPressed
+                                )
+                        },
+                        onDragStart = { offset ->
+                            val gridX = offset.x.toDouble().xPixelToGrid()
+                            val gridY = offset.y.toDouble().yPixelToGrid()
+                            stateMutable.tables.reversed().firstOrNull { table ->
+                                gridX in table.x..< (table.x + tableSize)
+                                    && gridY in table.y..< (table.y + tableSize)
+                            }?.let { targetTable ->
+                                currentTarget = offset
+                                currentMovingTable = targetTable
+                            }
+                        },
+                        onDragEnd = {
+                            currentTarget?.sideEffect { target ->
+                                currentMovingTable?.sideEffect { movedTable ->
+                                    val gridX = target.x.toDouble().xPixelToGrid()
+                                    val gridY = target.y.toDouble().yPixelToGrid()
+                                    onEvent.schedule(TableRemoved(movedTable))
+                                    onEvent.schedule(TableAdded(movedTable.copy(x = gridX, y = gridY)))
+                                }
+                            }
+                            currentTarget = null
+                            currentMovingTable = null
+                        },
+                        onDragCancel = {
+                            currentTarget = null
+                            currentMovingTable = null
+                        },
+                        onDrag = {
+                            currentTarget = currentTarget?.plus(it)
+                        },
+                    )
+                }
+                .onGloballyPositioned { widthPixels = it.size.width.toDouble() }
+            ,
+        ) {
+            @Composable
+            fun TableInternal(table: Table) {
+                val distanceLeft = table.x.xGridToPixel()
+                val distanceTop = table.y.yGridToPixel()
+                if (distanceLeft < 0 || distanceTop < 0) return
+                Row {
+                    Spacer(modifier = Modifier.width(distanceLeft.asPixelsToDp()))
+                    Column {
+                        Spacer(modifier = Modifier.height(distanceTop.asPixelsToDp()))
+                        TableView(table, zoom)
+                    }
+                }
+            }
+            val deactivatedParticipants = state.deactivatedParticipants.map { it.apiKey }.toSet()
+            for (table in state.tables) {
+                if (table == currentMovingTable || table.assignee?.apiKey in deactivatedParticipants) {
+                    Transparent { TableInternal(table) }
+                } else {
+                    TableInternal(table)
+                }
+            }
+            currentTarget?.sideEffect { target ->
+                currentMovingTable?.sideEffect { oldTable ->
+                    val gridX = target.x.toDouble().xPixelToGrid()
+                    val gridY = target.y.toDouble().yPixelToGrid()
+                    Transparent { TableInternal(oldTable.copy(x = gridX, y = gridY)) }
+                }
+            }
+        }
+    }
+    if (tipsWindowIsOpen) {
+        Window(title = "Table assigning tips", onCloseRequest = { tipsWindowIsOpen = false }) {
+            Text("""
+                The following actions can be taken in table assigning mode.
+                 - Drag and drop tables.
+                 - Shift + click: Sets the table's team to the selected team.
+                 - Meta + click: Activate/Deactivate the participant
+                 - Right click: Remove the table (not the participant)
+            """.trimIndent())
+        }
+    }
+}
+
+@Composable
+fun Transparent(content: @Composable () -> Unit) {
+    Box(modifier = Modifier.alpha(0.5f)) {
+        content()
+    }
+}
+
+private inline fun <T> T.sideEffect(function: (T) -> Unit) {
+    function(this)
+}
+
+@Composable
+fun TableView(table: Table, zoom: Double) {
+    BasicText(
+        modifier = Modifier
+            .size((tableSize * gridCellSizeInPixels * zoom).asPixelsToDp())
+            .background(table.assignee?.team?.toComposeColor() ?: Color.DarkGray),
+        text  = table.assignee?.name ?: "-",
+        autoSize = TextAutoSize.StepBased(minFontSize = 3.sp, maxFontSize = 20.sp),
+        style = TextStyle(color = Color.Black, textAlign = TextAlign.Center),
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+private fun TeamColor.toComposeColor(): Color = when (this) {
+    TeamColor.Red -> Color.Red
+    TeamColor.Blue -> Color.Blue
+    TeamColor.Green -> Color.Green
+    TeamColor.Yellow -> Color.Yellow
+    TeamColor.Orange -> Color.Yellow
+}.transitionTo(Color.Black, 0.3f)
+
+fun Color.transitionTo(other: Color, ratio: Float): Color = Color(
+    red = this.red * (1 - ratio) + other.red * ratio,
+    green = this.green * (1 - ratio) + other.green * ratio,
+    blue = this.blue * (1 - ratio) + other.blue * ratio,
+    alpha = this.alpha * (1 - ratio) + other.alpha * ratio
+)
 
 @Composable
 fun AdminUi(state: ServerState, onEvent: OnEvent) {
@@ -288,17 +589,25 @@ private fun ServerState.getParticipantBy(key: ApiKey): Participant = participant
 @Composable
 private fun Submissions(submissions: Submissions) {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-        BasicText(text = "Number of completions: ${submissions.completedSubmissions.size}/${submissions.participants.size}")
-        for ((apiKey, timeOfCompletion) in submissions.completedSubmissions.entries.sortedBy { it.value }) {
-            val participant = submissions.participants.firstOrNull { it.apiKey == apiKey } ?: continue
-            Row(modifier = Modifier.padding(8.dp)) {
-                BasicText(text = participant.name)
-                val duration = timeOfCompletion - submissions.startTime
-                BasicText(
-                    text = "Took: ${formatDuration(duration)}",
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+        BasicText(text = "Completions: ${submissions.completedSubmissions.size}/${submissions.participants.size}")
+        // Table header
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Text("Participant", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text("Finish Time", fontWeight = FontWeight.Bold, modifier = Modifier.width(150.dp))
+        }
+        Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
+        submissions.participants.forEach { participant ->
+            val timeOfCompletion = submissions.completedSubmissions[participant.apiKey]
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text(participant.name, modifier = Modifier.weight(1f))
+                if (timeOfCompletion != null) {
+                    val duration = timeOfCompletion - submissions.startTime
+                    Text(formatDuration(duration), modifier = Modifier.width(150.dp))
+                } else {
+                    Text("", modifier = Modifier.width(150.dp))
+                }
             }
+            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEEEEE)))
         }
     }
 }
@@ -372,21 +681,38 @@ private fun MoveStageButton(
 private fun WorkshopStage.moving(offset: Int): WorkshopStage? =
     WorkshopStage.entries.getOrNull(ordinal + offset)
 
-@Composable
-private fun Registration(
-    state: ServerState,
-    onEvent: OnEvent,
-) {
-    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-        var searchText by remember { mutableStateOf("") }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Search: ")
-            TextField(searchText, onValueChange = { searchText = it })
-        }
-        fun List<Participant>.filtered(): List<Participant> =
-            if (searchText.isEmpty()) this else filter { searchText in it.name }
+private enum class RegistrationViewMode {
+    ParticipantRegistration, TableSetup,
+}
 
-        BasicText(text = "Number of verified participants: ${state.participants.size}")
+@Composable
+private fun Registration(state: ServerState, onEvent: OnEvent) {
+    var registrationMode by remember { mutableStateOf(RegistrationViewMode.entries.first()) }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+        Button(onClick = {
+            registrationMode = RegistrationViewMode.entries[(registrationMode.ordinal + 1) % RegistrationViewMode.entries.size]
+        }) {
+            Text("Toggle mode")
+        }
+    }
+    when (registrationMode) {
+        RegistrationViewMode.ParticipantRegistration -> RegistrationList(state, onEvent)
+        RegistrationViewMode.TableSetup -> TableSetup(state, onEvent)
+    }
+}
+
+@Composable
+private fun RegistrationList(state: ServerState, onEvent: OnEvent) {
+    var searchText by remember { mutableStateOf("") }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Search: ")
+        TextField(searchText, onValueChange = { searchText = it })
+    }
+
+    BasicText(text = "Number of verified participants: ${state.participants.size}")
+    fun List<Participant>.filtered(): List<Participant> =
+        if (searchText.isEmpty()) this else filter { searchText in it.name }
+    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         state.participants.filtered().forEach { participant ->
             Row(modifier = Modifier.padding(8.dp)) {
                 BasicText(text = participant.name)
@@ -442,3 +768,6 @@ private fun Registration(
         }
     }
 }
+
+@Composable
+private fun Double.asPixelsToDp(): Dp = (this / LocalDensity.current.density).coerceAtMost(5_000.0).dp
