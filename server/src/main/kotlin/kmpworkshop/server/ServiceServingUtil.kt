@@ -22,7 +22,7 @@ inline fun <@Rpc reified Service : Any> rpcService(noinline factory: () -> Servi
     RpcService(Service::class, factory)
 
 suspend fun serve(services: List<RpcService<*>>): Nothing {
-    embeddedServer(Netty, port = 80) {
+    embeddedServer(Netty, port = 8080) {
         install(Krpc)
         routing {
             get("/healthz") {
