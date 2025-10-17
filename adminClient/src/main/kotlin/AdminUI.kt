@@ -266,6 +266,9 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
     }
 }
 
+private data class IntPoint(val x: Int, val y: Int)
+private fun Table.toPoint(): IntPoint = IntPoint(x, y)
+
 private const val tableSize = 5
 private const val defaultViewSize = 60.0
 private const val gridCellSizeInPixels = 10.0
@@ -276,8 +279,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
     var zoom by remember { mutableStateOf(2.0) }
     var currentEnd by remember { mutableStateOf(state.tables.map { it.x }.average() + defaultViewSize / 2) }
     var widthPixels by remember { mutableStateOf(defaultViewSize) }
-    var currentX by remember { mutableStateOf(0.0) }
-    var currentY by remember { mutableStateOf(0.0) }
+    var currentPosition by remember { mutableStateOf(Offset.Zero) }
     var mousePosition by remember { mutableStateOf(Offset.Zero) }
     var currentMovingTable by remember { mutableStateOf<Table?>(null) }
     var currentTarget by remember { mutableStateOf<Offset?>(null) }
@@ -294,10 +296,8 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
         currentSelectedTeam = TeamColor.entries[currentSelectedTeam.ordinal.coerceAtMost(state.teamCount - 1)]
     }
 
-    fun Int.xGridToPixel(): Double = (this * gridCellSizeInPixels - currentX) * zoom
-    fun Int.yGridToPixel(): Double = (this * gridCellSizeInPixels - currentY) * zoom
-    fun Double.xPixelToGrid(): Int = (((this / zoom) + currentX) / gridCellSizeInPixels).toInt()
-    fun Double.yPixelToGrid(): Int = (((this / zoom) + currentY) / gridCellSizeInPixels).toInt()
+    fun IntPoint.asGridToPixels(): Offset = asGridToPixels(currentPosition, zoom)
+    fun Offset.asPixelsToGrid(): IntPoint = asPixelsToGrid(currentPosition, zoom)
 
     Column {
         Row {
@@ -343,15 +343,15 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                 .fillMaxSize()
                 .border(5.dp, Color.DarkGray)
                 .onPointerEvent(PointerEventType.Scroll) { event ->
-                    val (dx, dy) = event.changes.first().scrollDelta
+                    val scrollDelta = event.changes.first().scrollDelta
+                    val (dx, dy) = scrollDelta
                     if (event.keyboardModifiers.isMetaPressed) {
                         val zoomFactor = 1 + dy / 20
                         zoom *= zoomFactor
                         currentEnd -= (zoom * (widthPixels - mousePosition.x)) * (1 - zoomFactor)
                     } else {
-                        currentY += dy
-                        currentX += dx
-                        currentEnd += zoom * dx
+                        currentPosition += scrollDelta * 5f
+                        currentEnd += zoom * dx * 5
                     }
                 }
                 .onPointerEvent(PointerEventType.Press) { event ->
@@ -363,9 +363,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                                 !event.keyboardModifiers.isAltPressed
                             )
                     ) {
-                        val position = event.changes.first().position
-                        val x = position.x.toDouble().xPixelToGrid()
-                        val y = position.y.toDouble().yPixelToGrid()
+                        val (x, y) = event.changes.first().position.asPixelsToGrid()
                         stateMutable.tables.reversed().firstOrNull { table ->
                             x in table.x..< (table.x + tableSize) && y in table.y..< (table.y + tableSize)
                         }?.sideEffect {
@@ -386,9 +384,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                         !event.keyboardModifiers.isAltPressed
                     )
                     if (isShift || isMeta) {
-                        val position = event.changes.first().position
-                        val x = position.x.toDouble().xPixelToGrid()
-                        val y = position.y.toDouble().yPixelToGrid()
+                        val (x, y) = event.changes.first().position.asPixelsToGrid()
                         stateMutable.tables.reversed().firstOrNull { table ->
                             x in table.x..< (table.x + tableSize) && y in table.y..< (table.y + tableSize)
                         }
@@ -417,10 +413,9 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                         onDragStart = { },
                         onDragEnd = {},
                         onDragCancel = {},
-                        onDrag = { (x, y) ->
-                            currentEnd -= zoom * x
-                            currentX -= x / zoom
-                            currentY -= y / zoom
+                        onDrag = {
+                            currentEnd -= zoom * it.x
+                            currentPosition -= it / zoom.toFloat()
                         },
                     )
                 }
@@ -435,8 +430,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                                 )
                         },
                         onDragStart = { offset ->
-                            val gridX = offset.x.toDouble().xPixelToGrid()
-                            val gridY = offset.y.toDouble().yPixelToGrid()
+                            val (gridX, gridY) = offset.asPixelsToGrid()
                             stateMutable.tables.reversed().firstOrNull { table ->
                                 gridX in table.x..< (table.x + tableSize)
                                     && gridY in table.y..< (table.y + tableSize)
@@ -448,8 +442,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                         onDragEnd = {
                             currentTarget?.sideEffect { target ->
                                 currentMovingTable?.sideEffect { movedTable ->
-                                    val gridX = target.x.toDouble().xPixelToGrid()
-                                    val gridY = target.y.toDouble().yPixelToGrid()
+                                    val (gridX, gridY) = target.asPixelsToGrid()
                                     onEvent.schedule(TableRemoved(movedTable))
                                     onEvent.schedule(TableAdded(movedTable.copy(x = gridX, y = gridY)))
                                 }
@@ -471,8 +464,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
         ) {
             @Composable
             fun TableInternal(table: Table) {
-                val distanceLeft = table.x.xGridToPixel()
-                val distanceTop = table.y.yGridToPixel()
+                val (distanceLeft, distanceTop) = table.toPoint().asGridToPixels()
                 if (distanceLeft < 0 || distanceTop < 0) return
                 Row {
                     Spacer(modifier = Modifier.width(distanceLeft.asPixelsToDp()))
@@ -492,8 +484,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
             }
             currentTarget?.sideEffect { target ->
                 currentMovingTable?.sideEffect { oldTable ->
-                    val gridX = target.x.toDouble().xPixelToGrid()
-                    val gridY = target.y.toDouble().yPixelToGrid()
+                    val (gridX, gridY) = target.asPixelsToGrid()
                     Transparent { TableInternal(oldTable.copy(x = gridX, y = gridY)) }
                 }
             }
@@ -511,6 +502,16 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
         }
     }
 }
+
+private fun IntPoint.asGridToPixels(currentPosition: Offset, zoom: Double): Offset = Offset(
+    x = ((x * gridCellSizeInPixels - currentPosition.x) * zoom).toFloat(),
+    y = ((y * gridCellSizeInPixels - currentPosition.y) * zoom).toFloat(),
+)
+
+private fun Offset.asPixelsToGrid(currentPosition: Offset, zoom: Double): IntPoint = IntPoint(
+    (((x / zoom) + currentPosition.x) / gridCellSizeInPixels).toInt(),
+    (((y / zoom) + currentPosition.y) / gridCellSizeInPixels).toInt(),
+)
 
 @Composable
 fun Transparent(content: @Composable () -> Unit) {
@@ -787,3 +788,5 @@ private fun RegistrationList(state: ServerState, onEvent: OnEvent) {
 
 @Composable
 private fun Double.asPixelsToDp(): Dp = (this / LocalDensity.current.density).coerceAtMost(5_000.0).dp
+@Composable
+private fun Float.asPixelsToDp(): Dp = toDouble().asPixelsToDp()
