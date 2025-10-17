@@ -285,6 +285,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
     var currentTarget by remember { mutableStateOf<Offset?>(null) }
     var currentSelectedTeam by remember { mutableStateOf(TeamColor.entries.first()) }
     var tipsWindowIsOpen by remember { mutableStateOf(false) }
+    var mirroredTablesWindowIsOpen by remember { mutableStateOf(false) }
     // There is a bug in the gesture logic that makes it so that it stores the lambdas between compositions.
     // This means that a direct reference to `state` will result in tables not updating in this lambda.
     // This way it points to a reference to the tables instead. The reference won't update, but the `getValue()` will.
@@ -296,7 +297,6 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
         currentSelectedTeam = TeamColor.entries[currentSelectedTeam.ordinal.coerceAtMost(state.teamCount - 1)]
     }
 
-    fun IntPoint.asGridToPixels(): Offset = asGridToPixels(currentPosition, zoom)
     fun Offset.asPixelsToGrid(): IntPoint = asPixelsToGrid(currentPosition, zoom)
 
     Column {
@@ -313,6 +313,9 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                     .let { assignedApiKeys -> state.participants.count { it.apiKey !in assignedApiKeys } }
             }")
             Spacer(Modifier.weight(1f))
+            Button(onClick = { mirroredTablesWindowIsOpen = true }) {
+                Text("Mirror view")
+            }
             Button(onClick = { tipsWindowIsOpen = true }) {
                 Text("?")
             }
@@ -462,32 +465,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                 .onGloballyPositioned { widthPixels = it.size.width.toDouble() }
             ,
         ) {
-            @Composable
-            fun TableInternal(table: Table) {
-                val (distanceLeft, distanceTop) = table.toPoint().asGridToPixels()
-                if (distanceLeft < 0 || distanceTop < 0) return
-                Row {
-                    Spacer(modifier = Modifier.width(distanceLeft.asPixelsToDp()))
-                    Column {
-                        Spacer(modifier = Modifier.height(distanceTop.asPixelsToDp()))
-                        TableView(table, table.assignee?.let { state.getParticipantBy(it) }, zoom)
-                    }
-                }
-            }
-            val deactivatedParticipants = state.deactivatedParticipants.map { it.apiKey }.toSet()
-            for (table in state.tables) {
-                if (table == currentMovingTable || table.assignee in deactivatedParticipants) {
-                    Transparent { TableInternal(table) }
-                } else {
-                    TableInternal(table)
-                }
-            }
-            currentTarget?.sideEffect { target ->
-                currentMovingTable?.sideEffect { oldTable ->
-                    val (gridX, gridY) = target.asPixelsToGrid()
-                    Transparent { TableInternal(oldTable.copy(x = gridX, y = gridY)) }
-                }
-            }
+            TablesView(state, currentMovingTable, currentTarget, currentPosition, zoom)
         }
     }
     if (tipsWindowIsOpen) {
@@ -499,6 +477,62 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                  - Meta + click: Activate/Deactivate the participant
                  - Right click: Remove the table (not the participant)
             """.trimIndent())
+        }
+    }
+    if (mirroredTablesWindowIsOpen) {
+        Window(title = "Mirrored view", onCloseRequest = { mirroredTablesWindowIsOpen = false }) {
+            var widthOfMirrorView by remember { mutableStateOf(defaultViewSize) }
+            Box(modifier = Modifier.fillMaxWidth().onGloballyPositioned { widthOfMirrorView = it.size.width.toDouble() }) {
+                TablesView(
+                    state.copy(tables = state.tables.map { it.copy(x = -it.x) }),
+                    currentMovingTable?.let { it.copy(x = -it.x) },
+                    currentTarget?.let { it.copy(x = -it.x) },
+                    currentPosition.copy(x = (currentPosition.x - widthOfMirrorView / zoom).toFloat()),
+                    zoom,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableView(
+    table: Table,
+    state: ServerState,
+    currentPosition: Offset,
+    zoom: Double,
+) {
+    val (distanceLeft, distanceTop) = table.toPoint().asGridToPixels(currentPosition, zoom)
+    if (distanceLeft < 0 || distanceTop < 0) return
+    Row {
+        Spacer(modifier = Modifier.width(distanceLeft.asPixelsToDp()))
+        Column {
+            Spacer(modifier = Modifier.height(distanceTop.asPixelsToDp()))
+            TableView(table, table.assignee?.let { state.getParticipantBy(it) }, zoom)
+        }
+    }
+}
+
+@Composable
+private fun TablesView(
+    state: ServerState,
+    currentMovingTable: Table?,
+    currentTarget: Offset?,
+    currentPosition: Offset,
+    zoom: Double,
+) {
+    val deactivatedParticipants = state.deactivatedParticipants.map { it.apiKey }.toSet()
+    for (table in state.tables) {
+        if (table == currentMovingTable || table.assignee in deactivatedParticipants) {
+            Transparent { TableView(table, state, currentPosition, zoom) }
+        } else {
+            TableView(table, state, currentPosition, zoom)
+        }
+    }
+    currentTarget?.sideEffect { target ->
+        currentMovingTable?.sideEffect { oldTable ->
+            val (gridX, gridY) = target.asPixelsToGrid(currentPosition, zoom)
+            Transparent { TableView(oldTable.copy(x = gridX, y = gridY), state, currentPosition, zoom) }
         }
     }
 }
