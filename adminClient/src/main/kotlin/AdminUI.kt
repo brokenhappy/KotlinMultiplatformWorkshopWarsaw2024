@@ -96,10 +96,9 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
 
     val client: KtorRpcClient = ktorClient.rpc {
         url {
-//            host = "192.168.0.67"
-//            host = "10.0.2.2"
+            protocol = URLProtocol.WS
             host = "woutsworkshopv4.europe-west1-gke.intellij.net"
-            port = 8080
+            port = 80
             encodedPath = WorkshopApiService::class.simpleName!!
         }
 

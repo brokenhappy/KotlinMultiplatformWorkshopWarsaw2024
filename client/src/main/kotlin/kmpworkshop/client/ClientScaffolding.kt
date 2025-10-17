@@ -32,10 +32,9 @@ private fun createService(): WorkshopApiService = runBlocking {
 
     val client: KtorRpcClient = ktorClient.rpc {
         url {
-//            host = "192.168.0.67"
-//            host = "10.0.2.2"
-            host = "https://woutsworkshopv2.labs.jb.gg"
-            port = 8080
+            protocol = URLProtocol.WS
+            host = "woutsworkshopv4.europe-west1-gke.intellij.net"
+            port = 80
             encodedPath = WorkshopApiService::class.simpleName!!
         }
 
