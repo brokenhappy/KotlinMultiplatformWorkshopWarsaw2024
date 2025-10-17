@@ -4,7 +4,11 @@ WORKDIR /home/gradle/src
 
 # Copy only the necessary files to leverage Docker layer caching
 COPY build.gradle.kts settings.gradle.kts gradle.properties ./
+COPY gradlew ./  # <-- ADDED THIS LINE to copy the wrapper script
 COPY gradle ./gradle
+
+# Make the Gradle wrapper executable
+RUN chmod +x ./gradlew # <-- ADDED THIS LINE to ensure permissions are correct
 
 # Copy the source code of all modules
 COPY common ./common
