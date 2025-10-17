@@ -34,7 +34,7 @@ private fun createService(): WorkshopApiService = runBlocking {
         url {
 //            host = "192.168.0.67"
 //            host = "10.0.2.2"
-            host = "172.20.10.2"
+            host = "https://woutsworkshopv2.labs.jb.gg"
             port = 8080
             encodedPath = WorkshopApiService::class.simpleName!!
         }
