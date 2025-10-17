@@ -28,7 +28,7 @@ suspend fun serve(services: List<RpcService<*>>): Nothing {
             get("/healthz") {
                 call.respondText("OK")
             }
-            rpc {
+            rpc("rpc") {
                 rpcConfig {
                     serialization {
                         json()

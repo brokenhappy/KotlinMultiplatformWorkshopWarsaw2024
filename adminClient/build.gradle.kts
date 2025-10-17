@@ -32,7 +32,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
+    implementation("io.ktor:ktor-client-logging:2.3.12")
+    implementation("ch.qos.logback:logback-classic:1.5.13")
     implementation(compose.desktop.currentOs)
+    implementation("io.ktor:ktor-client-cio-jvm:3.3.0")
     testImplementation(kotlin("test"))
 }
 
