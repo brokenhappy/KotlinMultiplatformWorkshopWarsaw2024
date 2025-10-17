@@ -92,7 +92,7 @@ private fun suggestRunningCode() {
 
 private fun prepareApiKey(apiKeyString: String) {
     val s = File.separatorChar
-    val file = File("..${s}common${s}src${s}commonMain${s}kotlin${s}kmpworkshop${s}common${s}Secrets.kt")
+    val file = File("..${s}common${s}src${s}main${s}kotlin${s}kmpworkshop${s}common${s}Secrets.kt")
     file.createNewFile()
     file.readLines()
         .filterNot { it.startsWith("val clientApiKey: String? =") }
