@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonElement
     /** The full current state of the app */
     fun serverState(password: String): Flow<ServerState>
     fun soundEvents(password: String): Flow<SoundPlayEvent>
+    suspend fun heartbeat()
     /**
      * Either:
      *  - Schedules the event if [event] !is [WorkshopEventWithResult] and returns null.
