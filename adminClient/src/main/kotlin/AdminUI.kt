@@ -98,7 +98,7 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
         url {
 //            host = "192.168.0.67"
 //            host = "10.0.2.2"
-            host = "127.0.0.1"
+            host = "woutsworkshopv4.europe-west1-gke.intellij.net"
             port = 8080
             encodedPath = WorkshopApiService::class.simpleName!!
         }

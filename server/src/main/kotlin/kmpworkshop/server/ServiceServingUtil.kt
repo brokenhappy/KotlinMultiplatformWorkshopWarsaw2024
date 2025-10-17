@@ -28,7 +28,7 @@ suspend fun serve(services: List<RpcService<*>>): Nothing {
             get("/healthz") {
                 call.respondText("OK")
             }
-            rpc("/${WorkshopApiService::class.simpleName!!}") {
+            rpc {
                 rpcConfig {
                     serialization {
                         json()
