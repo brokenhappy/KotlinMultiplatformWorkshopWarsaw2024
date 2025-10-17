@@ -155,6 +155,12 @@ fun AdminApp(onExit: () -> Unit) {
                         }
                     }
                     launch {
+                        while (true) {
+                            adminAccess.heartbeat()
+                            delay(10.seconds)
+                        }
+                    }
+                    launch {
                         adminAccess.soundEvents(adminPassword).collect { soundEvent ->
                             launch { soundEvent.play() }
                         }

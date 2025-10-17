@@ -25,6 +25,8 @@ fun adminAccess(
         if (password != System.getenv("admin_access_password")) error("Incorrect password")
     }
 
+    override suspend fun heartbeat() { /* pong! */ }
+
     override suspend fun fire(password: String, event: WorkshopEvent): JsonElement? = when {
         password != System.getenv("admin_access_password") -> error("Incorrect password")
         event is WorkshopEventWithResult<*> -> onEvent.fireRaw(event)
