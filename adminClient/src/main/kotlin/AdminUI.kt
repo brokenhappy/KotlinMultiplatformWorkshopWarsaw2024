@@ -110,14 +110,16 @@ fun AdminApp(onExit: () -> Unit) {
     var adminAccessService: AdminAccess? by remember { mutableStateOf(null) }
     LaunchedEffect(Unit) {
         try {
-            withAdminAccessService { adminAccess ->
-                launch {
-                    adminAccess.soundEvents(adminPassword).collect { soundEvent ->
-                        launch { soundEvent.play() }
+            withContext(Dispatchers.IO) {
+                withAdminAccessService { adminAccess ->
+                    launch {
+                        adminAccess.soundEvents(adminPassword).collect { soundEvent ->
+                            launch { soundEvent.play() }
+                        }
                     }
+                    adminAccessService = adminAccess
+                    awaitCancellation()
                 }
-                adminAccessService = adminAccess
-                awaitCancellation()
             }
         } finally {
             adminAccessService = null

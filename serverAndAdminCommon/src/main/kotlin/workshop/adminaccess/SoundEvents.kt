@@ -28,7 +28,7 @@ suspend fun SoundPlayEvent.play() {
 private suspend fun playSuccessSound() {
     AudioSystem.getClip().use { clip ->
         AudioSystem
-            .getAudioInputStream((object {})::class.java.getResourceAsStream("/success.wav"))
+            .getAudioInputStream((object {})::class.java.getResourceAsStream("/success.wav").buffered())
             .playIn(clip)
     }
 }
@@ -36,7 +36,7 @@ private suspend fun playSuccessSound() {
 private suspend fun playFailSound() {
     AudioSystem.getClip().use { clip ->
         AudioSystem
-            .getAudioInputStream((object {})::class.java.getResourceAsStream("/fail.wav"))
+            .getAudioInputStream((object {})::class.java.getResourceAsStream("/fail.wav").buffered())
             .playIn(clip)
     }
 }
@@ -45,7 +45,7 @@ private suspend fun playFailSound() {
 private suspend fun playProgressSound(progress: Double) {
     AudioSystem.getClip().use { clip ->
         AudioSystem
-            .getAudioInputStream((object {})::class.java.getResourceAsStream("/boop.wav"))
+            .getAudioInputStream((object {})::class.java.getResourceAsStream("/boop.wav").buffered())
             .changePitch(progress)
             .playIn(clip)
     }

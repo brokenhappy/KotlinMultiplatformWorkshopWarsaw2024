@@ -31,8 +31,10 @@ suspend fun main() {
 suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
-    val soundEvents = MutableSharedFlow<SoundPlayEvent>(replay = 0)
-    val onSoundEvent: (SoundPlayEvent) -> Unit = { soundEvents.tryEmit(it) }
+    val soundEvents = MutableSharedFlow<SoundPlayEvent>()
+    val onSoundEvent: (SoundPlayEvent) -> Unit = {
+        launch { soundEvents.emit(it) }
+    }
     launch {
         serve(
             rpcService { workshopService(serverState, onEvent = { eventBus.trySend(it) }) },
