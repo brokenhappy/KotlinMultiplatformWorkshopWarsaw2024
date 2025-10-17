@@ -50,6 +50,8 @@ import io.ktor.http.*
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.serverUrl
+import kmpworkshop.common.serverWebsocketPort
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -97,9 +99,8 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
     val client: KtorRpcClient = ktorClient.rpc {
         url {
             protocol = URLProtocol.WSS
-//            host = "woutsworkshopv4.europe-west1-gke.intellij.net"
-            host = "woutsworkshopv2.labs.jb.gg/"
-            port = 443
+            host = serverUrl
+            port = serverWebsocketPort
             encodedPath = "rpc"
         }
 
