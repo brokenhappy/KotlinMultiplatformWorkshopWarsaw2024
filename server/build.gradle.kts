@@ -12,7 +12,7 @@ version = "unspecified"
 
 jib {
     from {
-        image = "alpine:latest"
+        image = "amazoncorretto:17"
     }
 }
 
