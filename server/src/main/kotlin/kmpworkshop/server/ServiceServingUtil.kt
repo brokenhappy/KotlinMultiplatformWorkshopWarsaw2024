@@ -5,7 +5,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.*
-import kmpworkshop.common.WorkshopApiService
+import io.ktor.websocket.timeout
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.rpc.annotations.Rpc
 import kotlinx.rpc.krpc.ktor.server.Krpc
@@ -13,6 +13,7 @@ import kotlinx.rpc.krpc.ktor.server.KrpcRoute
 import kotlinx.rpc.krpc.ktor.server.rpc
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlin.reflect.KClass
+import kotlin.time.Duration.Companion.days
 
 suspend fun serve(vararg services: RpcService<*>): Nothing = serve(services.toList())
 
@@ -34,6 +35,8 @@ suspend fun serve(services: List<RpcService<*>>): Nothing {
                         json()
                     }
                 }
+                timeoutMillis = 999_999_999_999
+                timeout = 999_999_999_999.days
 
                 services.forEach { register(it) }
             }
