@@ -51,16 +51,29 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopStage
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import workshop.adminaccess.*
 import workshop.adminaccess.ScheduledWorkshopEvent.AwaitingResult
 import workshop.adminaccess.ScheduledWorkshopEvent.IgnoringResult
+import java.nio.file.NoSuchFileException
+import java.nio.file.Path
+import kotlin.io.path.Path
+import kotlin.io.path.readText
+import kotlin.io.path.writeText
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -112,12 +125,40 @@ fun AdminApp(onExit: () -> Unit) {
         try {
             withContext(Dispatchers.IO) {
                 withAdminAccessService { adminAccess ->
+                    val serverState = adminAccess
+                        .serverState(adminPassword)
+                        .shareIn(this, SharingStarted.Eagerly, replay = 1)
+
+                    val adminAccessWithSharedStateFlow = object: AdminAccess by adminAccess {
+                        override fun serverState(password: String): Flow<ServerState> = serverState
+                    }
+                    launch {
+                        System.getenv("SERVER_EVENT_BACKUP_DIRECTORY")?.let(::Path)?.sideEffect { backupDir ->
+                            backupDir.toFile().mkdirs()
+                            try {
+                                adminAccess.fire(
+                                    adminPassword,
+                                    RevertWholeStateEvent(Json.decodeFromString<ServerState>(
+                                        backupDir.resolve("adminLocalBackup").readText()),
+                                    ),
+                                )
+                            } catch (e: SerializationException) {
+                                backupDir.resolve("unrestorableBackup${Clock.System.now()}").writeText(backupDir.readText())
+                            } catch (e: NoSuchFileException) {
+                                // No probs
+                            }
+
+                            serverState.drop(2).conflate().collect {
+                                backupDir.resolve("adminLocalBackup").writeText(Json.encodeToString(it))
+                            }
+                        }
+                    }
                     launch {
                         adminAccess.soundEvents(adminPassword).collect { soundEvent ->
                             launch { soundEvent.play() }
                         }
                     }
-                    adminAccessService = adminAccess
+                    adminAccessService = adminAccessWithSharedStateFlow
                     awaitCancellation()
                 }
             }
