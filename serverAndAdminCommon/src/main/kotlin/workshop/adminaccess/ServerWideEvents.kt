@@ -60,12 +60,11 @@ data class RegistrationVerificationEvent(
         val stateWithoutUnverifiedParticipant = oldState.copy(
             unverifiedParticipants = oldState.unverifiedParticipants.filter { it.apiKey != key },
         )
-        val newParticipant = Participant(name, key)
         return if (oldState.participants.any { it.name == name })
             stateWithoutUnverifiedParticipant to NameVerificationResult.NameAlreadyExists
         else stateWithoutUnverifiedParticipant.copy(
-            participants = stateWithoutUnverifiedParticipant.participants + newParticipant,
-            tables = stateWithoutUnverifiedParticipant.tables + Table(0, 0, newParticipant),
+            participants = stateWithoutUnverifiedParticipant.participants + Participant(name, key),
+            tables = stateWithoutUnverifiedParticipant.tables + Table(0, 0, key),
         ).scheduling(SoundPlayEvent.Success)
             .after(0.seconds)
             .to(NameVerificationResult.Success)
@@ -140,10 +139,10 @@ internal fun ServerState.after(
         tables.any { it.x == event.table.x && it.y == event.table.y } ->
             this.after(TableAdded(event.table.copy(x = event.table.x + 1, y = event.table.y + 1)), onSoundEvent)
         event.table.assignee == null -> tables
-            .map { it.assignee?.apiKey }
+            .map { it.assignee }
             .toSet()
             .let { allAssignedKeys -> participants.firstOrNull { it.apiKey !in allAssignedKeys } }
-            ?.let { this.after(TableAdded(event.table.copy(assignee = it)), onSoundEvent) }
+            ?.let { this.after(TableAdded(event.table.copy(assignee = it.apiKey)), onSoundEvent) }
             ?: copy(tables = tables + event.table)
         else -> copy(tables = tables + event.table)
     }
@@ -154,10 +153,6 @@ internal fun ServerState.after(
         },
         deactivatedParticipants = deactivatedParticipants.map {
             if (it.apiKey == event.apiKey) it.copy(team = event.newTeam) else it
-        },
-        tables = tables.map {
-            if (it.assignee?.apiKey == event.apiKey) it.copy(assignee = it.assignee.copy(team = event.newTeam))
-            else it
         },
     )
 }

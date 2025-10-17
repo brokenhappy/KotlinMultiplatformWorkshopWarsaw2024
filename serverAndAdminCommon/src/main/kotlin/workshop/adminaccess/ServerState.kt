@@ -27,7 +27,7 @@ data class ServerState(
 )
 
 @Serializable
-data class Table(val x: Int, val y: Int, val assignee: Participant?)
+data class Table(val x: Int, val y: Int, val assignee: ApiKey?)
 
 @Serializable
 data class TimedEvent(
