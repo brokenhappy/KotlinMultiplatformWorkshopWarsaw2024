@@ -308,7 +308,7 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
             Text("# of participants without table: ${
                 state
                     .tables
-                    .map { it.assignee?.apiKey }
+                    .map { it.assignee }
                     .toSet()
                     .let { assignedApiKeys -> state.participants.count { it.apiKey !in assignedApiKeys } }
             }")
@@ -394,12 +394,13 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                         }
                             ?.assignee
                             ?.let { assignee ->
-                                if (isShift) onEvent.schedule(TeamChanged(assignee.apiKey, currentSelectedTeam))
+                                if (isShift) onEvent.schedule(TeamChanged(assignee, currentSelectedTeam))
                                 else {
-                                    if (assignee in stateMutable.deactivatedParticipants)
-                                        onEvent.schedule(ParticipantReactivationEvent(assignee, Random.nextLong()))
+                                    val participant = stateMutable.getParticipantBy(assignee)
+                                    if (participant in stateMutable.deactivatedParticipants)
+                                        onEvent.schedule(ParticipantReactivationEvent(participant, Random.nextLong()))
                                     else
-                                        onEvent.schedule(ParticipantDeactivationEvent(assignee))
+                                        onEvent.schedule(ParticipantDeactivationEvent(participant))
                                 }
                             }
                     }
@@ -477,13 +478,13 @@ private fun TableSetup(state: ServerState, onEvent: OnEvent) {
                     Spacer(modifier = Modifier.width(distanceLeft.asPixelsToDp()))
                     Column {
                         Spacer(modifier = Modifier.height(distanceTop.asPixelsToDp()))
-                        TableView(table, zoom)
+                        TableView(table, table.assignee?.let { state.getParticipantBy(it) }, zoom)
                     }
                 }
             }
             val deactivatedParticipants = state.deactivatedParticipants.map { it.apiKey }.toSet()
             for (table in state.tables) {
-                if (table == currentMovingTable || table.assignee?.apiKey in deactivatedParticipants) {
+                if (table == currentMovingTable || table.assignee in deactivatedParticipants) {
                     Transparent { TableInternal(table) }
                 } else {
                     TableInternal(table)
@@ -523,12 +524,12 @@ private inline fun <T> T.sideEffect(function: (T) -> Unit) {
 }
 
 @Composable
-fun TableView(table: Table, zoom: Double) {
+fun TableView(table: Table, participant: Participant?, zoom: Double) {
     BasicText(
         modifier = Modifier
             .size((tableSize * gridCellSizeInPixels * zoom).asPixelsToDp())
-            .background(table.assignee?.team?.toComposeColor() ?: Color.DarkGray),
-        text  = table.assignee?.name ?: "-",
+            .background(participant?.team?.toComposeColor() ?: Color.DarkGray),
+        text  = participant?.name ?: "-",
         autoSize = TextAutoSize.StepBased(minFontSize = 3.sp, maxFontSize = 20.sp),
         style = TextStyle(color = Color.Black, textAlign = TextAlign.Center),
         overflow = TextOverflow.Ellipsis,
