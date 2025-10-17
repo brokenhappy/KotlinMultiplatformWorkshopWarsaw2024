@@ -673,7 +673,8 @@ private fun Puzzle(state: ServerState, puzzleName: String, onEvent: OnEvent) {
     }
 }
 
-private fun ServerState.getParticipantBy(key: ApiKey): Participant = participants.first { it.apiKey == key }
+private fun ServerState.getParticipantBy(key: ApiKey): Participant =
+    participants.firstOrNull { it.apiKey == key } ?: deactivatedParticipants.first { it.apiKey == key }
 
 @Composable
 private fun Submissions(submissions: Submissions) {

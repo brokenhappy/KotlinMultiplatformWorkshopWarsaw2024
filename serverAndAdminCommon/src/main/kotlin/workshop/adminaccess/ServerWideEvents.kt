@@ -184,5 +184,5 @@ private fun ServerState.reactivateParticipant(participant: Participant): ServerS
 
 private fun ServerState.removeParticipant(participant: Participant): ServerState = copy(
     deactivatedParticipants = deactivatedParticipants - participant,
-    tables = tables.map { if (it.assignee == participant) it.copy(assignee = null) else it }
+    tables = tables.map { if (it.assignee == participant.apiKey) it.copy(assignee = null) else it },
 )
