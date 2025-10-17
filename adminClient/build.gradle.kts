@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm")
     application
     kotlin("plugin.serialization")
+    id("org.jetbrains.compose.hot-reload")
 //    id("io.ktor.plugin")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")

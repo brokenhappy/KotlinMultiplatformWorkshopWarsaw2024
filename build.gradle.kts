@@ -5,5 +5,6 @@ plugins {
     kotlin("jvm") version "2.2.0" apply false
     id("com.google.cloud.tools.jib") version "3.3.1" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.0" apply false
+    id("org.jetbrains.compose.hot-reload") version "1.0.0-rc02" apply false
     id("org.jetbrains.compose") version "1.8.2" apply false
 }
