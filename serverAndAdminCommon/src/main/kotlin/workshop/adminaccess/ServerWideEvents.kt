@@ -125,7 +125,7 @@ internal fun ServerState.after(
     is ParticipantRejectionEvent -> copy(unverifiedParticipants = unverifiedParticipants - event.participant)
     is ApplyScheduledEvent -> copy(
         scheduledEvents = scheduledEvents - event.timedEvent,
-    ).after(event.timedEvent.event, onSoundEvent = {})
+    ).after(event.timedEvent.event, onSoundEvent = onSoundEvent)
     is RevertWholeStateEvent -> event.newState
     is TeamAssignmentChange -> copy(
         participants = participants
