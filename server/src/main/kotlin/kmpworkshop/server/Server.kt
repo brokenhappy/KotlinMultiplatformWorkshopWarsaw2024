@@ -83,7 +83,7 @@ fun workshopService(
     ): Flow<SolvingStatus> = flow {
         val puzzle = WorkshopStage
             .entries
-            .firstOrNull { it.kotlinFile == puzzleName }
+            .firstOrNull { it.name == puzzleName }
             ?.let { findPuzzleFor(it) }
             ?: run {
                 println("Someone tried to request puzzle name: $puzzleName")
