@@ -69,8 +69,10 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                 }
                 is CoroutinePuzzleEndpointAnswer.Done -> answer.result
                 CoroutinePuzzleEndpointAnswer.IncorrectInput -> accidentalChangesMadeError()
-                CoroutinePuzzleEndpointAnswer.AlreadySolved -> TODO()
-                CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet -> TODO()
+                CoroutinePuzzleEndpointAnswer.AlreadySolved ->
+                    CoroutinePuzzleSolutionResult.Failure("You have already solved this puzzle!")
+                CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet ->
+                    CoroutinePuzzleSolutionResult.Failure("The puzzle has not been opened yet!")
             }
         }.first()
     }
