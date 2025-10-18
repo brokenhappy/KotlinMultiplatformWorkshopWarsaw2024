@@ -2,6 +2,7 @@ package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
@@ -15,6 +16,8 @@ class CoroutinePuzzlesTest {
         doTimedSumPuzzle { }.assertIsNotOk()
         doSimpleCollectPuzzle { }.assertIsNotOk()
         doCollectLatestPuzzle { }.assertIsNotOk()
+        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
+        doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
     }
 
     @Test
@@ -107,6 +110,59 @@ class CoroutinePuzzlesTest {
             .description
             .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
             .assert({ "1.8" in it.lowercase() }) { "Message must mention expected time" }
+    }
+
+    @Test
+    fun `correct simple maximum age finding solution`(): Unit = runBlocking {
+        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .maxOf { database.queryUser(it).age }
+            )
+        }
+    }
+
+    @Test
+    fun `correct timed maximum age finding solution`(): Unit = runBlocking {
+        doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUser(it) } }
+                    .awaitAll()
+                    .maxOf { it.age }
+            )
+        }
+    }
+
+    @Test
+    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runBlocking {
+        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUser(it) } }
+                    .awaitAll()
+                    .maxOf { it.age }
+            )
+        }
+    }
+
+    @Test
+    fun `synchronous solution for timed maximum age finding fails`(): Unit = runBlocking {
+        doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .maxOf { database.queryUser(it).age }
+            )
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "synchronous solution for timed maximum age finding should fail" }
+            .description
+            .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
+            .assert({ "3" in it.lowercase() }) { "Message must mention expected time" }
+
     }
 }
 

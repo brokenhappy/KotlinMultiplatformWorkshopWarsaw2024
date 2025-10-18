@@ -6,6 +6,7 @@ import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.asServer
 import kmpworkshop.common.clientApiKey
 import kmpworkshop.common.getNumberAndSubmit
+import kmpworkshop.common.getUserDatabase
 import kmpworkshop.common.numberFlowAndSubmit
 import kotlinx.coroutines.flow.first
 
@@ -20,6 +21,8 @@ suspend fun main() {
             WorkshopStage.FindOldestUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindOldestUserAmong)
             WorkshopStage.SumOfTwoIntsSlow,
             WorkshopStage.SumOfTwoIntsFast -> checkCoroutinePuzzle(stage.name, ::numberSummer) { getNumberAndSubmit() }
+            WorkshopStage.FindMaximumAgeCoroutines,
+            WorkshopStage.FastFindMaximumAgeCoroutines -> checkCoroutinePuzzle(stage.name, ::maximumAgeFindingWithCoroutines) { getUserDatabase() }
             WorkshopStage.SimpleFlow,
             WorkshopStage.CollectLatest -> checkCoroutinePuzzle(stage.name, ::showingHowItsFlowing) { numberFlowAndSubmit() }
         }
