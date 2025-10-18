@@ -201,3 +201,27 @@ fun numberFlowAndSubmit(): NumberFlowAndSubmit = object : NumberFlowAndSubmit {
         }
     }
 }
+
+interface UserDatabase {
+    suspend fun getAllIds(): List<Int>
+    suspend fun queryUser(id: Int): User
+    suspend fun submit(number: Int)
+}
+
+data class User(val name: String, val age: Int)
+
+context(solutionScope: CoroutinePuzzleSolutionScope)
+fun getUserDatabase(): UserDatabase = object : UserDatabase {
+    override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
+    override suspend fun queryUser(id: Int): User = queryUserById.submitCall(id).let { User(it.name, it.age) }
+    override suspend fun submit(number: Int) {
+        try {
+            submitNumber.submitCall(number)
+        } catch (e: CancellationException) {
+            importantCleanup {
+                cancelSubmit.submitCall(Unit)
+            }
+            throw e
+        }
+    }
+}

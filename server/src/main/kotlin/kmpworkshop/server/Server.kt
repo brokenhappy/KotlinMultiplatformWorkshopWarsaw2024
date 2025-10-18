@@ -185,6 +185,8 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
     SumOfTwoIntsFast,
     CollectLatest,
     SimpleFlow,
+    FindMaximumAgeCoroutines,
+    FastFindMaximumAgeCoroutines,
     PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,

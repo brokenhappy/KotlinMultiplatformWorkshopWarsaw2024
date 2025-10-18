@@ -72,6 +72,8 @@ fun ClientEntryPoint(
         """.trimIndent())
         WorkshopStage.SumOfTwoIntsSlow,
         WorkshopStage.SumOfTwoIntsFast,
+        WorkshopStage.FindMaximumAgeCoroutines,
+        WorkshopStage.FastFindMaximumAgeCoroutines,
         WorkshopStage.SimpleFlow,
         WorkshopStage.CollectLatest,
         WorkshopStage.PalindromeCheckTask,

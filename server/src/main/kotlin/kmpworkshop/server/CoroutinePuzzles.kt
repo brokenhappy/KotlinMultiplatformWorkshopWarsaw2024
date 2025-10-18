@@ -115,6 +115,8 @@ context(builder: CoroutinePuzzleBuilderScope)
 internal inline fun verify(condition: Boolean, message: () -> String) {
     if (!condition) fail(message())
 }
+context(builder: CoroutinePuzzleBuilderScope)
+internal inline fun <T : Any> T?.verifyNotNull(message: () -> String): T = this ?: fail(message())
 
 context(builder: CoroutinePuzzleBuilderScope)
 internal suspend inline fun <
