@@ -120,7 +120,7 @@ class CoroutinePuzzlesTest {
                     .getAllIds()
                     .maxOf { database.queryUser(it).age }
             )
-        }
+        }.assertIsOk()
     }
 
     @Test
@@ -133,7 +133,7 @@ class CoroutinePuzzlesTest {
                     .awaitAll()
                     .maxOf { it.age }
             )
-        }
+        }.assertIsOk()
     }
 
     @Test
@@ -146,7 +146,7 @@ class CoroutinePuzzlesTest {
                     .awaitAll()
                     .maxOf { it.age }
             )
-        }
+        }.assertIsOk()
     }
 
     @Test
