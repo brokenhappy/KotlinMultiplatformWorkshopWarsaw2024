@@ -157,7 +157,7 @@ fun AdminApp(onExit: () -> Unit) {
                     launch {
                         while (true) {
                             adminAccess.heartbeat()
-                            delay(10.seconds)
+                            delay(2.seconds)
                         }
                     }
                     launch {
