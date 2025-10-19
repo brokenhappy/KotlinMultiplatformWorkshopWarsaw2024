@@ -1,16 +1,25 @@
 package kmpworkshop.common
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -96,7 +105,7 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
             object : CoroutinePuzzleSolutionScope {
                 override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
                     val state = puzzleState.mapNotNull { currentState ->
-//                        println("${coroutineContext.job.hashCode()} => $currentState")
+                        println("${coroutineContext.job.hashCode()} => $currentState")
                         val expectedCalls = currentState.expectedCalls.filterNot { it.isTaken }
                         if (currentState.branchCount < currentState.expectedCalls.size) error("Wth happened?")
                         else stateRemoverLock.withLock {
@@ -211,12 +220,26 @@ interface UserDatabase {
     suspend fun submit(number: Int)
 }
 
+interface UserDatabaseWithLegacyQueryUser {
+    suspend fun getAllIds(): List<Int>
+    fun queryUserWithCallback(
+        id: Int,
+        onSuccess: (User) -> Unit,
+        onError: (Throwable) -> Unit = { error("Query exception happened, but you didn't handle it!") },
+    ): QueryHandle
+    suspend fun submit(number: Int)
+}
+
+interface QueryHandle {
+    fun cancel(onCancellationFinished: () -> Unit = {})
+}
+
 data class User(val name: String, val age: Int)
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
 fun getUserDatabase(): UserDatabase = object : UserDatabase {
     override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
-    override suspend fun queryUser(id: Int): User = queryUserById.submitCall(id).let { User(it.name, it.age) }
+    override suspend fun queryUser(id: Int): User = queryUserById.submitCall(id)!!.let { User(it.name, it.age) }
     override suspend fun submit(number: Int) {
         try {
             submitNumber.submitCall(number)
@@ -228,3 +251,59 @@ fun getUserDatabase(): UserDatabase = object : UserDatabase {
         }
     }
 }
+
+context(solutionScope: CoroutinePuzzleSolutionScope)
+fun getUserDatabaseWithLegacyQueryUser(): UserDatabaseWithLegacyQueryUser = object : UserDatabaseWithLegacyQueryUser {
+    override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
+
+    override fun queryUserWithCallback(id: Int, onSuccess: (User) -> Unit, onError: (Throwable) -> Unit): QueryHandle {
+        val isDone = CompletableDeferred<Unit>()
+        return GlobalScope.launch(Dispatchers.IO) {
+            try {
+                queryUserById
+                    .submitCall(id)
+                    ?.let {
+                        onSuccess(User(it.name, it.age))
+                    }
+                    ?: onError(QueryFetchFailedForSomeReasonException())
+            } finally {
+                if (!this.isActive) {
+                    withContext(NonCancellable) {
+                        GlobalScope.launch {
+                            cancelQuery.submitCall(Unit)
+                            isDone.complete(Unit)
+                        }.join()
+                    }
+                }
+            }
+        }.let { job ->
+            object : QueryHandle {
+                override fun cancel(onCancellationFinished: () -> Unit) {
+                    GlobalScope.launch {
+                        try {
+                            job.cancelAndJoin()
+                            isDone.await() // I am so confused as to why this is necessary...
+                        } catch (t: Throwable) {
+                            t.printStackTrace()
+                        } finally {
+                            onCancellationFinished()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override suspend fun submit(number: Int) {
+        try {
+            submitNumber.submitCall(number)
+        } catch (e: CancellationException) {
+            importantCleanup {
+                cancelSubmit.submitCall(Unit)
+            }
+            throw e
+        }
+    }
+}
+
+class QueryFetchFailedForSomeReasonException(): Exception()

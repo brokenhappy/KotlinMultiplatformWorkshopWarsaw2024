@@ -1,12 +1,13 @@
 package kmpworkshop.client
 
-import kmpworkshop.client.*
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.asServer
 import kmpworkshop.common.clientApiKey
 import kmpworkshop.common.getNumberAndSubmit
 import kmpworkshop.common.getUserDatabase
+import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
+import kmpworkshop.common.mapFromLegacyApiWithScaffolding
 import kmpworkshop.common.numberFlowAndSubmit
 import kotlinx.coroutines.flow.first
 
@@ -22,7 +23,19 @@ suspend fun main() {
             WorkshopStage.SumOfTwoIntsSlow,
             WorkshopStage.SumOfTwoIntsFast -> checkCoroutinePuzzle(stage.name, ::numberSummer) { getNumberAndSubmit() }
             WorkshopStage.FindMaximumAgeCoroutines,
-            WorkshopStage.FastFindMaximumAgeCoroutines -> checkCoroutinePuzzle(stage.name, ::maximumAgeFindingWithCoroutines) { getUserDatabase() }
+            WorkshopStage.FastFindMaximumAgeCoroutines -> checkCoroutinePuzzle(
+                stage.name,
+                ::maximumAgeFindingWithCoroutines,
+            ) { getUserDatabase() }
+            WorkshopStage.MappingFromLegacyApisStepOne -> checkCoroutinePuzzle(
+                stage.name,
+                ::mapFromLegacyApi,
+            ) { getUserDatabaseWithLegacyQueryUser() }
+            WorkshopStage.MappingFromLegacyApisStepTwo,
+            WorkshopStage.MappingFromLegacyApisStepThree -> checkCoroutinePuzzleInternal(
+                stage.name,
+                { mapFromLegacyApiWithScaffolding(it, ::mapFromLegacyApi) },
+            ) { getUserDatabaseWithLegacyQueryUser() }
             WorkshopStage.SimpleFlow,
             WorkshopStage.CollectLatest -> checkCoroutinePuzzle(stage.name, ::showingHowItsFlowing) { numberFlowAndSubmit() }
         }

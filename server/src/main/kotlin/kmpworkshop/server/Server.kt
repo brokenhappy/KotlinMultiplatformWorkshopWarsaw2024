@@ -187,6 +187,9 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
     SimpleFlow,
     FindMaximumAgeCoroutines,
     FastFindMaximumAgeCoroutines,
+    MappingFromLegacyApisStepOne,
+    MappingFromLegacyApisStepTwo,
+    MappingFromLegacyApisStepThree,
     PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,

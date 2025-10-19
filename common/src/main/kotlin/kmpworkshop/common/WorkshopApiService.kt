@@ -88,6 +88,9 @@ enum class WorkshopStage(val kotlinFile: String) {
     SumOfTwoIntsFast("NumSumFun.kt"),
     FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
     FastFindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
+    MappingFromLegacyApisStepOne("MappingFromLegacyApisStepOne.kt"),
+    MappingFromLegacyApisStepTwo("MappingFromLegacyApisStepOne.kt"),
+    MappingFromLegacyApisStepThree("MappingFromLegacyApisStepOne.kt"),
     SimpleFlow("FlowShow.kt"),
     CollectLatest("FlowShow.kt"),
 }

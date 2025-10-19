@@ -1,13 +1,23 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.User
+import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.seconds
 
 class CoroutinePuzzlesTest {
     @Test
@@ -150,6 +160,71 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
+    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runBlocking {
+        doMappingLegacyApiCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .maxOf { database.queryUserWithoutException(it).age }
+            )
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runBlocking {
+        doMappingLegacyApiCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUserWithoutException(it) } }
+                    .awaitAll()
+                    .maxOf { it.age }
+            )
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runBlocking {
+        withTimeoutOrNull(2.seconds) {
+            doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
+                database.submit(
+                    database
+                        .getAllIds()
+                        .map { async { database.queryUserWithoutException(it) } }
+                        .awaitAll()
+                        .maxOf { it.age }
+                )
+            }
+        }.let { assert(it == null) { "Must time out!" } }
+    }
+
+    @Test
+    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runBlocking {
+        doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUserWithoutCancellation(it) } }
+                    .awaitAll()
+                    .maxOf { it.age }
+            )
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `full solution is correct for last puzzle`(): Unit = runBlocking {
+        doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUser(it) } }
+                    .awaitAll()
+                    .maxOf { it.age },
+            )
+        }.assertIsOk()
+    }
+
+    @Test
     fun `synchronous solution for timed maximum age finding fails`(): Unit = runBlocking {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
@@ -163,6 +238,41 @@ class CoroutinePuzzlesTest {
             .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
             .assert({ "3" in it.lowercase() }) { "Message must mention expected time" }
 
+    }
+
+}
+
+private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
+    return suspendCancellableCoroutine { continuation ->
+        queryUserWithCallback(
+            id,
+            onSuccess = { continuation.resume(it) },
+            onError = { continuation.resumeWithException(it) },
+        ).let { handle ->
+            continuation.invokeOnCancellation {
+                handle.cancel(onCancellationFinished = {
+                    continuation.resumeWithException(CancellationException())
+                })
+            }
+        }
+    }.also { println("Got user $it") }
+}
+
+private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutCancellation(id: Int): User {
+    return suspendCancellableCoroutine { continuation ->
+        queryUserWithCallback(
+            id,
+            onSuccess = { continuation.resume(it) },
+            onError = {
+                continuation.resumeWithException(it)
+            },
+        )
+    }
+}
+
+private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutException(id: Int): User {
+    return suspendCancellableCoroutine { continuation ->
+        queryUserWithCallback(id, onSuccess = { continuation.resume(it) })
     }
 }
 

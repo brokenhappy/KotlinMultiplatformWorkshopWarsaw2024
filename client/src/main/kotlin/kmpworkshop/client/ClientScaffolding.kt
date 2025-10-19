@@ -76,6 +76,9 @@ fun ClientEntryPoint(
         WorkshopStage.FastFindMaximumAgeCoroutines,
         WorkshopStage.SimpleFlow,
         WorkshopStage.CollectLatest,
+        WorkshopStage.MappingFromLegacyApisStepOne,
+        WorkshopStage.MappingFromLegacyApisStepTwo,
+        WorkshopStage.MappingFromLegacyApisStepThree,
         WorkshopStage.PalindromeCheckTask,
         WorkshopStage.FindMinimumAgeOfUserTask,
         WorkshopStage.FindOldestUserTask -> Text("""
