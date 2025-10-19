@@ -653,6 +653,9 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
                 WorkshopStage.PalindromeCheckTask,
                 WorkshopStage.FindMaximumAgeCoroutines,
                 WorkshopStage.FastFindMaximumAgeCoroutines,
+                WorkshopStage.MappingFromLegacyApisStepOne,
+                WorkshopStage.MappingFromLegacyApisStepTwo,
+                WorkshopStage.MappingFromLegacyApisStepThree,
                 WorkshopStage.FindMinimumAgeOfUserTask,
                 WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
             }
