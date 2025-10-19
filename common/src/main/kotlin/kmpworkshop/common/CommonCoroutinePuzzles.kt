@@ -108,13 +108,15 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                                         |The history of actions was:
                                         |${history.value.joinToString("\n") { it.description }}
                                         ${
-                                            when (expectedCalls.size) {
-                                                0 -> "|And no more actions were expected to be made."
-                                                1 -> "|And now the expected action is: ${expectedCalls.first().endPoint.description}"
-                                                else -> """
-                                                    |And now the expected actions are either:
-                                                    |${expectedCalls.joinToString(",\n or ") { it.endPoint.description }}
-                                                """.trimIndent()
+                                            expectedCalls.map { it.endPoint.description }.distinct().let { expectedCalls ->
+                                                when (expectedCalls.size) {
+                                                    0 -> "|And no more actions were expected to be made."
+                                                    1 -> "|And now the expected action is: ${expectedCalls.first()}"
+                                                    else -> """
+                                                        |And now the expected actions are either:
+                                                        |${expectedCalls.joinToString(",\n or ")}
+                                                    """.trimIndent()
+                                                }
                                             }
                                         }
                                         |But instead you did: $description
@@ -134,14 +136,15 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
             val leftoverExpectedCalls = stateRemoverLock.withLock {
                 puzzleState.value.expectedCalls.filterNot { it.isTaken }
             }
-            when (leftoverExpectedCalls.size) {
+            val distinctLeftoverExpectedCalls = leftoverExpectedCalls.map { it.endPoint.description }.distinct()
+            when (distinctLeftoverExpectedCalls.size) {
                 0 -> { /* All is OK! */ }
                 1 -> failBecauseLeftovers(
-                    "You made too few function calls. We're still expecting: ${leftoverExpectedCalls.single().endPoint.description}"
+                    "You made too few function calls. We're still expecting: ${distinctLeftoverExpectedCalls.single()}"
                 )
                 else -> failBecauseLeftovers("""
                     |You made too few function calls, we were expecting one of:
-                    |${leftoverExpectedCalls.joinToString(",\n or ") { it.endPoint.description }}
+                    |${distinctLeftoverExpectedCalls.joinToString(",\n or ")}
                 """.trimMargin())
             }
             CoroutinePuzzleSolutionResult.Success
