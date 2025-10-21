@@ -14,6 +14,8 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -31,7 +33,7 @@ fun simpleSumPuzzle() = coroutinePuzzle {
 }
 
 fun timedSumPuzzle() = coroutinePuzzle {
-    val (sum, time) = measureTimedValue {
+    val sum = withTimeoutOrNull(1.8.seconds) {
         puzzleScope {
             val number1 = (0..100).random()
             launchBranch {
@@ -48,11 +50,10 @@ fun timedSumPuzzle() = coroutinePuzzle {
 
             number1 + number2
         }
-    }
+    } ?: fail("Too slow! Expected to take less than 1.8 seconds")
 
     val actual = submitNumber.expectCall(Unit)
     verify(actual == sum) { "The value that you submit must the sum of the numbers you got ($sum), but got $actual" }
-    verify(time < 1.8.seconds) { "Too slow! Expected to take less than 1.8 seconds, but instead took $time" }
 }
 
 suspend fun doSimpleSumPuzzle(
