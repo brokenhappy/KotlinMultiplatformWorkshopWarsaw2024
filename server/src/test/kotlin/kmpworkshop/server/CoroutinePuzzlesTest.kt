@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
@@ -21,7 +22,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class CoroutinePuzzlesTest {
     @Test
-    fun `empty solutions are wrong`(): Unit = runBlocking {
+    fun `empty solutions are wrong`(): Unit = runTest {
         doSimpleSumPuzzle { }.assertIsNotOk()
         doTimedSumPuzzle { }.assertIsNotOk()
         doSimpleCollectPuzzle { }.assertIsNotOk()
@@ -31,7 +32,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `regular collect must fail collect latest puzzle`(): Unit = runBlocking {
+    fun `regular collect must fail collect latest puzzle`(): Unit = runTest {
         doCollectLatestPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }
@@ -42,21 +43,21 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `collectLatest correct solution`(): Unit = runBlocking {
+    fun `collectLatest correct solution`(): Unit = runTest {
         doCollectLatestPuzzle { api ->
             api.numbers().collectLatest { api.submit(it) }
         }.assertIsOk()
     }
 
     @Test
-    fun `simple flow puzzle does not need collect latest`(): Unit = runBlocking {
+    fun `simple flow puzzle does not need collect latest`(): Unit = runTest {
         doSimpleCollectPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }.assertIsOk()
     }
 
     @Test
-    fun `simple flow puzzle might pass with collect latest`(): Unit = runBlocking {
+    fun `simple flow puzzle might pass with collect latest`(): Unit = runTest {
         // Not strictly needed behavior, but I keep it in here to increase coverage
         doSimpleCollectPuzzle { api ->
             api.numbers().collectLatest { api.submit(it) }
@@ -64,14 +65,14 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `simple sum correct solution`(): Unit = runBlocking {
+    fun `simple sum correct solution`(): Unit = runTest {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }.assertIsOk()
     }
 
     @Test
-    fun `sum of too many numbers`(): Unit = runBlocking {
+    fun `sum of too many numbers`(): Unit = runTest {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber() + api.getNumber())
         }.assertIsNotOk()
@@ -83,7 +84,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `submitting incorrect sum is not ok`(): Unit = runBlocking {
+    fun `submitting incorrect sum is not ok`(): Unit = runTest {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber())
         }.assertIsNotOk()
@@ -96,7 +97,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `submitting in parallel is ok`(): Unit = runBlocking {
+    fun `submitting in parallel is ok`(): Unit = runTest {
         doSimpleSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
@@ -104,7 +105,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `timed sum correct solution`(): Unit = runBlocking {
+    fun `timed sum correct solution`(): Unit = runTest {
         doTimedSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
@@ -112,7 +113,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `timed sum too slow solution fails`(): Unit = runBlocking {
+    fun `timed sum too slow solution fails`(): Unit = runTest {
         doTimedSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
@@ -123,7 +124,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `correct simple maximum age finding solution`(): Unit = runBlocking {
+    fun `correct simple maximum age finding solution`(): Unit = runTest {
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -134,7 +135,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `correct timed maximum age finding solution`(): Unit = runBlocking {
+    fun `correct timed maximum age finding solution`(): Unit = runTest {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -147,7 +148,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runBlocking {
+    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runTest {
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -160,7 +161,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runBlocking {
+    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runTest {
         doMappingLegacyApiCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -171,7 +172,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runBlocking {
+    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runTest {
         doMappingLegacyApiCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -184,7 +185,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runBlocking {
+    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runTest {
         withTimeoutOrNull(2.seconds) {
             doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
                 database.submit(
@@ -199,7 +200,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runBlocking {
+    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runTest {
         doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -212,7 +213,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `full solution is correct for last puzzle`(): Unit = runBlocking {
+    fun `full solution is correct for last puzzle`(): Unit = runTest {
         doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -225,7 +226,7 @@ class CoroutinePuzzlesTest {
     }
 
     @Test
-    fun `synchronous solution for timed maximum age finding fails`(): Unit = runBlocking {
+    fun `synchronous solution for timed maximum age finding fails`(): Unit = runTest {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
