@@ -3,7 +3,6 @@ package kmpworkshop.server
 import kmpworkshop.common.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.completeWith
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -37,14 +36,6 @@ private suspend fun <T> puzzleScope(
     stateFlow: MutableStateFlow<CoroutinePuzzleState>,
     isTopLevel: Boolean = false,
 ): T = coroutineScope {
-    val scopeBranchCount = AtomicInteger(1)
-    fun cleanScope() {
-        if (scopeBranchCount.decrementAndGet() != 0 || isTopLevel) {
-            stateFlow.update { old ->
-                old.copy(branchCount = old.branchCount - 1)
-            }
-        }
-    }
     context(object : CoroutinePuzzleBuilderScope {
         override suspend fun <T, R> expectCallTo(
             endPoint: CoroutinePuzzleEndPoint<T, R>,
@@ -87,7 +78,6 @@ private suspend fun <T> puzzleScope(
         }
 
         override fun launchBranch(branch: suspend context(CoroutinePuzzleBuilderScope) () -> Unit): Job {
-            scopeBranchCount.incrementAndGet()
             stateFlow.update { old ->
                 old.copy(branchCount = old.branchCount + 1)
             }
@@ -95,7 +85,9 @@ private suspend fun <T> puzzleScope(
                 try {
                     puzzleScope(branch, stateFlow)
                 } finally {
-                    cleanScope()
+                    stateFlow.update { old ->
+                        old.copy(branchCount = old.branchCount - 1)
+                    }
                 }
             }
         }
@@ -103,11 +95,10 @@ private suspend fun <T> puzzleScope(
         override suspend fun <T> puzzleScope(branch: suspend context(CoroutinePuzzleBuilderScope) () -> T): T =
             puzzleScope(branch, stateFlow)
     }) {
-        try {
-            branch()
-        } finally {
-            cleanScope()
-        }
+        branch()
+    }
+}.also {
+    if (isTopLevel) stateFlow.update { it.copy(branchCount = 0) }
 }
 
 context(_: CoroutinePuzzleBuilderScope)
