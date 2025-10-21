@@ -52,6 +52,7 @@ import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.serverUrl
 import kmpworkshop.common.serverWebsocketPort
+import kmpworkshop.common.sideEffect
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -602,10 +603,6 @@ fun Transparent(content: @Composable () -> Unit) {
     Box(modifier = Modifier.alpha(0.5f)) {
         content()
     }
-}
-
-private inline fun <T> T.sideEffect(function: (T) -> Unit) {
-    function(this)
 }
 
 @Composable
