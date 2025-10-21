@@ -3,6 +3,7 @@ package kmpworkshop.server
 import kmpworkshop.common.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.completeWith
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -73,7 +74,7 @@ private suspend fun <T> puzzleScope(
                 }
                 .getOrThrow()
                 .also { argument ->
-                    resultDeferred.complete(valueProducer(argument)) // Produce value on "expectCall" side
+                    resultDeferred.completeWith(runCatching { valueProducer(argument) }) // Produce value on "expectCall" side
                 }
         }
 
