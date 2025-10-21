@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentLinkedDeque
 
 interface CoroutinePuzzleBuilderScope {
     suspend fun <T, R> expectCallTo(
@@ -108,7 +108,30 @@ private suspend fun <T> puzzleScope(
         } finally {
             cleanScope()
         }
+}
+
+context(_: CoroutinePuzzleBuilderScope)
+suspend fun launchBranches(
+    parallelism: Int,
+    parallelExpectations: suspend context(CoroutinePuzzleBuilderScope) () -> Unit,
+) {
+    (0..<parallelism).toList().branchForEach { parallelExpectations() }
+}
+
+context(_: CoroutinePuzzleBuilderScope)
+suspend fun <T, R> List<T>.branchForEach(
+    parallelExpectations: suspend context(CoroutinePuzzleBuilderScope) (T) -> R,
+): List<R> {
+    val concurrentList = ConcurrentLinkedDeque<R & Any>()
+    puzzleScope {
+        this.dropLast(1).forEach { element ->
+            launchBranch {
+                concurrentList.add(parallelExpectations(element))
+            }
+        }
+        concurrentList.add(parallelExpectations(this.last()))
     }
+    return concurrentList.toList()
 }
 
 context(_: CoroutinePuzzleBuilderScope)

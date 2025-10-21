@@ -32,7 +32,7 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle
     getAllUserIds.expectCall { database.keys.toList() }
 
     suspend fun expectQueryCalls(isTimed: Boolean) {
-        expectParallelCalls(database.size) {
+        launchBranches(parallelism = database.size) {
             expectQueryCall(isTimed, database)
         }
     }
@@ -92,7 +92,7 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
 
     getAllUserIds.expectCall { database.keys.toList() }
 
-    expectParallelCalls(database.size - 1) {
+    launchBranches(parallelism = database.size - 1) {
         expectQueryCall(isTimed = false, database)
     }
     queryUserById.expectCall(null) // The last one throws an exception
@@ -113,7 +113,7 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
 
     getAllUserIds.expectCall { database.keys.toList() }
 
-    expectParallelCalls(database.size - 1) {
+    launchBranches(parallelism = database.size - 1) {
         expectQueryCall(isTimed = false, database)
     }
     // TODO: Fix this!!
@@ -133,21 +133,6 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
         }
     }
     callIsDone.expectCall(Unit)
-}
-
-context(_: CoroutinePuzzleBuilderScope)
-private suspend fun expectParallelCalls(
-    parallelism: Int,
-    parallelExpectations: suspend context(CoroutinePuzzleBuilderScope) () -> Unit,
-) {
-    puzzleScope {
-        repeat(parallelism - 1) {
-            launchBranch {
-                parallelExpectations()
-            }
-        }
-        parallelExpectations()
-    }
 }
 
 private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequence { (0..10_000).random() }
