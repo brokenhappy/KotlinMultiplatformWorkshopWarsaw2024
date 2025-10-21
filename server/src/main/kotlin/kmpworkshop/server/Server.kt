@@ -6,9 +6,7 @@ package kmpworkshop.server
 import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
 import kmpworkshop.common.WorkshopStage.*
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
@@ -141,10 +139,15 @@ fun workshopService(
             puzzle.solve {
                 calls.collect { call ->
                     launch {
-                        send(CallAnswered(
-                            call.callId,
-                            deserializeEndpoint(call.endPointName).submitRawCall(call.argument),
-                        ))
+                        try {
+                            send(CallAnswered(
+                                callId = call.callId,
+                                answer = deserializeEndpoint(call.endPointName).submitRawCall(call.argument),
+                            ))
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                            send(CallAnswered(call.callId, null)) // Internal server error! Oops!
+                        }
                     }
                 }
             }.let {

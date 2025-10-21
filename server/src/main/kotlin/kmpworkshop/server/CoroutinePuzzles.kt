@@ -74,7 +74,15 @@ private suspend fun <T> puzzleScope(
                 }
                 .getOrThrow()
                 .also { argument ->
-                    resultDeferred.completeWith(runCatching { valueProducer(argument) }) // Produce value on "expectCall" side
+                    try {
+                        resultDeferred.complete(valueProducer(argument)) // Try to produce value on "expectCall" side
+                    } catch (failedException: CoroutinePuzzleFailedControlFlowException) {
+                        // Don't complete resultDeferred.
+                        // Just let the solving side wait, since they will get canceled shortly.
+                        throw failedException
+                    } catch (t: Throwable) {
+                        resultDeferred.completeExceptionally(t)
+                    }
                 }
         }
 

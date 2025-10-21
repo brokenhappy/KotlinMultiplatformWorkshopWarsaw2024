@@ -64,7 +64,9 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                 is CoroutinePuzzleEndpointAnswer.CallAnswered -> {
                     val call = callsInProgress.value.first { it.callId == answer.callId }
                     callsInProgress.update { it - call }
-                    call.deferred.complete(answer.answer)
+                    answer.answer
+                        ?.sideEffect { call.deferred.complete(it) }
+                        ?: call.deferred.completeExceptionally(Exception("500: Internal server error... :("))
                     null
                 }
                 is CoroutinePuzzleEndpointAnswer.Done -> answer.result
@@ -108,7 +110,11 @@ data class CoroutinePuzzleEndpointCall(
 @Serializable
 sealed class CoroutinePuzzleEndpointAnswer {
     @Serializable
-    data class CallAnswered(val callId: Int, val answer: JsonElement) : CoroutinePuzzleEndpointAnswer()
+    data class CallAnswered(
+        val callId: Int,
+        /** null implies 500 internal server error */
+        val answer: JsonElement?,
+    ) : CoroutinePuzzleEndpointAnswer()
     @Serializable
     data class Done(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleEndpointAnswer()
     @Serializable
