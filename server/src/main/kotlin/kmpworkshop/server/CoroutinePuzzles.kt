@@ -1,11 +1,15 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -17,7 +21,7 @@ interface CoroutinePuzzleBuilderScope {
         endPoint: CoroutinePuzzleEndPoint<T, R>,
         tSerializer: KSerializer<T>,
         rSerializer: KSerializer<R>,
-        valueProducer: suspend (T) -> R,
+        valueProducer: suspend context(CoroutinePuzzleExpectationScope) (T) -> R,
     ): T
 
     /** Schedules [branch] asynchronously on this [CoroutinePuzzleBuilderScope] */
@@ -31,6 +35,10 @@ fun coroutinePuzzle(
     puzzleScope(builder, stateFlow, isTopLevel = true)
 }
 
+private suspend inline fun MutableStateFlow<CoroutinePuzzleState>.update2(function: (CoroutinePuzzleState) -> CoroutinePuzzleState) {
+    println("${currentCoroutineContext().job.hashCode()} => ${updateAndGet(function)}")
+}
+
 private suspend fun <T> puzzleScope(
     branch: suspend context(CoroutinePuzzleBuilderScope) () -> T,
     stateFlow: MutableStateFlow<CoroutinePuzzleState>,
@@ -41,32 +49,54 @@ private suspend fun <T> puzzleScope(
             endPoint: CoroutinePuzzleEndPoint<T, R>,
             tSerializer: KSerializer<T>,
             rSerializer: KSerializer<R>,
-            valueProducer: suspend (T) -> R
+            valueProducer: suspend context(CoroutinePuzzleExpectationScope) (T) -> R
         ): T {
             val argumentDeferred = CompletableDeferred<T>()
             val resultDeferred = CompletableDeferred<R>()
+            val submissionIsCancelled = CompletableDeferred<CancellationException>()
+            val arrivalConfirmation = CompletableDeferred<Unit>()
             val state = CoroutinePuzzleEndPointWaitingState(
                 endPoint = endPoint,
                 isTaken = false,
                 submitCall = { givenValue ->
                     // This function is being called from the submission side, our context is unknown here.
                     // So we only do `complete` and `await`, and let the work be done on the "expectCall" side
-                    argumentDeferred.complete(Json.decodeFromJsonElement(tSerializer, givenValue))
-                    Json.encodeToJsonElement(rSerializer, resultDeferred.await())
+                    argumentDeferred.completeWithResultOf { (Json.decodeFromJsonElement(tSerializer, givenValue)) }
+                    SubmissionAnswerWithConfirmation(
+                        answer = Json.encodeToJsonElement(
+                            serializer = rSerializer,
+                            value = try {
+                                resultDeferred.await()
+                            } catch (c: CancellationException) {
+                                if (!currentCoroutineContext().isActive) submissionIsCancelled.complete(c)
+                                throw c
+                            },
+                        ),
+                        arrivalConfirmation = arrivalConfirmation,
+                    )
                 },
             )
-            stateFlow.update { old ->
+            stateFlow.update2 { old ->
                 old.copy(expectedCalls = old.expectedCalls + state)
             }
             return runCatching { argumentDeferred.await() }
                 .also { _ ->
                     // First (and always) clean up state, to make sure all side effects are done when the functions end.
-                    stateFlow.update { old -> old.copy(expectedCalls = old.expectedCalls - state) }
+                    stateFlow.update2 { old -> old.copy(expectedCalls = old.expectedCalls - state) }
                 }
                 .getOrThrow()
                 .also { argument ->
                     try {
-                        resultDeferred.complete(valueProducer(argument)) // Try to produce value on "expectCall" side
+                        context(
+                            object: CoroutinePuzzleExpectationScope {
+                                override suspend fun awaitSubmissionCancellation(): Nothing {
+                                    throw submissionIsCancelled.await()
+                                }
+                            }
+                        ) {
+                            resultDeferred.complete(valueProducer(argument)) // Try to produce value on the "expectCall" side
+                        }
+                        arrivalConfirmation.await()
                     } catch (failedException: CoroutinePuzzleFailedControlFlowException) {
                         // Don't complete resultDeferred.
                         // Just let the solving side wait, since they will get canceled shortly.
@@ -78,14 +108,16 @@ private suspend fun <T> puzzleScope(
         }
 
         override fun launchBranch(branch: suspend context(CoroutinePuzzleBuilderScope) () -> Unit): Job {
-            stateFlow.update { old ->
-                old.copy(branchCount = old.branchCount + 1)
-            }
+            println("Increment => ${
+                stateFlow.updateAndGet { old ->
+                    old.copy(branchCount = old.branchCount + 1)
+                }
+            }")
             return this@coroutineScope.launch {
                 try {
                     puzzleScope(branch, stateFlow)
                 } finally {
-                    stateFlow.update { old ->
+                    stateFlow.update2 { old ->
                         old.copy(branchCount = old.branchCount - 1)
                     }
                 }
@@ -98,7 +130,7 @@ private suspend fun <T> puzzleScope(
         branch()
     }
 }.also {
-    if (isTopLevel) stateFlow.update { it.copy(branchCount = 0) }
+    if (isTopLevel) stateFlow.update2 { it.copy(branchCount = 0) }
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -128,10 +160,9 @@ suspend fun <T, R> List<T>.branchForEach(
 context(_: CoroutinePuzzleBuilderScope)
 internal fun fail(message: String): Nothing = throw CoroutinePuzzleFailedControlFlowException(message, true)
 
-
 context(builder: CoroutinePuzzleBuilderScope)
 internal suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.expectCall(
-    noinline valueProducer: suspend (T) -> R,
+    noinline valueProducer: suspend context(CoroutinePuzzleExpectationScope) (T) -> R,
 ): T = builder.expectCallTo(this, serializer(), serializer(), valueProducer)
 
 context(builder: CoroutinePuzzleBuilderScope)
@@ -157,3 +188,10 @@ context(scope: CoroutinePuzzleBuilderScope)
 internal suspend fun <T> puzzleScope(branch: suspend context(CoroutinePuzzleBuilderScope) () -> T): T =
     // Problem is that if main branch completes before launched branch, we don't decrease the branch counter...
     scope.puzzleScope(branch)
+
+interface CoroutinePuzzleExpectationScope {
+    suspend fun awaitSubmissionCancellation(): Nothing
+}
+
+context(expectationScope: CoroutinePuzzleExpectationScope)
+suspend fun awaitCancellationOfMatchingSubmitCall(): Nothing = expectationScope.awaitSubmissionCancellation()

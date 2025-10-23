@@ -7,7 +7,6 @@ import kmpworkshop.common.UserDatabase
 import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
 import kmpworkshop.common.callIsDone
 import kmpworkshop.common.callLifetime
-import kmpworkshop.common.cancelQuery
 import kmpworkshop.common.queryExceptionThrown
 import kmpworkshop.common.getAllUserIds
 import kmpworkshop.common.getUserDatabase
@@ -19,10 +18,11 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration.Companion.seconds
 
@@ -55,10 +55,11 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun expectQueryCall(isTimed: Boolean, database: Map<Int, SerializableUser>) {
-    queryUserById.expectCall { id ->
+    val id = queryUserById.expectCall { id ->
         if (isTimed) delay(1.seconds)
         database.getAndVerifyUserExists(id)
     }
+    println("User with id: $id delivered")
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -103,41 +104,39 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
 
 @OptIn(ExperimentalAtomicApi::class)
 fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = coroutinePuzzle {
-    val timeToCancel = CompletableDeferred<Unit>()
-    launchBranch {
-        callLifetime.expectCall {
-            timeToCancel.await()
-        }
-    }
-    val database = generateUserDatabase()
-
-    getAllUserIds.expectCall { database.keys.toList() }
-
-    launchBranches(parallelism = database.size - 1) {
-        expectQueryCall(isTimed = false, database)
-    }
-    // TODO: Fix this!!
-    delay(3.seconds) // Wth, this is necessary because the parallel calls somehow aren't encapsulated in their puzzleScope {}?!?!
-    val hasCancelled = CompletableDeferred<Unit>()
-    puzzleScope {
+    try {
+        val timeToCancel = CompletableDeferred<Unit>()
         launchBranch {
-            cancelQuery.expectCall(Unit)
-            hasCancelled.complete(Unit)
+            callLifetime.expectCall {
+                timeToCancel.await()
+            }
         }
-        queryUserById.expectCall { id ->
+        val database = generateUserDatabase()
+
+        getAllUserIds.expectCall { database.keys.toList() }
+
+        launchBranches(parallelism = database.size - 1) {
+            expectQueryCall(isTimed = false, database)
+        }
+        queryUserById.expectCall {
             timeToCancel.complete(Unit) // we're going to cancel the last call
-            withTimeoutOrNull(5.seconds) {
-                hasCancelled.await()
-            } ?: fail("Your function got canceled, but you left the last query running")
-            database.getAndVerifyUserExists(id)
+            GlobalScope.async {
+                withTimeoutOrNull(5.seconds) {
+                    awaitCancellationOfMatchingSubmitCall()
+                } ?: fail("Your function got canceled, but you left the last query running")
+            }.await()
         }
+        callIsDone.expectCall(Unit)
+    } catch (t: Throwable) {
+        t.printStackTrace()
+        throw t
     }
-    callIsDone.expectCall(Unit)
 }
 
 private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequence { (0..10_000).random() }
     .runningFold(emptySet<Int>()) { acc, id -> acc + id }
-    .first { it.size == 9 } // Set of unique ids
+    .first { it.size == 8 } // Set of unique ids
+    .plus(10_001) // Fix last id for debugging
     .zip(
         listOf(
             SerializableUser("Alice", 10),
@@ -156,16 +155,16 @@ private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequenc
 suspend fun doMappingLegacyApiCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
 ): CoroutinePuzzleSolutionResult = maximumAgeFindingTheSecondCoroutinePuzzle(isTimed = false).solve {
+    val scope = this
     withImportantCleanup {
-        onUse(getUserDatabaseWithLegacyQueryUser())
+        onUse(getUserDatabaseWithLegacyQueryUser(topLevelScope = scope))
     }
 }
 
 suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
 ): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithException().solve {
-    val database = getUserDatabaseWithLegacyQueryUser()
-    mapFromLegacyApiWithScaffolding(database) {
+    mapFromLegacyApiWithScaffolding {
         coroutineScope {
             onUse(it)
         }
@@ -175,7 +174,7 @@ suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
 suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
 ): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithCancellation().solve {
-    mapFromLegacyApiWithScaffolding(getUserDatabaseWithLegacyQueryUser()) {
+    mapFromLegacyApiWithScaffolding() {
         onUse(it)
     }
 }

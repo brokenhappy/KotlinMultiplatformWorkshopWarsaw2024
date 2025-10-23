@@ -3,36 +3,45 @@ package kmpworkshop.server
 import kmpworkshop.common.CoroutinePuzzle
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.NumberFlowAndSubmit
-import kmpworkshop.common.cancelSubmit
 import kmpworkshop.common.emitNumber
 import kmpworkshop.common.numberFlowAndSubmit
 import kmpworkshop.common.solve
 import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
 
 fun collectLatestPuzzle() = coroutinePuzzle {
     val numbers = (0..< 5).map { (0..100).random() }
+    emitNumber.expectCall(numbers.first())
+    numbers.zipWithNext().forEach { (last, next) ->
+        puzzleScope {
+            val readyToGetCanceledHook = CompletableDeferred<Unit>()
+            launchBranch {
+                emitNumber.expectCall {
+                    // Wait until next submit has started,
+                    // so we can cancel it with the next emission
+                    readyToGetCanceledHook.await()
+                    next
+                }
+            }
+            val actual = submitNumber.expectCall {
+                readyToGetCanceledHook.complete(Unit) // Let's get this canceled!
+                withTimeoutOrNull(2.seconds) {
+                    awaitCancellationOfMatchingSubmitCall()
+                } ?: fail("submitNumber() is expected to be canceled by the new emission into the flow")
+            }
+            verify(actual == last) { "The value that you submit must be a value collected from the flow!" }
+        }
+    }
     launchBranch {
-        for (number in numbers) {
-            emitNumber.expectCall(number) // Emit into flow
-        }
-        emitNumber.expectCall(null) // Finish the flow
+        emitNumber.expectCall(null) // Close the flow
     }
-    numbers.dropLast(1).forEach { number ->
-        val actual = submitNumber.expectCall {
-            withTimeoutOrNull(2.seconds) {
-                cancelSubmit.expectCall(Unit)
-            } ?: fail("submitNumber() is expected to be canceled by the new emission into the flow")
-        }
-        verify(actual == number) { "The value that you submit must be a value collected from the flow!" }
-    }
-    numbers.lastOrNull()?.let { lastNumber ->
-        verify(submitNumber.expectCall(Unit) == lastNumber) {
-            "The value that you submit must be a value collected from the flow!"
-        }
+    // Last call should successfully finish
+    verify(submitNumber.expectCall(Unit) == numbers.last()) {
+        "The value that you submit must be a value collected from the flow!"
     }
 }
 
