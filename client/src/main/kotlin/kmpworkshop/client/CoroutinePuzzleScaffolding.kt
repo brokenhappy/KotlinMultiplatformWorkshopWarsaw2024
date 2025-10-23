@@ -1,32 +1,24 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.ApiKey
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
-import kmpworkshop.common.asServer
-import kmpworkshop.common.clientApiKey
+import kmpworkshop.common.WorkshopServer
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
 
 suspend fun <T> checkCoroutinePuzzle(
+    workshopServer: WorkshopServer,
     puzzleId: String,
     solution: suspend (T) -> Unit,
     builder: context(CoroutinePuzzleSolutionScope) () -> T,
-) {
-    checkCoroutinePuzzleInternal(puzzleId, { solution(it) }, builder)
-}
+): CoroutinePuzzleSolutionResult = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder()) }
 
-suspend fun <T> checkCoroutinePuzzleInternal(
+suspend fun checkCoroutinePuzzleInternal(
+    workshopServer: WorkshopServer,
     puzzleId: String,
-    solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.(T) -> Unit,
-    builder: context(CoroutinePuzzleSolutionScope) () -> T,
-) {
-    withImportantCleanup {
-        when (val result = workshopService.asServer(ApiKey(clientApiKey!!)).doCoroutinePuzzleSolveAttempt(puzzleId) {
-            solution(builder())
-        }) {
-            is CoroutinePuzzleSolutionResult.Failure -> error(result.description)
-            is CoroutinePuzzleSolutionResult.Success -> println("Yay, you did it!")
-        }
+    solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
+): CoroutinePuzzleSolutionResult = withImportantCleanup {
+    workshopServer.doCoroutinePuzzleSolveAttempt(puzzleId) {
+        solution()
     }
 }

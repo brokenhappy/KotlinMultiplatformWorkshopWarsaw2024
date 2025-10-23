@@ -1,26 +1,113 @@
-package kmpworkshop.server
+package com.kotlinworkshop.test
 
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.User
-import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.currentCoroutineContext
+import kmpworkshop.client.runCoroutinePuzzleClient
+import kmpworkshop.common.*
+import kmpworkshop.server.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.job
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
+import workshop.adminaccess.PuzzleState
+import workshop.adminaccess.ScheduledWorkshopEvent
+import workshop.adminaccess.ServerState
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 
-class CoroutinePuzzlesTest {
+typealias DoPuzzleWith<Api> = suspend (suspend CoroutineScope.(Api) -> Unit) -> CoroutinePuzzleSolutionResult
+
+class CoroutinePuzzleTestWithoutRpcAbstraction : CoroutinePuzzlesTest(
+    doSimpleSumPuzzle = ::doSimpleSumPuzzle,
+    doTimedSumPuzzle = ::doTimedSumPuzzle,
+    doSimpleCollectPuzzle = ::doSimpleCollectPuzzle,
+    doCollectLatestPuzzle = ::doCollectLatestPuzzle,
+    doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = ::doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle,
+    doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = ::doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle,
+    doMappingLegacyApiWithExceptionCoroutinePuzzle = ::doMappingLegacyApiWithExceptionCoroutinePuzzle,
+    doMappingLegacyApiWithCancellationCoroutinePuzzle = ::doMappingLegacyApiWithCancellationCoroutinePuzzle,
+    doMappingLegacyApiCoroutinePuzzle = ::doMappingLegacyApiCoroutinePuzzle,
+)
+
+@OptIn(ExperimentalTime::class)
+suspend fun runTestClient(
+    stage: WorkshopStage,
+    puzzleStates: Map<String, PuzzleState> = mapOf(
+        stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
+    ),
+    sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
+    collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
+    maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
+    mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
+): CoroutinePuzzleSolutionResult = coroutineScope {
+    val serverState = MutableStateFlow(ServerState(puzzleStates = puzzleStates))
+    val eventBus = Channel<ScheduledWorkshopEvent>()
+    val job = launch {
+        mainEventLoopWritingTo(
+            serverState,
+            eventBus = eventBus,
+            onCommittedState = {},
+            onSoundEvent = {},
+            onEvent = { launch { eventBus.send(it) } },
+        )
+    }
+    try {
+        runCoroutinePuzzleClient(
+            workshopServer = workshopService(
+                serverState,
+                onEvent = { launch { eventBus.send(it) } },
+            ).asServer(ApiKey("1234-5678")),
+            stage = stage,
+            bigScope = this,
+            sumSolution = sumSolution,
+            collectSolution = collectSolution,
+            maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,
+            mappingLegacyApiCoroutineSolution = mappingLegacyApiCoroutineSolution,
+        )
+    } finally {
+        job.cancel()
+        eventBus.close()
+    }
+}
+
+class CoroutinePuzzleTestWithSingleProcessRpcAbstraction : CoroutinePuzzlesTest(
+    doSimpleSumPuzzle = { runTestClient(stage = WorkshopStage.SumOfTwoIntsSlow, sumSolution = it) },
+    doTimedSumPuzzle = { runTestClient(stage = WorkshopStage.SumOfTwoIntsFast, sumSolution = it) },
+    doSimpleCollectPuzzle = { runTestClient(stage = WorkshopStage.SimpleFlow, collectSolution = it) },
+    doCollectLatestPuzzle = { runTestClient(stage = WorkshopStage.CollectLatest, collectSolution = it) },
+    doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
+        runTestClient(stage = WorkshopStage.FindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
+    },
+    doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
+        runTestClient(stage = WorkshopStage.FastFindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
+    },
+    doMappingLegacyApiCoroutinePuzzle = {
+        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepOne, mappingLegacyApiCoroutineSolution = it)
+    },
+    doMappingLegacyApiWithCancellationCoroutinePuzzle = {
+        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepTwo, mappingLegacyApiCoroutineSolution = it)
+    },
+    doMappingLegacyApiWithExceptionCoroutinePuzzle = {
+        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepThree, mappingLegacyApiCoroutineSolution = it)
+    },
+)
+
+abstract class CoroutinePuzzlesTest(
+    private val doSimpleSumPuzzle: DoPuzzleWith<GetNumberAndSubmit>,
+    private val doTimedSumPuzzle: DoPuzzleWith<GetNumberAndSubmit>,
+    private val doSimpleCollectPuzzle: DoPuzzleWith<NumberFlowAndSubmit>,
+    private val doCollectLatestPuzzle: DoPuzzleWith<NumberFlowAndSubmit>,
+    private val doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle: DoPuzzleWith<UserDatabase>,
+    private val doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle: DoPuzzleWith<UserDatabase>,
+    private val doMappingLegacyApiWithExceptionCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
+    private val doMappingLegacyApiWithCancellationCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
+    private val doMappingLegacyApiCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
+) {
     @Test
     fun `empty solutions are wrong`(): Unit = runTest {
         doSimpleSumPuzzle { }.assertIsNotOk()
@@ -29,6 +116,9 @@ class CoroutinePuzzlesTest {
         doCollectLatestPuzzle { }.assertIsNotOk()
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
+        doMappingLegacyApiWithExceptionCoroutinePuzzle { }.assertIsNotOk()
+        doMappingLegacyApiWithCancellationCoroutinePuzzle { }.assertIsNotOk()
+        doMappingLegacyApiCoroutinePuzzle { }.assertIsNotOk()
     }
 
     @Test
@@ -45,7 +135,9 @@ class CoroutinePuzzlesTest {
     @Test
     fun `collectLatest correct solution`(): Unit = runTest {
         doCollectLatestPuzzle { api ->
-            api.numbers().collectLatest { api.submit(it) }
+            api.numbers().collectLatest {
+                api.submit(it)
+            }
         }.assertIsOk()
     }
 
@@ -242,6 +334,8 @@ class CoroutinePuzzlesTest {
     }
 
 }
+
+fun runTest(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
     return suspendCancellableCoroutine { continuation ->

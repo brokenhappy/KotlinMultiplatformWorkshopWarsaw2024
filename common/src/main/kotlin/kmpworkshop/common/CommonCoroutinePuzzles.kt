@@ -3,29 +3,22 @@ package kmpworkshop.common
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlin.coroutines.cancellation.CancellationException
 
 
 @Serializable
@@ -51,26 +44,29 @@ class CoroutinePuzzleEndPointWaitingState<T, R>(
     /** Used to make sure that multiple submits will not submit the same expected call */
     var isTaken: Boolean,
     /** Is called from submission side */
-    val submitCall: suspend (JsonElement) -> JsonElement,
+    val submitCall: suspend (JsonElement) -> SubmissionAnswerWithConfirmation,
 ) {
     override fun toString(): String = """WaitingState(endPoint=${endPoint.description}, isTaken=$isTaken)""".trimIndent()
 }
+
+data class SubmissionAnswerWithConfirmation(val answer: JsonElement, val arrivalConfirmation: CompletableDeferred<Unit>)
 
 data class CoroutinePuzzle(
     val puzzle: suspend (MutableStateFlow<CoroutinePuzzleState>) -> Unit,
 )
 
 interface CoroutinePuzzleSolutionScope {
-    suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement
+    suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.submitCall(t: T): R = with(solutionScope) {
-    Json.decodeFromJsonElement(submitRawCall(Json.encodeToJsonElement(t)))
+suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.submitCall(t: T): R {
+    val (answer, confirmation) = submitRawCall(Json.encodeToJsonElement(t))
+    return confirmation.completeAfter { Json.decodeFromJsonElement<R>(answer) }
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement =
+suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation =
     with(solutionScope) { submitRawCall(t) }
 
 @Serializable
@@ -103,9 +99,8 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                 this@solve.puzzle(puzzleState)
             }
             object : CoroutinePuzzleSolutionScope {
-                override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
+                override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation {
                     val state = puzzleState.mapNotNull { currentState ->
-                        println("${coroutineContext.job.hashCode()} => $currentState")
                         val expectedCalls = currentState.expectedCalls.filterNot { it.isTaken }
                         if (currentState.branchCount < currentState.expectedCalls.size) error("Wth happened?")
                         else stateRemoverLock.withLock {
@@ -186,14 +181,7 @@ fun getNumberAndSubmit(): GetNumberAndSubmit = object : GetNumberAndSubmit {
     override suspend fun getNumber(): Int = getNumber.submitCall(Unit)
 
     override suspend fun submit(sum: Int) {
-        try {
-            submitNumber.submitCall(sum)
-        } catch (e: CancellationException) {
-            importantCleanup {
-                cancelSubmit.submitCall(Unit)
-            }
-            throw e
-        }
+        submitNumber.submitCall(sum)
     }
 }
 
@@ -203,14 +191,7 @@ fun numberFlowAndSubmit(): NumberFlowAndSubmit = object : NumberFlowAndSubmit {
         flow { while (true) emit(emitNumber.submitCall(Unit) ?: break) }
 
     override suspend fun submit(number: Int) {
-        try {
-            submitNumber.submitCall(number)
-        } catch (e: CancellationException) {
-            importantCleanup {
-                cancelSubmit.submitCall(Unit)
-            }
-            throw e
-        }
+        submitNumber.submitCall(number)
     }
 }
 
@@ -241,24 +222,20 @@ fun getUserDatabase(): UserDatabase = object : UserDatabase {
     override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
     override suspend fun queryUser(id: Int): User = queryUserById.submitCall(id)!!.let { User(it.name, it.age) }
     override suspend fun submit(number: Int) {
-        try {
-            submitNumber.submitCall(number)
-        } catch (e: CancellationException) {
-            importantCleanup {
-                cancelSubmit.submitCall(Unit)
-            }
-            throw e
-        }
+        submitNumber.submitCall(number)
     }
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-fun getUserDatabaseWithLegacyQueryUser(): UserDatabaseWithLegacyQueryUser = object : UserDatabaseWithLegacyQueryUser {
+fun getUserDatabaseWithLegacyQueryUser(
+    topLevelScope: CoroutineScope,
+    cancellationHook: CompletableDeferred<Unit> = CompletableDeferred(),
+): UserDatabaseWithLegacyQueryUser = object : UserDatabaseWithLegacyQueryUser {
     override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
 
     override fun queryUserWithCallback(id: Int, onSuccess: (User) -> Unit, onError: (Throwable) -> Unit): QueryHandle {
         val isDone = CompletableDeferred<Unit>()
-        return GlobalScope.launch(Dispatchers.IO) {
+        return topLevelScope.launch(Dispatchers.IO) {
             try {
                 queryUserById
                     .submitCall(id)
@@ -267,26 +244,19 @@ fun getUserDatabaseWithLegacyQueryUser(): UserDatabaseWithLegacyQueryUser = obje
                     }
                     ?: onError(QueryFetchFailedForSomeReasonException())
             } finally {
-                if (!this.isActive) {
-                    withContext(NonCancellable) {
-                        GlobalScope.launch {
-                            cancelQuery.submitCall(Unit)
-                            isDone.complete(Unit)
-                        }.join()
-                    }
-                }
+                isDone.complete(Unit)
             }
         }.let { job ->
             object : QueryHandle {
                 override fun cancel(onCancellationFinished: () -> Unit) {
-                    GlobalScope.launch {
+                    topLevelScope.launch {
                         try {
                             job.cancelAndJoin()
                             isDone.await() // I am so confused as to why this is necessary...
                         } catch (t: Throwable) {
                             t.printStackTrace()
                         } finally {
-                            onCancellationFinished()
+                            cancellationHook.completeAfter { onCancellationFinished() }
                         }
                     }
                 }
@@ -295,14 +265,7 @@ fun getUserDatabaseWithLegacyQueryUser(): UserDatabaseWithLegacyQueryUser = obje
     }
 
     override suspend fun submit(number: Int) {
-        try {
-            submitNumber.submitCall(number)
-        } catch (e: CancellationException) {
-            importantCleanup {
-                cancelSubmit.submitCall(Unit)
-            }
-            throw e
-        }
+        submitNumber.submitCall(number)
     }
 }
 

@@ -5,8 +5,14 @@ package kmpworkshop.server
 
 import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
+import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCall
+import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCallCancellation
+import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointConfirmation
 import kmpworkshop.common.WorkshopStage.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
@@ -18,6 +24,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import workshop.adminaccess.*
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -123,7 +130,7 @@ fun workshopService(
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
-        calls: Flow<CoroutinePuzzleEndpointCall>,
+        calls: Flow<CoroutinePuzzleEndpointCallOrConfirmation>,
     ): Flow<CoroutinePuzzleEndpointAnswer> = channelFlow {
         val puzzle = WorkshopStage
             .entries
@@ -135,19 +142,34 @@ fun workshopService(
                 return@channelFlow
             }
 
+        val completionHooks = ConcurrentHashMap<Int, CompletableDeferred<Unit>>()
+        val jobs = ConcurrentHashMap<Int, Job>()
         send(try {
             puzzle.solve {
-                calls.collect { call ->
-                    launch {
-                        try {
-                            send(CallAnswered(
-                                callId = call.callId,
-                                answer = deserializeEndpoint(call.endPointName).submitRawCall(call.argument),
-                            ))
-                        } catch (e: Throwable) {
-                            e.printStackTrace()
-                            send(CallAnswered(call.callId, null)) // Internal server error! Oops!
+                calls.collect { callOrConfirmation ->
+                    when (callOrConfirmation) {
+                        is CoroutinePuzzleEndpointCall -> jobs[callOrConfirmation.callId] = launch {
+                            try {
+                                val (answer, completionHook) = deserializeEndpoint(callOrConfirmation.endPointName)
+                                    .submitRawCall(callOrConfirmation.argument)
+                                completionHooks[callOrConfirmation.callId] = completionHook
+                                send(CallAnswered(
+                                    callId = callOrConfirmation.callId,
+                                    answer = answer,
+                                ))
+                            } catch (e: CoroutinePuzzleFailedControlFlowException) {
+                                throw e
+                            } catch (e: Throwable) {
+                                if (e !is CancellationException) e.printStackTrace()
+                                send(CallAnswered(callOrConfirmation.callId, null)) // Internal server error! Oops!
+                            } finally {
+                                jobs.remove(callOrConfirmation.callId)
+                            }
                         }
+                        is CoroutinePuzzleEndpointConfirmation -> {
+                            completionHooks.remove(callOrConfirmation.callId)?.complete(Unit)
+                        }
+                        is CoroutinePuzzleEndpointCallCancellation -> jobs[callOrConfirmation.callId]?.cancel()
                     }
                 }
             }.let {
