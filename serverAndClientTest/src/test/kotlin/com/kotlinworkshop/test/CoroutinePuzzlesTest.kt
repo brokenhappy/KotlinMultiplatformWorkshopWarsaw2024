@@ -332,7 +332,9 @@ abstract class CoroutinePuzzlesTest(
             .assert({ "3" in it.lowercase() }) { "Message must mention expected time" }
 
     }
+}
 
+class CoroutinePuzzleUtilitiesTest {
     @Test
     fun `internal calls are NOT shown in history of error message`() = runTest {
         val internalEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("internal", isHiddenInHistory = true)
