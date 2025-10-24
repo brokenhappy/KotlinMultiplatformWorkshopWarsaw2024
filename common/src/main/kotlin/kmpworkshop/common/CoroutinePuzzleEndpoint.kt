@@ -9,4 +9,3 @@ val callLifetime = coroutinePuzzleEndPoint<Unit, Unit>("call lifetime check (Don
 val callIsDone = coroutinePuzzleEndPoint<Unit, Unit>("finish the execution of your function")
 val getNumber = coroutinePuzzleEndPoint<Unit, Int>("call getNumber(): Int")
 val submitNumber = coroutinePuzzleEndPoint<Int, Unit>("call submit(number: Int): Unit")
-val cancelSubmit = coroutinePuzzleEndPoint<Unit, Unit>("cancel[submit(number: Int): Unit]")
