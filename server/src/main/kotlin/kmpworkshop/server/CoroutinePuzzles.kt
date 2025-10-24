@@ -158,34 +158,34 @@ suspend fun <T, R> List<T>.branchForEach(
 }
 
 context(_: CoroutinePuzzleBuilderScope)
-internal fun fail(message: String): Nothing = throw CoroutinePuzzleFailedControlFlowException(message, true)
+fun fail(message: String): Nothing = throw CoroutinePuzzleFailedControlFlowException(message, true)
 
 context(builder: CoroutinePuzzleBuilderScope)
-internal suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.expectCall(
+suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.expectCall(
     noinline valueProducer: suspend context(CoroutinePuzzleExpectationScope) (T) -> R,
 ): T = builder.expectCallTo(this, serializer(), serializer(), valueProducer)
 
 context(builder: CoroutinePuzzleBuilderScope)
-internal inline fun verify(condition: Boolean, message: () -> String) {
+inline fun verify(condition: Boolean, message: () -> String) {
     if (!condition) fail(message())
 }
 context(builder: CoroutinePuzzleBuilderScope)
-internal inline fun <T : Any> T?.verifyNotNull(message: () -> String): T = this ?: fail(message())
+inline fun <T : Any> T?.verifyNotNull(message: () -> String): T = this ?: fail(message())
 
 context(builder: CoroutinePuzzleBuilderScope)
-internal suspend inline fun <
+suspend inline fun <
     /* @OnlyInputTypes */ reified T,
     /* @OnlyInputTypes */ reified R,
 > CoroutinePuzzleEndPoint<R, T>.expectCall(value: T): R = expectCall { value }
 
 /** Schedules [branch] asynchronously on this [CoroutinePuzzleBuilderScope] */
 context(scope: CoroutinePuzzleBuilderScope)
-internal fun launchBranch(branch: suspend context(CoroutinePuzzleBuilderScope) () -> Unit): Job =
+fun launchBranch(branch: suspend context(CoroutinePuzzleBuilderScope) () -> Unit): Job =
     scope.launchBranch(branch)
 
 /** Close to what a `coroutineScope` is, but it exposed [launchBranch] instead of [kotlinx.coroutines.CoroutineScope].launch */
 context(scope: CoroutinePuzzleBuilderScope)
-internal suspend fun <T> puzzleScope(branch: suspend context(CoroutinePuzzleBuilderScope) () -> T): T =
+suspend fun <T> puzzleScope(branch: suspend context(CoroutinePuzzleBuilderScope) () -> T): T =
     // Problem is that if main branch completes before launched branch, we don't decrease the branch counter...
     scope.puzzleScope(branch)
 
