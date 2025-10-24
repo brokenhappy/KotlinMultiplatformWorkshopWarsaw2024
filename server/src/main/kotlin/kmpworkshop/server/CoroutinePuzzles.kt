@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
@@ -36,7 +37,8 @@ fun coroutinePuzzle(
 }
 
 private suspend inline fun MutableStateFlow<CoroutinePuzzleState>.update2(function: (CoroutinePuzzleState) -> CoroutinePuzzleState) {
-    println("${currentCoroutineContext().job.hashCode()} => ${updateAndGet(function)}")
+//    println("${currentCoroutineContext().job.hashCode()} => ${updateAndGet(function)}")
+    update(function)
 }
 
 private suspend fun <T> puzzleScope(
@@ -111,11 +113,11 @@ private suspend fun <T> puzzleScope(
         }
 
         override fun launchBranch(branch: suspend context(CoroutinePuzzleBuilderScope) () -> Unit): Job {
-            println("Increment => ${
+//            println("Increment => ${
                 stateFlow.updateAndGet { old ->
                     old.copy(branchCount = old.branchCount + 1)
                 }
-            }")
+//            }")
             return this@coroutineScope.launch {
                 try {
                     puzzleScope(branch, stateFlow)
