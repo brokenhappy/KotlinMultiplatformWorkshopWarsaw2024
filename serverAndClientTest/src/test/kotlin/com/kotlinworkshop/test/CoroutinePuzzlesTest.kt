@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.fail
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ScheduledWorkshopEvent
@@ -362,6 +363,20 @@ class CoroutinePuzzleUtilitiesTest {
             .assertIs<CoroutinePuzzleSolutionResult.Failure>()
             .description
             .assert({ "internal" in it.lowercase() }) { "Message must mention internal endpoint" }
+    }
+
+    class ExceptionForTestBelow() : Exception("Test exception")
+
+    @Test
+    fun `error that happens in expect call is thrown into submit call`() = runTest {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+        coroutinePuzzle {
+            endpoint.expectCall { throw ExceptionForTestBelow() }
+        }.solve {
+            assertThrows<ExceptionForTestBelow> {
+                endpoint.submitCall(Unit)
+            }
+        }
     }
 }
 
