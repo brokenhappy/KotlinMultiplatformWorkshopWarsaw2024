@@ -68,7 +68,10 @@ private suspend fun <T> puzzleScope(
                             value = try {
                                 resultDeferred.await()
                             } catch (c: CancellationException) {
-                                if (!currentCoroutineContext().isActive) submissionIsCancelled.complete(c)
+                                if (!currentCoroutineContext().isActive) {
+                                    submissionIsCancelled.complete(c)
+                                    arrivalConfirmation.complete(Unit)
+                                }
                                 throw c
                             },
                         ),

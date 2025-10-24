@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flow
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.fail
@@ -375,6 +376,27 @@ class CoroutinePuzzleUtilitiesTest {
         }.solve {
             assertThrows<ExceptionForTestBelow> {
                 endpoint.submitCall(Unit)
+            }
+        }
+    }
+
+    @Test
+    fun `nothing hangs when submit call gets canceled`() = runTest {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+        val cancellationStartHook = CompletableDeferred<Unit>()
+        val cancellationFinishedHook = CompletableDeferred<Unit>()
+        coroutinePuzzle {
+            endpoint.expectCall {
+                cancellationStartHook.complete(Unit)
+                cancellationFinishedHook.await()
+            }
+        }.solve {
+            launch {
+                endpoint.submitCall(Unit)
+            }.sideEffect {
+                cancellationStartHook.await()
+                it.cancelAndJoin()
+                cancellationFinishedHook.complete(Unit)
             }
         }
     }
