@@ -18,9 +18,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.concurrent.atomics.AtomicBoolean
-import kotlin.contracts.ExperimentalContracts
-import kotlin.contracts.InvocationKind
-import kotlin.contracts.contract
 import kotlin.coroutines.cancellation.CancellationException
 
 interface WorkshopServer {
@@ -78,7 +75,7 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                         )
                         callsInProgress.update { it + callInProgress }
                         try {
-                            send(CoroutinePuzzleEndpointCall(callInProgress.callId, this.description, t))
+                            send(CoroutinePuzzleEndpointCall(callInProgress.callId, this.descriptor, t))
                         } catch (t: Throwable) {
                             callsInProgress.update { it - callInProgress }
                             throw t
@@ -165,7 +162,7 @@ sealed class CoroutinePuzzleEndpointCallOrConfirmation {
     @Serializable
     data class CoroutinePuzzleEndpointCall(
         val callId: Int,
-        val endPointName: String, // Should be: CoroutinePuzzleEndpoint<*, *>, but that crashes the compiler :sweat_smile:
+        val descriptor: CoroutinePuzzleEndPointDescriptor, // Should be: CoroutinePuzzleEndpoint<*, *>, but that crashes the kotlinx compiler :sweat_smile:
         val argument: JsonElement,
     ) : CoroutinePuzzleEndpointCallOrConfirmation()
     @Serializable

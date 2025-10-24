@@ -21,8 +21,16 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 
 
+data class CoroutinePuzzleEndPoint<in T, out R>(val descriptor: CoroutinePuzzleEndPointDescriptor)
+
 @Serializable
-data class CoroutinePuzzleEndPoint<in T, out R>(val description: String)
+data class CoroutinePuzzleEndPointDescriptor(val description: String, val isHiddenInHistory: Boolean = false)
+
+fun CoroutinePuzzleEndPointDescriptor.toEndpoint(): CoroutinePuzzleEndPoint<*, *> =
+    CoroutinePuzzleEndPoint<Any?, Any?>(this)
+
+fun <T, R> coroutinePuzzleEndPoint(description: String, isHiddenInHistory: Boolean = false): CoroutinePuzzleEndPoint<T, R> =
+    CoroutinePuzzleEndPoint(CoroutinePuzzleEndPointDescriptor(description, isHiddenInHistory))
 
 class CoroutinePuzzleState(
     val branchCount: Int,
@@ -46,7 +54,7 @@ class CoroutinePuzzleEndPointWaitingState<T, R>(
     /** Is called from submission side */
     val submitCall: suspend (JsonElement) -> SubmissionAnswerWithConfirmation,
 ) {
-    override fun toString(): String = """WaitingState(endPoint=${endPoint.description}, isTaken=$isTaken)""".trimIndent()
+    override fun toString(): String = """WaitingState(endPoint=${endPoint.descriptor.description}, isTaken=$isTaken)""".trimIndent()
 }
 
 data class SubmissionAnswerWithConfirmation(val answer: JsonElement, val arrivalConfirmation: CompletableDeferred<Unit>)
@@ -110,9 +118,14 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                                 .also {
                                     if (it == null && currentState.branchCount == expectedCalls.size) fail("""
                                         |The history of actions was:
-                                        |${history.value.joinToString("\n") { it.description }}
+                                        |${
+                                            history
+                                                .value
+                                                .filterNot { it.descriptor.isHiddenInHistory }
+                                                .joinToString("\n") { it.descriptor.description }
+                                        }
                                         ${
-                                            expectedCalls.map { it.endPoint.description }.distinct().let { expectedCalls ->
+                                            expectedCalls.map { it.endPoint.descriptor.description }.distinct().let { expectedCalls ->
                                                 when (expectedCalls.size) {
                                                     0 -> "|And no more actions were expected to be made."
                                                     1 -> "|And now the expected action is: ${expectedCalls.first()}"
@@ -123,7 +136,7 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                                                 }
                                             }
                                         }
-                                        |But instead you did: $description
+                                        |But instead you did: ${descriptor.description}
                                     """.trimMargin(), includeHistory = false)
                                 }
                         }
@@ -140,7 +153,7 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
             val leftoverExpectedCalls = stateRemoverLock.withLock {
                 puzzleState.value.expectedCalls.filterNot { it.isTaken }
             }
-            val distinctLeftoverExpectedCalls = leftoverExpectedCalls.map { it.endPoint.description }.distinct()
+            val distinctLeftoverExpectedCalls = leftoverExpectedCalls.map { it.endPoint.descriptor.description }.distinct()
             when (distinctLeftoverExpectedCalls.size) {
                 0 -> { /* All is OK! */ }
                 1 -> failBecauseLeftovers(
@@ -159,7 +172,12 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
             |${
             if (e.includeHistory) """
                     |The history of actions was:
-                    |${history.value.joinToString("\n") { it.description }}
+                    |${
+                        history
+                            .value
+                            .filterNot { it.descriptor.isHiddenInHistory }
+                            .joinToString("\n") { it.descriptor.description }
+                    }
                 """.trimMargin() else ""
         }
         """.trimMargin())
