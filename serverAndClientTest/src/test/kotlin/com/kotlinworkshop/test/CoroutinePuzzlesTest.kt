@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.fail
+import org.junit.jupiter.api.fail as junitFail
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
@@ -400,6 +400,34 @@ class CoroutinePuzzleUtilitiesTest {
             }
         }
     }
+
+    class SpecialCancellationExceptionForTestBelow() : CancellationException()
+
+    @Test
+    fun `await cancellation of matching submit call does not throw into coroutine puzzle scope`() = runTest {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+        val cancellationStartHook = CompletableDeferred<Unit>()
+        coroutinePuzzle {
+            try {
+                endpoint.expectCall {
+                    cancellationStartHook.complete(Unit)
+                    assertThrows<SpecialCancellationExceptionForTestBelow> {
+                        awaitCancellationOfMatchingSubmitCall()
+                    }
+                    Unit
+                }
+            } catch (t: Throwable) {
+                junitFail("Exception should not be thrown, not even cancellation", t)
+            }
+        }.solve {
+            launch {
+                endpoint.submitCall(Unit)
+            }.sideEffect {
+                cancellationStartHook.await()
+                it.cancel(SpecialCancellationExceptionForTestBelow())
+            }
+        }
+    }
 }
 
 fun runTest(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
@@ -439,7 +467,7 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutException(id
 }
 
 private fun CoroutinePuzzleSolutionResult.assertIsOk(): Unit = when (this) {
-    is CoroutinePuzzleSolutionResult.Failure -> fail { this.description }
+    is CoroutinePuzzleSolutionResult.Failure -> junitFail { this.description }
     CoroutinePuzzleSolutionResult.Success -> { /** All OK! */ }
 }
 
@@ -449,8 +477,7 @@ private fun CoroutinePuzzleSolutionResult.assertIsNotOk() {
 
 internal inline fun <reified T> Any?.assertIs(
     message: (Any?) -> String = { "Expected instance of ${T::class}, but got $it" },
-): T =
-    if (this is T) this else kotlin.test.fail(message(this))
+): T = if (this is T) this else junitFail(message(this))
 
 internal inline fun Any?.assertIs(other: Any?, message: (Any?) -> String) {
     assertEquals(this, message(this))
