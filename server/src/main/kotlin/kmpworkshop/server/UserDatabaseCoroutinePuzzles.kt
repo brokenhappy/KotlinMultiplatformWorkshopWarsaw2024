@@ -64,7 +64,7 @@ private suspend fun expectQueryCall(isTimed: Boolean, database: Map<Int, Seriali
 
 context(_: CoroutinePuzzleBuilderScope)
 private fun Map<Int, SerializableUser>.getAndVerifyUserExists(id: Int): SerializableUser = this[id].verifyNotNull {
-    "User with id $id does not exist! Please use the ids retrieved from ${getAllUserIds.description}"
+    "User with id $id does not exist! Please use the ids retrieved from ${getAllUserIds.descriptor.description}"
 }
 
 suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleSolutionResult =

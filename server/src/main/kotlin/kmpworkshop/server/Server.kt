@@ -150,7 +150,9 @@ fun workshopService(
                     when (callOrConfirmation) {
                         is CoroutinePuzzleEndpointCall -> jobs[callOrConfirmation.callId] = launch {
                             try {
-                                val (answer, completionHook) = deserializeEndpoint(callOrConfirmation.endPointName)
+                                val (answer, completionHook) = callOrConfirmation
+                                    .descriptor
+                                    .toEndpoint()
                                     .submitRawCall(callOrConfirmation.argument)
                                 completionHooks[callOrConfirmation.callId] = completionHook
                                 send(CallAnswered(
@@ -256,6 +258,3 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
         ) to SerializableUser("John", 100),
     )
 }
-
-fun deserializeEndpoint(endpointId: String): CoroutinePuzzleEndPoint<*, *> =
-    CoroutinePuzzleEndPoint<Nothing, Nothing>(endpointId)

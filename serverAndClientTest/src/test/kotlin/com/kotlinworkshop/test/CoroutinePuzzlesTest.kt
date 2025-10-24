@@ -333,6 +333,34 @@ abstract class CoroutinePuzzlesTest(
 
     }
 
+    @Test
+    fun `internal calls are NOT shown in history of error message`() = runTest {
+        val internalEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("internal", isHiddenInHistory = true)
+        val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public", isHiddenInHistory = false)
+        coroutinePuzzle {
+            internalEndpoint.expectCall(Unit)
+        }.solve {
+            internalEndpoint.submitCall(Unit)
+            publicEndpoint.submitCall(Unit) // Should result in error
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure>()
+            .description
+            .assert({ "internal" !in it.lowercase() }) { "Message must not mention internal endpoint" }
+    }
+
+    @Test
+    fun `internal calls ARE shown in expected calls part of error message`() = runTest {
+        val internalEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("internal", isHiddenInHistory = true)
+        val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public", isHiddenInHistory = false)
+        coroutinePuzzle {
+            publicEndpoint.expectCall(Unit)
+        }.solve {
+            internalEndpoint.submitCall(Unit)
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure>()
+            .description
+            .assert({ "internal" in it.lowercase() }) { "Message must mention internal endpoint" }
+    }
 }
 
 fun runTest(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
@@ -380,7 +408,9 @@ private fun CoroutinePuzzleSolutionResult.assertIsNotOk() {
     assertIs<CoroutinePuzzleSolutionResult.Failure> { "Puzzle succeeded unexpectedly" }
 }
 
-internal inline fun <reified T> Any?.assertIs(message: (Any?) -> String): T =
+internal inline fun <reified T> Any?.assertIs(
+    message: (Any?) -> String = { "Expected instance of ${T::class}, but got $it" },
+): T =
     if (this is T) this else kotlin.test.fail(message(this))
 
 internal inline fun Any?.assertIs(other: Any?, message: (Any?) -> String) {
