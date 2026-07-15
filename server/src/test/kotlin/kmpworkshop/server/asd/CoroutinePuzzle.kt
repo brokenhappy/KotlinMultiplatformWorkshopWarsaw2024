@@ -1,13 +1,13 @@
 package kmpworkshop.server.asd
 
-import kmpworkshop.server.AutoBatchedFunctionId
+import kmpworkshop.common.AutoBatchedFunctionId
 import kmpworkshop.server.asd.CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch
 import kmpworkshop.server.asd.CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions
 import kmpworkshop.server.asd.CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations
 import kmpworkshop.server.asd.CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions
 import kmpworkshop.server.asd.assertIs
-import kmpworkshop.server.autoBatchedOnQuiescence
-import kmpworkshop.server.withInterceptingDispatcher
+import kmpworkshop.common.autoBatchedOnQuiescence
+import kmpworkshop.common.withInterceptingDispatcher
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin

@@ -10,6 +10,8 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
 
@@ -17,9 +19,9 @@ fun collectLatestPuzzle() = coroutinePuzzle {
     val numbers = (0..< 5).map { (0..100).random() }
     emitNumber.expectCall(numbers.first())
     numbers.zipWithNext().forEach { (last, next) ->
-        puzzleScope {
+        coroutineScope {
             val readyToGetCanceledHook = CompletableDeferred<Unit>()
-            launchBranch {
+            launch {
                 emitNumber.expectCall {
                     // Wait until next submit has started,
                     // so we can cancel it with the next emission
@@ -36,7 +38,7 @@ fun collectLatestPuzzle() = coroutinePuzzle {
             verify(actual == last) { "The value that you submit must be a value collected from the flow!" }
         }
     }
-    launchBranch {
+    launch {
         emitNumber.expectCall(null) // Close the flow
     }
     // Last call should successfully finish

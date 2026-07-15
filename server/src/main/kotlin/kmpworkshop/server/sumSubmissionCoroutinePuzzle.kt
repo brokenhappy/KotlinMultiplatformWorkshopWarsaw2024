@@ -9,7 +9,9 @@ import kmpworkshop.common.solve
 import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
 
@@ -27,12 +29,14 @@ fun simpleSumPuzzle() = coroutinePuzzle {
 
 fun timedSumPuzzle() = coroutinePuzzle {
     val sum = withTimeoutOrNull(1.8.seconds) {
-        puzzleScope {
+        coroutineScope {
             val randomNumbers = List(2) { (0..100).random() }
-            randomNumbers.branchForEach { number ->
-                getNumber.expectCall {
-                    delay(1.seconds)
-                    number
+            randomNumbers.forEach { number ->
+                launch {
+                    getNumber.expectCall {
+                        delay(1.seconds)
+                        number
+                    }
                 }
             }
             randomNumbers.sum()

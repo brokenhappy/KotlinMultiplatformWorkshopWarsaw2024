@@ -1,5 +1,7 @@
 package kmpworkshop.server
 
+import kmpworkshop.common.AutoBatchedFunctionId
+import kmpworkshop.common.autoBatchedOnQuiescence
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

@@ -1,38 +1,43 @@
 package kmpworkshop.common
 
-import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Delay
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.InternalCoroutinesApi
-import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlin.coroutines.CoroutineContext
-
+import java.util.Collections
+import java.util.IdentityHashMap
+import kotlin.time.ExperimentalTime
 
 data class CoroutinePuzzleEndPoint<in T, out R>(val descriptor: CoroutinePuzzleEndPointDescriptor)
 
 @Serializable
-data class CoroutinePuzzleEndPointDescriptor(val description: String, val isHiddenInHistory: Boolean = false)
+data class CoroutinePuzzleEndPointDescriptor(
+    /**
+     * This property has 2 functions.
+     *  - It's visible to the user. Reading it makes it clear to the user what function call caused this or they should make.
+     *  - It must be unique per puzzle. Expectations use this as a key to map to the submissions.
+     */
+    val description: String,
+    /**
+     * The history refers to the list of submissions made during a solve attempt.
+     * When the solve attempt fails, the history will be shown to the user to give them more insight.
+     */
+    val isHiddenInHistory: Boolean = false,
+)
 
 fun CoroutinePuzzleEndPointDescriptor.toEndpoint(): CoroutinePuzzleEndPoint<*, *> =
     CoroutinePuzzleEndPoint<Any?, Any?>(this)
@@ -40,157 +45,237 @@ fun CoroutinePuzzleEndPointDescriptor.toEndpoint(): CoroutinePuzzleEndPoint<*, *
 fun <T, R> coroutinePuzzleEndPoint(description: String, isHiddenInHistory: Boolean = false): CoroutinePuzzleEndPoint<T, R> =
     CoroutinePuzzleEndPoint(CoroutinePuzzleEndPointDescriptor(description, isHiddenInHistory))
 
-class CoroutinePuzzleState(
-    val branchCount: Int,
-    val expectedCalls: List<CoroutinePuzzleEndPointWaitingState<*, *>>,
-) {
-    fun copy(
-        branchCount: Int = this.branchCount,
-        expectedCalls: List<CoroutinePuzzleEndPointWaitingState<*, *>> = this.expectedCalls,
-    ): CoroutinePuzzleState = CoroutinePuzzleState(branchCount, expectedCalls)
-
-    override fun toString(): String = """CoroutinePuzzleState(
-        branchCount=$branchCount,
-        currentExpectedCalls=$expectedCalls,
-    )""".trimIndent()
+sealed class CoroutinePuzzleState {
+    class WaitingForExpectations(
+        val expectedCallsLeftAfterLastResumption: List<CoroutinePuzzleEndPointWaitingState<*, *>>,
+    ) : CoroutinePuzzleState()
+    class WaitingForSubmissions(
+        val expectedCalls: List<CoroutinePuzzleEndPointWaitingState<*, *>>,
+        val isStrictParallelism: Boolean,
+    ) : CoroutinePuzzleState()
+    data object ExpectationsDone : CoroutinePuzzleState()
 }
 
 class CoroutinePuzzleEndPointWaitingState<T, R>(
     val endPoint: CoroutinePuzzleEndPoint<T, R>,
-    /** Used to make sure that multiple submits will not submit the same expected call */
-    var isTaken: Boolean,
+    val isStrictParallelism: Boolean,
     /** Is called from the submission side */
-    val submitCall: suspend (JsonElement) -> SubmissionAnswerWithConfirmation,
+    val submitCall: suspend (JsonElement) -> JsonElement,
 ) {
-    override fun toString(): String = """WaitingState(endPoint=${endPoint.descriptor.description}, isTaken=$isTaken)""".trimIndent()
+    override fun toString(): String = """WaitingState(endPoint=${endPoint.descriptor.description})""".trimIndent()
 }
 
-data class SubmissionAnswerWithConfirmation(val answer: JsonElement, val arrivalConfirmation: CompletableDeferred<Unit>)
-
 data class CoroutinePuzzle(
-    val puzzle: suspend (MutableStateFlow<CoroutinePuzzleState>) -> Unit,
+    val puzzle: suspend CoroutineScope.(MutableStateFlow<CoroutinePuzzleState>) -> Unit,
 )
 
 interface CoroutinePuzzleSolutionScope {
-    suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation
+    suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.submitCall(t: T): R {
-    val (answer, confirmation) = submitRawCall(Json.encodeToJsonElement(t))
-    return confirmation.completeAfter { Json.decodeFromJsonElement<R>(answer) }
-}
+suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.submitCall(t: T): R =
+    Json.decodeFromJsonElement<R>(submitRawCall(Json.encodeToJsonElement<T>(t)))
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation =
+suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement =
     with(solutionScope) { submitRawCall(t) }
 
-@Serializable
-sealed class CoroutinePuzzleSolutionResult {
-    @Serializable
-    data object Success : CoroutinePuzzleSolutionResult()
-    @Serializable
-    data class Failure(val description: String) : CoroutinePuzzleSolutionResult()
+@Serializable sealed class CoroutinePuzzleSolutionResult {
+    @Serializable data object Success : CoroutinePuzzleSolutionResult()
+    @Serializable data class Failure(
+        val history: List<CoroutinePuzzleEndPointDescriptor>,
+        val reason: Reason,
+    ) : CoroutinePuzzleSolutionResult() {
+        @Serializable sealed class Reason {
+            @Serializable data class MoreSubmissionsThanExpectations(
+                val overshotSubmissions: List<CoroutinePuzzleEndPointDescriptor>,
+            ) : Reason()
+            @Serializable data class MoreExpectationsThanSubmissions(
+                val expectedFollowups: List<CoroutinePuzzleEndPointDescriptor>,
+            ) : Reason()
+            @Serializable data class ExactParallelismMismatch(
+                val submissions: List<CoroutinePuzzleEndPointDescriptor>,
+                val expectations: List<CoroutinePuzzleEndPointDescriptor>,
+            ) : Reason()
+            @Serializable data class UnexpectedSubmissions(
+                val unexpectedSubmissions: List<CoroutinePuzzleEndPointDescriptor>,
+                val expectations: List<CoroutinePuzzleEndPointDescriptor>,
+            ) : Reason()
+            @Serializable data class Custom(val message: String) : Reason()
+        }
+    }
 }
 
 context(_: CoroutinePuzzleSolutionScope)
-internal fun fail(
-    message: String,
-    /** Whether upon printing the failure, one should add the history of actions (sometimes you rather print it manually) */
-    includeHistory: Boolean = true,
-): Nothing = throw CoroutinePuzzleFailedControlFlowException(message, includeHistory = false)
+internal fun fail(reason: CoroutinePuzzleSolutionResult.Failure.Reason): Nothing =
+    throw CoroutinePuzzleFailedControlFlowException(reason)
 
 class CoroutinePuzzleFailedControlFlowException(
-    message: String,
-    val includeHistory: Boolean,
-) : Exception(message, null) // TODO: Optimize away stacktrace hydration?
+    val reason: CoroutinePuzzleSolutionResult.Failure.Reason,
+) : Exception(null, null) // TODO: Optimize away stacktrace hydration?
 
 suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit): CoroutinePuzzleSolutionResult {
     val history = MutableStateFlow<List<CoroutinePuzzleEndPoint<*, *>>>(emptyList())
-    val stateRemoverLock = Mutex()
     return try {
-        coroutineScope {
-            val puzzleState = MutableStateFlow(CoroutinePuzzleState(branchCount = 1, expectedCalls = emptyList()))
-            launch {
-                this@solve.puzzle(puzzleState)
-            }
-            object : CoroutinePuzzleSolutionScope {
-                override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation {
-                    val state = puzzleState.mapNotNull { currentState ->
-                        val expectedCalls = currentState.expectedCalls.filterNot { it.isTaken }
-                        if (currentState.branchCount < currentState.expectedCalls.size) error("Wth happened?")
-                        else stateRemoverLock.withLock {
-                            expectedCalls
-                                .firstOrNull { it.endPoint == this }
-                                ?.also { it.isTaken = true }
-                                .also {
-                                    if (it == null && currentState.branchCount == expectedCalls.size) fail("""
-                                        |The history of actions was:
-                                        |${
-                                            history
-                                                .value
-                                                .filterNot { it.descriptor.isHiddenInHistory }
-                                                .joinToString("\n") { it.descriptor.description }
-                                        }
-                                        ${
-                                            expectedCalls.map { it.endPoint.descriptor.description }.distinct().let { expectedCalls ->
-                                                when (expectedCalls.size) {
-                                                    0 -> "|And no more actions were expected to be made."
-                                                    1 -> "|And now the expected action is: ${expectedCalls.first()}"
-                                                    else -> """
-                                                        |And now the expected actions are either:
-                                                        |${expectedCalls.joinToString(",\n or ")}
-                                                    """.trimIndent()
-                                                }
-                                            }
-                                        }
-                                        |But instead you did: ${descriptor.description}
-                                    """.trimMargin(), includeHistory = false)
-                                }
-                        }
-                    }.first()
+        val puzzleState = MutableStateFlow<CoroutinePuzzleState>(CoroutinePuzzleState.WaitingForExpectations(emptyList()))
+        val coroutinePuzzleSubmissionFunction = AutoBatchedFunctionId<SubmissionCall, JsonElement?>(
+            batchResumer = { submissionCalls ->
+                val submissions = submissionCalls.map { it.query }
+                val expectations = puzzleState
+                    .takeWhile { it !is CoroutinePuzzleState.ExpectationsDone }
+                    .filterIsInstance<CoroutinePuzzleState.WaitingForSubmissions>()
+                    .firstOrNull()
+                    ?: throw CoroutinePuzzleFailedControlFlowException(
+                        CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations(
+                            submissions.map { it.endPoint.descriptor },
+                        )
+                    )
 
-                    return state.submitCall.also { history.update { it + this@submitRawCall } }.invoke(t)
+                val expectedDescriptors = expectations.expectedCalls.map { it.endPoint.descriptor }.toSet()
+                if (expectations.isStrictParallelism) {
+                    if (
+                        expectations.expectedCalls.size != submissions.size ||
+                        expectedDescriptors != submissions.map { it.endPoint.descriptor }.toSet()
+                    ) {
+                        throw CoroutinePuzzleFailedControlFlowException(
+                            CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch(
+                                submissions.map { it.endPoint.descriptor },
+                                expectations.expectedCalls.map { it.endPoint.descriptor },
+                            )
+                        )
+                    }
+                } else {
+                    val missingSubmissions = submissions.filter { it.endPoint.descriptor !in expectedDescriptors }
+                    if (missingSubmissions.size == submissions.size) {
+                        throw CoroutinePuzzleFailedControlFlowException(
+                            CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions(
+                                unexpectedSubmissions = submissions.map { it.endPoint.descriptor },
+                                expectations = expectations.expectedCalls.map { it.endPoint.descriptor },
+                            )
+                        )
+                    }
                 }
-            }.let { coroutineScope { context(it) { solution(this) } } }
 
-            fun failBecauseLeftovers(message: String): Nothing =
-                throw CoroutinePuzzleFailedControlFlowException(message, includeHistory = true)
-            if (history.value.isEmpty()) puzzleState.first { it.expectedCalls.isNotEmpty() } // Wait for first expected call
-            puzzleState.first { it.expectedCalls.size == it.branchCount } // Wait to reach all expect calls
-            val leftoverExpectedCalls = stateRemoverLock.withLock {
-                puzzleState.value.expectedCalls.filterNot { it.isTaken }
+                // This makes sure that multiple expectations to the same endpoint are not processed multiple times.
+                val processedExpectations = Collections.newSetFromMap<CoroutinePuzzleEndPointWaitingState<*, *>>(IdentityHashMap())
+                coroutineScope {
+                    val submissionsReadyToGo = submissionCalls.map { submissionCall ->
+                        val matchingCall = expectations
+                            .expectedCalls
+                            .firstOrNull { it !in processedExpectations && it.endPoint.descriptor == submissionCall.query.endPoint.descriptor }
+                            ?.also { processedExpectations.add(it) }
+
+                        suspend { // We don't want to persist the side effect yet. We want to update the state first.
+                            if (!submissionCall.continuation.isCancelled) {
+                                launch {
+                                    submissionCall.continuation.resumeWith(
+                                        // The submissions that are not matched need to retry (when we return null)
+                                        runCatching { matchingCall?.submitCall(submissionCall.query.argument) },
+                                    )
+                                }.also { job ->
+                                    submissionCall.invokeOnCancellation {
+                                        job.cancel()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    puzzleState.update { oldState ->
+                        if (oldState !== expectations) throw IllegalStateException("Unexpected puzzle state $oldState")
+                        CoroutinePuzzleState.WaitingForExpectations(expectations.expectedCalls.filter { it !in processedExpectations })
+                    }
+                    submissionsReadyToGo.forEach { it() }
+                }
             }
-            val distinctLeftoverExpectedCalls = leftoverExpectedCalls.map { it.endPoint.descriptor.description }.distinct()
-            when (distinctLeftoverExpectedCalls.size) {
-                0 -> { /* All is OK! */ }
-                1 -> failBecauseLeftovers(
-                    "You made too few function calls. We're still expecting: ${distinctLeftoverExpectedCalls.single()}"
-                )
-                else -> failBecauseLeftovers("""
-                    |You made too few function calls, we were expecting one of:
-                    |${distinctLeftoverExpectedCalls.joinToString(",\n or ")}
-                """.trimMargin())
+        )
+        coroutineScope {
+            launch {
+                puzzle(puzzleState)
             }
-            CoroutinePuzzleSolutionResult.Success
+            context(
+                object : CoroutinePuzzleSolutionScope {
+                    override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
+                        while (true) {
+                            return coroutinePuzzleSubmissionFunction.batched(SubmissionCall(this, t)) ?: continue
+                        }
+                    }
+                },
+            ) {
+                @OptIn(ExperimentalTime::class)
+                coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence { solution(this) }
+            }
+            puzzleState
+                .takeWhile { it !is CoroutinePuzzleState.ExpectationsDone }
+                .filterIsInstance<CoroutinePuzzleState.WaitingForSubmissions>()
+                .firstOrNull()
+                ?.let {
+                    throw CoroutinePuzzleFailedControlFlowException(
+                        CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions(
+                            it.expectedCalls.map { it.endPoint.descriptor }
+                        )
+                    )
+                } ?: CoroutinePuzzleSolutionResult.Success
         }
     } catch (e: CoroutinePuzzleFailedControlFlowException) {
-        CoroutinePuzzleSolutionResult.Failure("""
-            |${e.message}
-            |${
-            if (e.includeHistory) """
-                    |The history of actions was:
-                    |${
-                        history
-                            .value
-                            .filterNot { it.descriptor.isHiddenInHistory }
-                            .joinToString("\n") { it.descriptor.description }
-                    }
-                """.trimMargin() else ""
-        }
-        """.trimMargin())
+        CoroutinePuzzleSolutionResult.Failure(history.value.map { it.descriptor }, e.reason)
     }
 }
+
+data class SubmissionCall(val endPoint: CoroutinePuzzleEndPoint<*, *>, val argument: JsonElement)
+
+fun CoroutinePuzzleSolutionResult.Failure.toMessage(): String = """
+    |${reason.toMessage()}
+    |
+    |The history of actions was:
+    ${
+        history
+            .filterNot { it.isHiddenInHistory }
+            .joinToString("\n") { "| - ${it.description}" }
+    }
+""".trimMargin()
+
+fun CoroutinePuzzleSolutionResult.Failure.Reason.toMessage(): String = when (this) {
+    is CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch -> """
+        |You tried to call these at the same time:
+        |${formatCallAttemptsWithMargins(submissions.map { it.description }.distinct())}
+        |However, you were expected to call exactly these
+    """.trimIndent()
+    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions -> """
+        |You made too few function calls. We're still expecting ${
+            expectedFollowups.map { it.description }.distinct().let { expectedCalls ->
+                expectedCalls.singleOrNull()
+                    ?: """
+                        either:
+                        |${expectedCalls.joinToString(",\n| or ", postfix = "\n|")}
+                    """.trimIndent()
+            }
+        }
+    """.trimMargin()
+    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations -> """
+        |Attempted to call ${formatCallAttemptsWithMargins(overshotSubmissions.map { it.description }.distinct())}
+    """.trimMargin()
+    is CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions -> """
+        |Currently the expected ${
+            expectations.map { it.description }.distinct().let { expectedCalls ->
+                expectedCalls.singleOrNull()?.let { "action is: $it" }
+                    ?: """
+                        actions are either:
+                        |${expectedCalls.joinToString(",\n| or ")}
+                    """.trimIndent()
+            }
+        }
+        |But instead you attempted to call ${
+            formatCallAttemptsWithMargins(unexpectedSubmissions.map { it.description }.distinct())
+        }
+    """.trimMargin()
+    is CoroutinePuzzleSolutionResult.Failure.Reason.Custom -> message
+}
+
+private fun formatCallAttemptsWithMargins(attempts: List<String>): String =
+    attempts.singleOrNull() ?: attempts.joinToString(", and", prefix = "all of these at the same time: \n") {
+        "|    $it\n"
+    }
 
 interface GetNumberAndSubmit {
     suspend fun getNumber(): Int

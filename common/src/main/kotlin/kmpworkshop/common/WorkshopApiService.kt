@@ -13,10 +13,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.fetchAndIncrement
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCall
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCallCancellation
-import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointConfirmation
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -48,29 +45,20 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
     ): CoroutinePuzzleSolutionResult = coroutineScope {
         data class CallInProgress(
             val callId: Int,
-            val deferred: CompletableDeferred<Pair<JsonElement, CompletableDeferred<Unit>>>,
-            val endPoint: CoroutinePuzzleEndPoint<*, *>,
+            val deferred: CompletableDeferred<JsonElement>,
             val isTaken: AtomicBoolean,
         )
-        val confirmations = Channel<CoroutinePuzzleEndpointConfirmation>()
         val callsInProgress = MutableStateFlow<List<CallInProgress>>(emptyList())
-        val confirmationsToAwait = MutableStateFlow(0)
         return@coroutineScope doCoroutinePuzzleSolveAttempt(
             key = apiKey,
             puzzleId = puzzleId,
             calls = channelFlow {
                 val callIdCounter = AtomicInt(0)
-                launch {
-                    for (confirmation in confirmations) {
-                        send(confirmation)
-                    }
-                }
                 callback(object: CoroutinePuzzleSolutionScope {
-                    override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): SubmissionAnswerWithConfirmation {
+                    override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
                         val callInProgress = CallInProgress(
                             callId = callIdCounter.fetchAndIncrement(),
                             deferred = CompletableDeferred(),
-                            endPoint = this,
                             isTaken = AtomicBoolean(false),
                         )
                         callsInProgress.update { it + callInProgress }
@@ -80,31 +68,19 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                             callsInProgress.update { it - callInProgress }
                             throw t
                         }
-                        confirmationsToAwait.update { it + 1 }
-                        val (answer, completionHook) = try {
+                        return try {
                             callInProgress.deferred.await()
                         } catch (c: CancellationException) {
                             if (callInProgress.isTaken.compareAndSet(expectedValue = false, newValue = true)) {
                                 callsInProgress.update { it - callInProgress }
-                                confirmationsToAwait.update { it - 1 }
                                 importantCleanup {
                                     send(CoroutinePuzzleEndpointCallCancellation(callInProgress.callId))
                                 }
                             }
                             throw c
                         }
-                        return completionHook.completeAfter {
-                            SubmissionAnswerWithConfirmation(
-                                answer,
-                                CompletableDeferred<Unit>().apply {
-                                    completeExceptionally(IllegalStateException("Should never be awaited"))
-                                },
-                            )
-                        }
                     }
                 }, this)
-                confirmationsToAwait.first { it == 0 } // Wait util confirmations are sent
-                confirmations.close()
             },
         ).mapNotNull { reply ->
             when (reply) {
@@ -115,23 +91,16 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                         return@mapNotNull null
                     callsInProgress.updateWithContract { oldCalls -> oldCalls - answeredCall }
                     reply.answer?.sideEffect { answer ->
-                        val completionHook = CompletableDeferred<Unit>()
-                        answeredCall.deferred.complete(answer to completionHook)
-                        this@coroutineScope.launch {
-                            completionHook.await()
-
-                            confirmations.send(CoroutinePuzzleEndpointConfirmation(answeredCall.callId))
-                            confirmationsToAwait.update { it - 1 }
-                        }
+                        answeredCall.deferred.complete(answer)
                     } ?: answeredCall.deferred.completeExceptionally(Exception("500: Internal server error... :("))
                     null
                 }
                 is CoroutinePuzzleEndpointAnswer.Done -> reply.result
                 CoroutinePuzzleEndpointAnswer.IncorrectInput -> accidentalChangesMadeError()
                 CoroutinePuzzleEndpointAnswer.AlreadySolved ->
-                    CoroutinePuzzleSolutionResult.Failure("You have already solved this puzzle!")
+                    CoroutinePuzzleSolutionResult.Failure(emptyList(), CoroutinePuzzleSolutionResult.Failure.Reason.Custom("You have already solved this puzzle!"))
                 CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet ->
-                    CoroutinePuzzleSolutionResult.Failure("The puzzle has not been opened yet!")
+                    CoroutinePuzzleSolutionResult.Failure(emptyList(), CoroutinePuzzleSolutionResult.Failure.Reason.Custom("The puzzle has not been opened yet!"))
             }
         }.first()
     }

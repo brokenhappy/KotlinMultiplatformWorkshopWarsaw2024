@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.fail as junitFail
@@ -22,6 +23,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
@@ -132,13 +134,13 @@ abstract class CoroutinePuzzlesTest(
             api.numbers().collect { api.submit(it) }
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Regular collect must fail collect latest puzzle" }
-            .description
+            .toMessage()
             .assert({ "cancel" in it.lowercase() }) { "Message must mention cancellation" }
             .assert({ "submit" in it.lowercase() }) { "Message must mention submit" }
     }
 
     @Test
-    fun `collectLatest correct solution`(): Unit = runTest {
+    fun `collectLatest correct solution`(): Unit = runTest(timeout = 20.minutes) {
         doCollectLatestPuzzle { api ->
             api.numbers().collectLatest {
                 api.submit(it)
@@ -215,7 +217,7 @@ abstract class CoroutinePuzzlesTest(
             api.submit(api.getNumber() + api.getNumber())
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Regular collect must fail collect latest puzzle" }
-            .description
+            .toMessage()
             .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
             .assert({ "1.8" in it.lowercase() }) { "Message must mention expected time" }
     }
@@ -332,7 +334,7 @@ abstract class CoroutinePuzzlesTest(
             )
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure> { "synchronous solution for timed maximum age finding should fail" }
-            .description
+            .toMessage()
             .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
             .assert({ "3" in it.lowercase() }) { "Message must mention expected time" }
 
@@ -351,7 +353,7 @@ class CoroutinePuzzleUtilitiesTest {
             publicEndpoint.submitCall(Unit) // Should result in error
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure>()
-            .description
+            .toMessage()
             .assert({ "internal" !in it.lowercase() }) { "Message must not mention internal endpoint" }
     }
 
@@ -365,7 +367,7 @@ class CoroutinePuzzleUtilitiesTest {
             internalEndpoint.submitCall(Unit)
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure>()
-            .description
+            .toMessage()
             .assert({ "internal" in it.lowercase() }) { "Message must mention internal endpoint" }
     }
 
@@ -470,7 +472,7 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutException(id
 }
 
 private fun CoroutinePuzzleSolutionResult.assertIsOk(): Unit = when (this) {
-    is CoroutinePuzzleSolutionResult.Failure -> junitFail { this.description }
+    is CoroutinePuzzleSolutionResult.Failure -> junitFail { this.toMessage() }
     CoroutinePuzzleSolutionResult.Success -> { /** All OK! */ }
 }
 

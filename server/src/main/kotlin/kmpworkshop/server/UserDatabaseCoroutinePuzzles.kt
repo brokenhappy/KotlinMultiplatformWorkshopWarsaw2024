@@ -22,6 +22,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration.Companion.seconds
@@ -32,8 +33,10 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle
     getAllUserIds.expectCall { database.keys.toList() }
 
     suspend fun expectQueryCalls(isTimed: Boolean) {
-        launchBranches(parallelism = database.size) {
-            expectQueryCall(isTimed, database)
+        coroutineScope {
+            repeat(database.size) {
+                launch { expectQueryCall(isTimed, database) }
+            }
         }
     }
 
@@ -84,7 +87,7 @@ private suspend fun doUserDatabasePuzzle(
 
 fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutinePuzzle {
     val isDone = CompletableDeferred<Unit>()
-    launchBranch {
+    launch {
         callLifetime.expectCall {
             isDone.await()
         }
@@ -93,8 +96,10 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
 
     getAllUserIds.expectCall { database.keys.toList() }
 
-    launchBranches(parallelism = database.size - 1) {
-        expectQueryCall(isTimed = false, database)
+    coroutineScope {
+        repeat(database.size - 1) {
+            launch { expectQueryCall(isTimed = false, database) }
+        }
     }
     queryUserById.expectCall(null) // The last one throws an exception
     queryExceptionThrown.expectCall(Unit)
@@ -106,7 +111,7 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
 fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = coroutinePuzzle {
     try {
         val timeToCancel = CompletableDeferred<Unit>()
-        launchBranch {
+        launch {
             callLifetime.expectCall {
                 timeToCancel.await()
             }
@@ -115,8 +120,10 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
 
         getAllUserIds.expectCall { database.keys.toList() }
 
-        launchBranches(parallelism = database.size - 1) {
-            expectQueryCall(isTimed = false, database)
+        coroutineScope {
+            repeat(database.size - 1) {
+                launch { expectQueryCall(isTimed = false, database) }
+            }
         }
         queryUserById.expectCall {
             timeToCancel.complete(Unit) // we're going to cancel the last call

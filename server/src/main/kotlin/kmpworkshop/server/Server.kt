@@ -10,7 +10,6 @@ import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuz
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointConfirmation
 import kmpworkshop.common.WorkshopStage.*
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -142,7 +141,6 @@ fun workshopService(
                 return@channelFlow
             }
 
-        val completionHooks = ConcurrentHashMap<Int, CompletableDeferred<Unit>>()
         val jobs = ConcurrentHashMap<Int, Job>()
         send(try {
             puzzle.solve {
@@ -150,11 +148,10 @@ fun workshopService(
                     when (callOrConfirmation) {
                         is CoroutinePuzzleEndpointCall -> jobs[callOrConfirmation.callId] = launch {
                             try {
-                                val (answer, completionHook) = callOrConfirmation
+                                val answer = callOrConfirmation
                                     .descriptor
                                     .toEndpoint()
                                     .submitRawCall(callOrConfirmation.argument)
-                                completionHooks[callOrConfirmation.callId] = completionHook
                                 send(CallAnswered(
                                     callId = callOrConfirmation.callId,
                                     answer = answer,
@@ -169,7 +166,7 @@ fun workshopService(
                             }
                         }
                         is CoroutinePuzzleEndpointConfirmation -> {
-                            completionHooks.remove(callOrConfirmation.callId)?.complete(Unit)
+                            // No longer needed: the new CoroutinePuzzle API doesn't require an arrival confirmation.
                         }
                         is CoroutinePuzzleEndpointCallCancellation -> jobs[callOrConfirmation.callId]?.cancel()
                     }
