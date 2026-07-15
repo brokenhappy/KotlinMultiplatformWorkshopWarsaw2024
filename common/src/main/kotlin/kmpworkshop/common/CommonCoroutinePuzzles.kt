@@ -32,18 +32,13 @@ data class CoroutinePuzzleEndPointDescriptor(
      *  - It must be unique per puzzle. Expectations use this as a key to map to the submissions.
      */
     val description: String,
-    /**
-     * The history refers to the list of submissions made during a solve attempt.
-     * When the solve attempt fails, the history will be shown to the user to give them more insight.
-     */
-    val isHiddenInHistory: Boolean = false,
 )
 
 fun CoroutinePuzzleEndPointDescriptor.toEndpoint(): CoroutinePuzzleEndPoint<*, *> =
     CoroutinePuzzleEndPoint<Any?, Any?>(this)
 
-fun <T, R> coroutinePuzzleEndPoint(description: String, isHiddenInHistory: Boolean = false): CoroutinePuzzleEndPoint<T, R> =
-    CoroutinePuzzleEndPoint(CoroutinePuzzleEndPointDescriptor(description, isHiddenInHistory))
+fun <T, R> coroutinePuzzleEndPoint(description: String): CoroutinePuzzleEndPoint<T, R> =
+    CoroutinePuzzleEndPoint(CoroutinePuzzleEndPointDescriptor(description))
 
 sealed class CoroutinePuzzleState {
     class WaitingForExpectations(

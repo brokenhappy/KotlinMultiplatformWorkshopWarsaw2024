@@ -1,8 +1,10 @@
 package kmpworkshop.client
 
+import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
 import kmpworkshop.common.WorkshopServer
+import kmpworkshop.common.callLifetime
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
 
@@ -23,13 +25,21 @@ suspend fun checkCoroutinePuzzleInternal(
     }
 }
 
+/**
+ * Endpoints whose calls are internal scaffolding, not something the user themselves called - showing them in the
+ * history of a failed solve attempt would only confuse the user, since they never called it directly.
+ */
+private val endpointsHiddenFromHistory: Set<CoroutinePuzzleEndPointDescriptor> = setOf(callLifetime.descriptor)
+
+fun CoroutinePuzzleEndPointDescriptor.isHiddenFromHistory(): Boolean = this in endpointsHiddenFromHistory
+
 fun CoroutinePuzzleSolutionResult.Failure.toMessage(): String = """
     |${reason.toMessage()}
     |
     |The history of actions was:
     ${
         history
-            .filterNot { it.isHiddenInHistory }
+            .filterNot { it.isHiddenFromHistory() }
             .joinToString("\n") { "| - ${it.description}" }
     }
 """.trimMargin()

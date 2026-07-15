@@ -344,31 +344,29 @@ abstract class CoroutinePuzzlesTest(
 class CoroutinePuzzleUtilitiesTest {
     @Test
     fun `internal calls are NOT shown in history of error message`() = runTest {
-        val internalEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("internal", isHiddenInHistory = true)
-        val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public", isHiddenInHistory = false)
+        val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public")
         coroutinePuzzle {
-            internalEndpoint.expectCall(Unit)
+            callLifetime.expectCall(Unit)
         }.solve {
-            internalEndpoint.submitCall(Unit)
+            callLifetime.submitCall(Unit)
             publicEndpoint.submitCall(Unit) // Should result in error
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure>()
             .toMessage()
-            .assert({ "internal" !in it.lowercase() }) { "Message must not mention internal endpoint" }
+            .assert({ "lifetime" !in it.lowercase() }) { "Message must not mention internal endpoint" }
     }
 
     @Test
     fun `internal calls ARE shown in expected calls part of error message`() = runTest {
-        val internalEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("internal", isHiddenInHistory = true)
-        val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public", isHiddenInHistory = false)
+        val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public")
         coroutinePuzzle {
             publicEndpoint.expectCall(Unit)
         }.solve {
-            internalEndpoint.submitCall(Unit)
+            callLifetime.submitCall(Unit)
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure>()
             .toMessage()
-            .assert({ "internal" in it.lowercase() }) { "Message must mention internal endpoint" }
+            .assert({ "lifetime" in it.lowercase() }) { "Message must mention internal endpoint" }
     }
 
     class ExceptionForTestBelow() : Exception("Test exception")

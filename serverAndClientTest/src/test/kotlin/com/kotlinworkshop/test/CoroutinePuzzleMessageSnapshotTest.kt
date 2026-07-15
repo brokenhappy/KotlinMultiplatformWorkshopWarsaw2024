@@ -4,13 +4,14 @@ import kmpworkshop.client.toMessage
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.CoroutinePuzzleSolutionResult.Failure.Reason
+import kmpworkshop.common.callLifetime
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
 private val foo = CoroutinePuzzleEndPointDescriptor("call foo()")
 private val bar = CoroutinePuzzleEndPointDescriptor("call bar()")
 private val baz = CoroutinePuzzleEndPointDescriptor("call baz()")
-private val secret = CoroutinePuzzleEndPointDescriptor("call secret()", isHiddenInHistory = true)
+private val secret = callLifetime.descriptor
 
 /**
  * These pin down the exact (occasionally quirky, e.g. inconsistent margin trimming) rendered output of
