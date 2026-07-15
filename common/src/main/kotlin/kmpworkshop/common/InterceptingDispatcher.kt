@@ -40,7 +40,15 @@ suspend fun <T> withInterceptingDispatcher(
             /**
              * This is a bit of a tricky case, since this isn't just a Runnable we can wrap.
              * The Runnable comes later, namely at the moment that our [delegateDispatcher] calls [continuation].
-             * We don't
+             *
+             * A [CancellableContinuation] can only be legally obtained via [suspendCancellableCoroutine] (kotlinx
+             * internals reject third-party implementations, e.g. a `by continuation` delegate, for some of its
+             * operations), so we can't just wrap [continuation] ourselves - we need a real coroutine to call
+             * [suspendCancellableCoroutine] from. That coroutine must run on [delegateDispatcher] itself (not
+             * `Dispatchers.Default`/`GlobalScope`'s default): [delegateDelay] may belong to a virtual-time
+             * TestCoroutineScheduler under `runTest`, whose idle-detection only tracks work scheduled on its own
+             * dispatcher. A coroutine relayed onto a real thread would be invisible to it, so concurrent delays
+             * under this dispatcher wouldn't reliably overlap under virtual time.
              */
             override fun scheduleResumeAfterDelay(timeMillis: Long, continuation: CancellableContinuation<Unit>) {
                 if (isUnlimitedDuration_copiedFromKxCoroutines(timeMillis)) {
@@ -49,7 +57,7 @@ suspend fun <T> withInterceptingDispatcher(
                     return
                 }
                 onDispatchScheduled()
-                GlobalScope.launch {
+                GlobalScope.launch(delegateDispatcher) {
                     runCatching {
                         suspendCancellableCoroutine { wrapperContinuation ->
                             @OptIn(InternalForInheritanceCoroutinesApi::class)
