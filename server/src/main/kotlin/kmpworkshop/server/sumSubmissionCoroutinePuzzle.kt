@@ -9,11 +9,7 @@ import kmpworkshop.common.solve
 import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration.Companion.seconds
 
 
 fun simpleSumPuzzle() = coroutinePuzzle {
@@ -28,20 +24,11 @@ fun simpleSumPuzzle() = coroutinePuzzle {
 }
 
 fun timedSumPuzzle() = coroutinePuzzle {
-    val sum = withTimeoutOrNull(1.8.seconds) {
-        coroutineScope {
-            val randomNumbers = List(2) { (0..100).random() }
-            randomNumbers.forEach { number ->
-                launch {
-                    getNumber.expectCall {
-                        delay(1.seconds)
-                        number
-                    }
-                }
-            }
-            randomNumbers.sum()
-        }
-    } ?: fail("Too slow! Expected to take less than 1.8 seconds")
+    val randomNumbers = List(2) { (0..100).random() }
+    expectingMatchedParallelism {
+        randomNumbers.forEach { number -> launch { getNumber.expectCall { number } } }
+    }
+    val sum = randomNumbers.sum()
 
     val actual = submitNumber.expectCall(Unit)
     verify(actual == sum) { "The value that you submit must the sum of the numbers you got ($sum), but got $actual" }

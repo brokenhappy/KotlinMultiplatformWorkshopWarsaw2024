@@ -21,7 +21,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -32,36 +31,23 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle
 
     getAllUserIds.expectCall { database.keys.toList() }
 
-    suspend fun expectQueryCalls(isTimed: Boolean) {
+    if (isTimed) {
+        expectingMatchedParallelism {
+            repeat(database.size) { launch { expectQueryCall(database) } }
+        }
+    } else {
         coroutineScope {
-            repeat(database.size) {
-                launch { expectQueryCall(isTimed, database) }
-            }
+            repeat(database.size) { launch { expectQueryCall(database) } }
         }
     }
-
-    if (isTimed) {
-        withTimeoutOrNull(3.seconds) {
-            expectQueryCalls(isTimed)
-        } ?: fail("""
-            Your solution is too slow! :(
-            We expect you to query all users in less than 3 seconds.
-        """.trimIndent())
-    } else {
-        expectQueryCalls(isTimed = false)
-    }
-
 
     val submittedValue = submitNumber.expectCall(Unit)
     verify(submittedValue == 47) { "You submitted $submittedValue, but the oldest user is 47." }
 }
 
 context(_: CoroutinePuzzleBuilderScope)
-private suspend fun expectQueryCall(isTimed: Boolean, database: Map<Int, SerializableUser>) {
-    val id = queryUserById.expectCall { id ->
-        if (isTimed) delay(1.seconds)
-        database.getAndVerifyUserExists(id)
-    }
+private suspend fun expectQueryCall(database: Map<Int, SerializableUser>) {
+    val id = queryUserById.expectCall { id -> database.getAndVerifyUserExists(id) }
     println("User with id: $id delivered")
 }
 
@@ -98,7 +84,7 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
 
     coroutineScope {
         repeat(database.size - 1) {
-            launch { expectQueryCall(isTimed = false, database) }
+            launch { expectQueryCall(database) }
         }
     }
     queryUserById.expectCall(null) // The last one throws an exception
@@ -122,7 +108,7 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
 
         coroutineScope {
             repeat(database.size - 1) {
-                launch { expectQueryCall(isTimed = false, database) }
+                launch { expectQueryCall(database) }
             }
         }
         queryUserById.expectCall {
