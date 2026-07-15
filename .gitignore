@@ -20,3 +20,4 @@ captures
 .fleet/settings.json
 .kotlin
 /.env
+/serverEventBackup/
