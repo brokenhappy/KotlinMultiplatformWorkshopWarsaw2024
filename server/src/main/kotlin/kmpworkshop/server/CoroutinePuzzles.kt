@@ -80,10 +80,12 @@ fun coroutinePuzzle(
                     }
                 }
                 .first()
-                .map { it.endPoint.descriptor }
+                // Identity-based (not descriptor-based): the same endpoint can be expected concurrently more than
+                // once (e.g. via multiple `launch { endpoint.expectCall { ... } }`), and those share one descriptor.
+                // A descriptor-based set can't tell which of those identical-looking instances actually matched.
                 .toSet()
             // All expectation calls that did not have a matching submission need to repeat
-            batch.forEach { it.continuation.resume(it.query.endPoint.descriptor !in callsThatDidntHaveMatchingSubmit) }
+            batch.forEach { it.continuation.resume(it.query !in callsThatDidntHaveMatchingSubmit) }
         }
     )
     val branchCount = AtomicInt(0)
