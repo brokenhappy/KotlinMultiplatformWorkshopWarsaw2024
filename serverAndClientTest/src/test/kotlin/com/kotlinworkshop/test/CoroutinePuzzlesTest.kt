@@ -2,6 +2,7 @@ package com.kotlinworkshop.test
 
 import jdk.jfr.internal.OldObjectSample.emit
 import kmpworkshop.client.runCoroutinePuzzleClient
+import kmpworkshop.client.toMessage
 import kmpworkshop.common.*
 import kmpworkshop.server.*
 import kotlinx.coroutines.*
@@ -10,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.fail as junitFail
@@ -140,7 +140,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `collectLatest correct solution`(): Unit = runTest(timeout = 20.minutes) {
+    fun `collectLatest correct solution`(): Unit = runTest {
         doCollectLatestPuzzle { api ->
             api.numbers().collectLatest {
                 api.submit(it)
