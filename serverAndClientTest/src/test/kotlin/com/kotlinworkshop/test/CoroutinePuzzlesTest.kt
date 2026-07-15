@@ -1,29 +1,27 @@
 package com.kotlinworkshop.test
 
-import jdk.jfr.internal.OldObjectSample.emit
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.toMessage
+import kmpworkshop.common.CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch
 import kmpworkshop.common.*
 import kmpworkshop.server.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.fail as junitFail
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
-import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
@@ -116,7 +114,7 @@ abstract class CoroutinePuzzlesTest(
     private val doMappingLegacyApiCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
 ) {
     @Test
-    fun `empty solutions are wrong`(): Unit = runTest {
+    fun `empty solutions are wrong`(): Unit = runTest(timeout = 1.hours) {
         doSimpleSumPuzzle { }.assertIsNotOk()
         doTimedSumPuzzle { }.assertIsNotOk()
         doSimpleCollectPuzzle { }.assertIsNotOk()
@@ -129,7 +127,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `regular collect must fail collect latest puzzle`(): Unit = runTest {
+    fun `regular collect must fail collect latest puzzle`(): Unit = runTest2 {
         doCollectLatestPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }
@@ -140,7 +138,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `collectLatest correct solution`(): Unit = runTest {
+    fun `collectLatest correct solution`(): Unit = runTest2 {
         doCollectLatestPuzzle { api ->
             api.numbers().collectLatest {
                 api.submit(it)
@@ -149,14 +147,14 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple flow puzzle does not need collect latest`(): Unit = runTest {
+    fun `simple flow puzzle does not need collect latest`(): Unit = runTest2 {
         doSimpleCollectPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }.assertIsOk()
     }
 
     @Test
-    fun `simple flow puzzle might pass with collect latest`(): Unit = runTest {
+    fun `simple flow puzzle might pass with collect latest`(): Unit = runTest2 {
         // Not strictly needed behavior, but I keep it in here to increase coverage
         doSimpleCollectPuzzle { api ->
             api.numbers().collectLatest { api.submit(it) }
@@ -164,14 +162,14 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple sum correct solution`(): Unit = runTest {
+    fun `simple sum correct solution`(): Unit = runTest2 {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }.assertIsOk()
     }
 
     @Test
-    fun `sum of too many numbers`(): Unit = runTest {
+    fun `sum of too many numbers`(): Unit = runTest2 {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber() + api.getNumber())
         }.assertIsNotOk()
@@ -183,7 +181,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `submitting incorrect sum is not ok`(): Unit = runTest {
+    fun `submitting incorrect sum is not ok`(): Unit = runTest2 {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber())
         }.assertIsNotOk()
@@ -196,7 +194,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `submitting in parallel is ok`(): Unit = runTest {
+    fun `submitting in parallel is ok`(): Unit = runTest2 {
         doSimpleSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
@@ -204,7 +202,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `timed sum correct solution`(): Unit = runTest {
+    fun `timed sum correct solution`(): Unit = runTest2 {
         doTimedSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
@@ -212,7 +210,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `timed sum too slow solution fails`(): Unit = runTest {
+    fun `timed sum too slow solution fails`(): Unit = runTest2 {
         doTimedSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
@@ -223,7 +221,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `correct simple maximum age finding solution`(): Unit = runTest {
+    fun `correct simple maximum age finding solution`(): Unit = runTest2 {
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -234,7 +232,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `correct timed maximum age finding solution`(): Unit = runTest {
+    fun `correct timed maximum age finding solution`(): Unit = runTest2 {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -247,7 +245,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runTest {
+    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runTest2 {
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -260,7 +258,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runTest {
+    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runTest2 {
         doMappingLegacyApiCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -271,7 +269,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runTest {
+    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runTest2 {
         doMappingLegacyApiCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -284,7 +282,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runTest {
+    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runTest2 {
         withTimeoutOrNull(2.seconds) {
             doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
                 database.submit(
@@ -299,7 +297,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runTest {
+    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runTest2 {
         doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -312,7 +310,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `full solution is correct for last puzzle`(): Unit = runTest {
+    fun `full solution is correct for last puzzle`(): Unit = runTest2 {
         doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -325,7 +323,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `synchronous solution for timed maximum age finding fails`(): Unit = runTest {
+    fun `synchronous solution for timed maximum age finding fails`(): Unit = runTest2 {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -343,7 +341,7 @@ abstract class CoroutinePuzzlesTest(
 
 class CoroutinePuzzleUtilitiesTest {
     @Test
-    fun `internal calls are NOT shown in history of error message`() = runTest {
+    fun `internal calls are NOT shown in history of error message`() = runTest2 {
         val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public")
         coroutinePuzzle {
             callLifetime.expectCall(Unit)
@@ -357,7 +355,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `internal calls ARE shown in expected calls part of error message`() = runTest {
+    fun `internal calls ARE shown in expected calls part of error message`() = runTest2 {
         val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public")
         coroutinePuzzle {
             publicEndpoint.expectCall(Unit)
@@ -372,7 +370,7 @@ class CoroutinePuzzleUtilitiesTest {
     class ExceptionForTestBelow() : Exception("Test exception")
 
     @Test
-    fun `error that happens in expect call is thrown into submit call`() = runTest {
+    fun `error that happens in expect call is thrown into submit call`() = runTest2 {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         coroutinePuzzle {
             endpoint.expectCall { throw ExceptionForTestBelow() }
@@ -384,7 +382,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `nothing hangs when submit call gets canceled`() = runTest {
+    fun `nothing hangs when submit call gets canceled`() = runTest2 {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         val cancellationStartHook = CompletableDeferred<Unit>()
         val cancellationFinishedHook = CompletableDeferred<Unit>()
@@ -407,7 +405,7 @@ class CoroutinePuzzleUtilitiesTest {
     class SpecialCancellationExceptionForTestBelow() : CancellationException()
 
     @Test
-    fun `await cancellation of matching submit call does not throw into coroutine puzzle scope`() = runTest {
+    fun `await cancellation of matching submit call does not throw into coroutine puzzle scope`() = runTest2 {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         val cancellationStartHook = CompletableDeferred<Unit>()
         coroutinePuzzle {
@@ -431,9 +429,91 @@ class CoroutinePuzzleUtilitiesTest {
             }
         }
     }
+
+    @Test
+    fun `trying to call a coroutine puzzle endpoint synchronously while the expectation is parallel fails`() = runTest2 {
+        val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
+        coroutinePuzzle {
+            expectingMatchedParallelism {
+                launch {
+                    endpoint.expectCall { it.toString() }
+                }
+                endpoint.expectCall { it.toString() }
+            }
+        }.solve {
+            endpoint.submitCall(42)
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Synchronous submission should fail an exact-parallelism expectation" }
+            .reason.assertIs<ExactParallelismMismatch>()
+    }
+
+    @Test
+    fun `trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails`() = runTest2 {
+        val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
+        coroutinePuzzle {
+            expectingMatchedParallelism {
+                endpoint.expectCall { it.toString() }
+            }
+        }.solve {
+            launch { endpoint.submitCall(42) }
+            endpoint.submitCall(42)
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Parallel submission should fail a synchronous exact-parallelism expectation" }
+            .reason.assertIs<ExactParallelismMismatch>()
+    }
+
+    @Test
+    fun `trying to call a coroutine puzzle endpoint with double parallel while the expectation is triple parallel fails`() = runTest2 {
+        val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
+        coroutinePuzzle {
+            expectingMatchedParallelism {
+                launch { endpoint.expectCall { it.toString() } }
+                launch { endpoint.expectCall { it.toString() } }
+                endpoint.expectCall { it.toString() }
+            }
+        }.solve {
+            launch { endpoint.submitCall(42) }
+            endpoint.submitCall(42)
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Double parallel submission should fail a triple-parallel expectation" }
+            .reason.assertIs<ExactParallelismMismatch>()
+    }
+
+    @Test
+    fun `trying to call a coroutine puzzle endpoint with triple parallel while the expectation is double parallel fails`() = runTest2 {
+        val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
+        coroutinePuzzle {
+            expectingMatchedParallelism {
+                launch { endpoint.expectCall { it.toString() } }
+                endpoint.expectCall { it.toString() }
+            }
+        }.solve {
+            launch { endpoint.submitCall(42) }
+            launch { endpoint.submitCall(42) }
+            endpoint.submitCall(42)
+        }
+            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Triple parallel submission should fail a double-parallel expectation" }
+            .reason.assertIs<ExactParallelismMismatch>()
+    }
+
+    @Test
+    fun `trying to call a coroutine puzzle endpoint with matching parallelism succeeds`() = runTest2 {
+        val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
+        coroutinePuzzle {
+            expectingMatchedParallelism {
+                launch { endpoint.expectCall { it.toString() } }
+                launch { endpoint.expectCall { it.toString() } }
+                endpoint.expectCall { it.toString() }
+            }
+        }.solve {
+            launch { endpoint.submitCall(42) }
+            launch { endpoint.submitCall(42) }
+            endpoint.submitCall(42)
+        }.assertIsOk()
+    }
 }
 
-fun runTest(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
+fun runTest2(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
     return suspendCancellableCoroutine { continuation ->
