@@ -76,8 +76,6 @@ class AutoBatchedFunctionId<T, C, R>(
     override fun toString(): String = "AutoBatchedFunctionId(key=$key)"
 }
 
-private class AllCoroutinesDone : Exception()
-
 /** A version of [autoBatchedOnQuiescence] without context */
 @OptIn(ExperimentalTime::class)
 suspend fun <U, T, R> AutoBatchedFunctionId<T, Unit, R>.autoBatchedOnQuiescence(
@@ -139,103 +137,112 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
     val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 0, currentRequests = persistentListOf()))
     @OptIn(ExperimentalTime::class)
     return coroutineScope {
-        launch {
+        val trackingJob = launch {
             withImportantCleanup {
                 var momentOfLastBatch = clock.now()
-                try {
-                    state.collectLatest { currentState ->
-                        println("Observing $currentState")
-                        if (currentState.activeCoroutineCount == 0) {
-                            if (currentState.currentRequests.isEmpty()) throw AllCoroutinesDone()
-                            importantCleanup {
-                                try {
-                                    coroutineScope {
-                                        batchResumer(context, currentState.currentRequests)
-                                    }
-                                } finally {
-                                    if (currentState.currentRequests.any { it.continuation.isActive }) {
-                                        println("Some continuations are still active")
-                                    }
-                                }
-                                state.update {
-                                    it.copy(currentRequests =
-                                        // Fast path for happy path
-                                        if (it === currentState) persistentListOf()
-                                        // I'm not 100% sure why this fixed [CoroutinePuzzleUtilitiesTest.trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails]
-                                        // Shouldn't we have the assumption that there is no parallelism rn?
-                                        else it.currentRequests.removeAll(currentState.currentRequests)
-                                    )
-                                }
-                            }
-                            momentOfLastBatch = clock.now()
+                state.collectLatest { currentState ->
+                    println("Observing $currentState")
+                    if (currentState.activeCoroutineCount == 0) {
+                        if (currentState.currentRequests.isEmpty()) {
+                            // Nothing to do *right now*, but that doesn't mean [block] is done - it may just be
+                            // between two batches (e.g. waiting for the next network call to arrive). Whether we're
+                            // truly done is decided by [block] actually completing, below, which cancels this
+                            // tracking coroutine - not by momentarily observing nothing pending.
                             return@collectLatest
                         }
-                        clock.delayUntil(momentOfLastBatch + maximumBatchWaitTime)
                         importantCleanup {
                             try {
-                                coroutineScope { batchResumer(context, currentState.currentRequests) }
+                                coroutineScope {
+                                    batchResumer(context, currentState.currentRequests)
+                                }
                             } finally {
                                 if (currentState.currentRequests.any { it.continuation.isActive }) {
                                     println("Some continuations are still active")
                                 }
                             }
-                            var processedContinuations: Set<CancellableContinuation<R>>? = null
-                            // We just processed the batch while other coroutines were still running
-                            // That means that new batch calls might have been made...
-                            state.update { old ->
-                                // ... Therefore, we first check whether any requests have been made since out last request...
-                                if (old.currentRequests === currentState.currentRequests) {
-                                    // ... If no requests have been made, we can simply set to an empty list.
-                                    // This is an optimization for the most likely case.
-                                    old.copy(currentRequests = persistentListOf())
-                                } else {
-                                    // ... Only if another request has been made we remove only continuations that we completed
-                                    processedContinuations = processedContinuations
-                                        ?: old.currentRequests.mapTo(HashSet()) { it.continuation }
-                                    old.copy(
-                                        currentRequests = old
-                                            .currentRequests
-                                            .filter { it.continuation !in processedContinuations }
-                                            .toPersistentList(),
-                                    )
-                                }
+                            state.update {
+                                it.copy(currentRequests =
+                                    // Fast path for happy path
+                                    if (it === currentState) persistentListOf()
+                                    // I'm not 100% sure why this fixed [CoroutinePuzzleUtilitiesTest.trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails]
+                                    // Shouldn't we have the assumption that there is no parallelism rn?
+                                    else it.currentRequests.removeAll(currentState.currentRequests)
+                                )
                             }
                         }
                         momentOfLastBatch = clock.now()
+                        return@collectLatest
                     }
-                } catch (_: AllCoroutinesDone) {
-                    // Ignore, we can now finish this coroutine tree
+                    clock.delayUntil(momentOfLastBatch + maximumBatchWaitTime)
+                    importantCleanup {
+                        try {
+                            coroutineScope { batchResumer(context, currentState.currentRequests) }
+                        } finally {
+                            if (currentState.currentRequests.any { it.continuation.isActive }) {
+                                println("Some continuations are still active")
+                            }
+                        }
+                        var processedContinuations: Set<CancellableContinuation<R>>? = null
+                        // We just processed the batch while other coroutines were still running
+                        // That means that new batch calls might have been made...
+                        state.update { old ->
+                            // ... Therefore, we first check whether any requests have been made since out last request...
+                            if (old.currentRequests === currentState.currentRequests) {
+                                // ... If no requests have been made, we can simply set to an empty list.
+                                // This is an optimization for the most likely case.
+                                old.copy(currentRequests = persistentListOf())
+                            } else {
+                                // ... Only if another request has been made we remove only continuations that we completed
+                                processedContinuations = processedContinuations
+                                    ?: old.currentRequests.mapTo(HashSet()) { it.continuation }
+                                old.copy(
+                                    currentRequests = old
+                                        .currentRequests
+                                        .filter { it.continuation !in processedContinuations }
+                                        .toPersistentList(),
+                                )
+                            }
+                        }
+                    }
+                    momentOfLastBatch = clock.now()
                 }
             }
         }
-        withInterceptingDispatcher(
-            onDispatchScheduled = {
-                state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount + 1) }
-            },
-            onDispatchedRunnableComplete = {
-                state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
-            },
-        ) {
-            withContext(
-                object : BatchedScope<T, R> {
-                    override suspend fun callAutoBatched(request: T): R = suspendCancellableCoroutine { continuation ->
-                        val batchCall = SuspendedBatchCall(request, continuation)
-                        state.update {
-                            it.copy(currentRequests = it.currentRequests.add(batchCall))
-                        }
-                        continuation.invokeOnCancellation {
-                            state.update { // Prevents memory leak
-                                // TODO: Worth optimizing data structure to remove this O(N)?
-                                it.copy(currentRequests = it.currentRequests.remove(batchCall))
-                            }
-                            batchCall.invokeCancellationHandler()
-                        }
-                    }
-
-                    override val key: CoroutineContext.Key<*> = this@autoBatchedOnQuiescence.key
+        try {
+            withInterceptingDispatcher(
+                onDispatchScheduled = {
+                    state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount + 1) }
                 },
-                block,
-            )
+                onDispatchedRunnableComplete = {
+                    state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
+                },
+            ) {
+                withContext(
+                    object : BatchedScope<T, R> {
+                        override suspend fun callAutoBatched(request: T): R = suspendCancellableCoroutine { continuation ->
+                            val batchCall = SuspendedBatchCall(request, continuation)
+                            state.update {
+                                it.copy(currentRequests = it.currentRequests.add(batchCall))
+                            }
+                            continuation.invokeOnCancellation {
+                                state.update { // Prevents memory leak
+                                    // TODO: Worth optimizing data structure to remove this O(N)?
+                                    it.copy(currentRequests = it.currentRequests.remove(batchCall))
+                                }
+                                batchCall.invokeCancellationHandler()
+                            }
+                        }
+
+                        override val key: CoroutineContext.Key<*> = this@autoBatchedOnQuiescence.key
+                    },
+                    block,
+                )
+            }
+        } finally {
+            // block (and, transitively, everything spawned from it) has now fully completed - there can be no more
+            // pending requests, since any of those would still be suspended as part of block's own coroutine tree,
+            // which would have kept it from completing. It's now safe to stop watching for batches to resume.
+            trackingJob.cancel()
         }
     }
 }
