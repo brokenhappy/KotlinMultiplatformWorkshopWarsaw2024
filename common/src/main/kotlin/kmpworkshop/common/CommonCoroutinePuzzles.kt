@@ -290,7 +290,7 @@ fun getUserDatabaseWithLegacyQueryUser(
 
     override fun queryUserWithCallback(id: Int, onSuccess: (User) -> Unit, onError: (Throwable) -> Unit): QueryHandle {
         val isDone = CompletableDeferred<Unit>()
-        return topLevelScope.launch(Dispatchers.IO) {
+        return topLevelScope.launch {
             try {
                 queryUserById
                     .submitCall(id)
