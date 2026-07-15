@@ -33,55 +33,47 @@ private val endpointsHiddenFromHistory: Set<CoroutinePuzzleEndPointDescriptor> =
 
 fun CoroutinePuzzleEndPointDescriptor.isHiddenFromHistory(): Boolean = this in endpointsHiddenFromHistory
 
-fun CoroutinePuzzleSolutionResult.Failure.toMessage(): String = """
-    |${reason.toMessage()}
-    |
-    |The history of actions was:
-    ${
-        history
-            .filterNot { it.isHiddenFromHistory() }
-            .joinToString("\n") { "| - ${it.description}" }
+fun CoroutinePuzzleSolutionResult.Failure.toMessage(): String {
+    val visibleHistory = history.filterNot { it.isHiddenFromHistory() }
+    val historySection = if (visibleHistory.isEmpty()) {
+        "  (no actions were called yet)"
+    } else {
+        visibleHistory.joinToString("\n") { "  - ${it.description}" }
     }
-""".trimMargin()
+    return "${reason.toMessage()}\n\nThe history of actions was:\n$historySection"
+}
 
 fun CoroutinePuzzleSolutionResult.Failure.Reason.toMessage(): String = when (this) {
-    is CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch -> """
-        |You tried to call these at the same time:
-        |${formatCallAttemptsWithMargins(submissions.map { it.description }.distinct())}
-        |However, you were expected to call exactly these
-    """.trimIndent()
-    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions -> """
-        |You made too few function calls. We're still expecting ${
-            expectedFollowups.map { it.description }.distinct().let { expectedCalls ->
-                expectedCalls.singleOrNull()
-                    ?: """
-                        either:
-                        |${expectedCalls.joinToString(",\n| or ", postfix = "\n|")}
-                    """.trimIndent()
-            }
-        }
-    """.trimMargin()
-    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations -> """
-        |Attempted to call ${formatCallAttemptsWithMargins(overshotSubmissions.map { it.description }.distinct())}
-    """.trimMargin()
-    is CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions -> """
-        |Currently the expected ${
-            expectations.map { it.description }.distinct().let { expectedCalls ->
-                expectedCalls.singleOrNull()?.let { "action is: $it" }
-                    ?: """
-                        actions are either:
-                        |${expectedCalls.joinToString(",\n| or ")}
-                    """.trimIndent()
-            }
-        }
-        |But instead you attempted to call ${
-            formatCallAttemptsWithMargins(unexpectedSubmissions.map { it.description }.distinct())
-        }
-    """.trimMargin()
+    is CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch ->
+        "You tried to call " + formatCallAttemptsWithMargins(submissions.map { it.description }.distinct()) + ".\n" +
+            "But you were expected to call exactly " +
+            formatCallAttemptsWithMargins(expectations.map { it.description }.distinct()) + "."
+    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions ->
+        "You made too few function calls. We're still expecting " +
+            formatExpectedAlternatives(expectedFollowups.map { it.description }.distinct()) + "."
+    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations ->
+        "You made too many function calls. No more calls were expected right now, but you called " +
+            formatCallAttemptsWithMargins(overshotSubmissions.map { it.description }.distinct()) + "."
+    is CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions -> {
+        val expectedDescriptions = expectations.map { it.description }.distinct()
+        val actionOrActions = if (expectedDescriptions.size == 1) "action is" else "actions are"
+        "Currently the expected $actionOrActions " + formatExpectedAlternatives(expectedDescriptions) + ".\n" +
+            "But instead you called " +
+            formatCallAttemptsWithMargins(unexpectedSubmissions.map { it.description }.distinct()) + "."
+    }
     is CoroutinePuzzleSolutionResult.Failure.Reason.Custom -> message
 }
 
-private fun formatCallAttemptsWithMargins(attempts: List<String>): String =
-    attempts.singleOrNull() ?: attempts.joinToString(", and", prefix = "all of these at the same time: \n") {
-        "|    $it\n"
-    }
+/** Describes a set of calls that happened (or were expected to happen) together, at the same time. */
+private fun formatCallAttemptsWithMargins(attempts: List<String>): String = when (attempts.size) {
+    0 -> "nothing"
+    1 -> attempts.single()
+    else -> "all of these, at the same time:\n" + attempts.joinToString("\n") { "  - $it" }
+}
+
+/** Describes a set of calls where any single one of them would have been an acceptable next step. */
+private fun formatExpectedAlternatives(alternatives: List<String>): String = when (alternatives.size) {
+    0 -> "nothing"
+    1 -> alternatives.single()
+    else -> "one of these:\n" + alternatives.joinToString("\n") { "  - $it" }
+}

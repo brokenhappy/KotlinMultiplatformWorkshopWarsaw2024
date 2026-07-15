@@ -1,0 +1,6 @@
+Currently the expected actions are one of these:
+  - call foo()
+  - call bar().
+But instead you called all of these, at the same time:
+  - call baz()
+  - call foo().

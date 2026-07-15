@@ -1,0 +1,4 @@
+You tried to call call foo().
+But you were expected to call exactly all of these, at the same time:
+  - call foo()
+  - call bar().

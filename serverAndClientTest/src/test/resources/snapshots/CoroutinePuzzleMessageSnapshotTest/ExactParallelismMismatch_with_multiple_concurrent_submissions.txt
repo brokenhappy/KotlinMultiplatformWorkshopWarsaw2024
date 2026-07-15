@@ -1,0 +1,7 @@
+You tried to call all of these, at the same time:
+  - call foo()
+  - call bar().
+But you were expected to call exactly all of these, at the same time:
+  - call foo()
+  - call bar()
+  - call baz().
