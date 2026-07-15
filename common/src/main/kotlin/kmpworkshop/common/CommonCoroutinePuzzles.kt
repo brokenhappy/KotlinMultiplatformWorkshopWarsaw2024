@@ -20,12 +20,14 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import java.util.Collections
 import java.util.IdentityHashMap
+import kotlin.jvm.JvmInline
 import kotlin.time.ExperimentalTime
 
 data class CoroutinePuzzleEndPoint<in T, out R>(val descriptor: CoroutinePuzzleEndPointDescriptor)
 
 @Serializable
-data class CoroutinePuzzleEndPointDescriptor(
+@JvmInline
+value class CoroutinePuzzleEndPointDescriptor(
     /**
      * This property has 2 functions.
      *  - It's visible to the user. Reading it makes it clear to the user what function call caused this or they should make.
