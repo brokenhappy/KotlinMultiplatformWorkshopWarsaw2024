@@ -81,7 +81,7 @@ suspend fun runCoroutinePuzzleClient(
     MappingFromLegacyApisStepOne -> checkCoroutinePuzzle(
         workshopServer,
         stage.name,
-        solution = { coroutineScope { mapFromLegacyApi(it) } },
+        solution = { coroutineScope { mappingLegacyApiCoroutineSolution(it) } },
     ) { getUserDatabaseWithLegacyQueryUser(bigScope) }
     MappingFromLegacyApisStepTwo,
     MappingFromLegacyApisStepThree -> checkCoroutinePuzzleInternal(
