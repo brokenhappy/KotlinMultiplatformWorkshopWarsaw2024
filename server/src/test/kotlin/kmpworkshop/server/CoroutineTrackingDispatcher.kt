@@ -10,11 +10,14 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.reflect.KFunction
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -58,7 +61,7 @@ class AutoBatchedFunctionId<T, C, R>(
     /**
      * The [key] is useful if you want to have fine-grained control over how multiple different types of batching work
      * across a code base. By default, each [AutoBatchedFunctionId] has its own key.
-     * You can improve the toString of this function id by using
+     * You can improve the toString of this function id by overriding the [toString].
      */
     internal val key: CoroutineContext.Key<BatchedScope<T, R>> = object : CoroutineContext.Key<BatchedScope<T, R>> {},
     internal val batchResumer: suspend CoroutineScope.(context: C, batch: List<SuspendedBatchCall<T, R>>) -> Unit,
@@ -66,10 +69,11 @@ class AutoBatchedFunctionId<T, C, R>(
     /**
      * This function will become part of the current batch and suspend until the batch is resumed by the [batchResumer].
      */
-    suspend fun batched(request: T): R =
-        currentCoroutineContext()[key]
-            ?.callAutoBatched(request)
-            ?: coroutineScope { fallbackOutOfBatchScope(request) }
+    suspend fun batched(request: T): R {
+        val scope = currentCoroutineContext()[key]
+        return if (scope == null) coroutineScope { fallbackOutOfBatchScope(request) }
+        else scope.callAutoBatched(request)
+    }
 
     override fun toString(): String = "AutoBatchedFunctionId(key=$key)"
 }
@@ -145,15 +149,35 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                         if (currentState.activeCoroutineCount == 0) {
                             if (currentState.currentRequests.isEmpty()) throw AllCoroutinesDone()
                             importantCleanup {
-                                coroutineScope { batchResumer(context, currentState.currentRequests) }
-                                state.update { it.copy(currentRequests = persistentListOf()) }
+                                try {
+                                    coroutineScope { batchResumer(context, currentState.currentRequests) }
+                                } finally {
+                                    if (currentState.currentRequests.any { it.continuation.isActive }) {
+                                        println("Some continuations are still active")
+                                    }
+                                }
+                                state.update {
+                                    it.copy(currentRequests =
+                                        // Fast path for happy path
+                                        if (it === currentState) persistentListOf()
+                                        // I'm not 100% sure why this fixed [kmpworkshop.server.asd.CoroutinePuzzleUtilitiesTest.trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails]
+                                        // Shouldn't we have the assumption that there is no parallelism rn?
+                                        else it.currentRequests.removeAll(currentState.currentRequests)
+                                    )
+                                }
                             }
                             momentOfLastBatch = clock.now()
                             return@collectLatest
                         }
                         clock.delayUntil(momentOfLastBatch + maximumBatchWaitTime)
                         importantCleanup {
-                            coroutineScope { batchResumer(context, currentState.currentRequests) }
+                            try {
+                                coroutineScope { batchResumer(context, currentState.currentRequests) }
+                            } finally {
+                                if (currentState.currentRequests.any { it.continuation.isActive }) {
+                                    println("Some continuations are still active")
+                                }
+                            }
                             var processedContinuations: Set<CancellableContinuation<R>>? = null
                             // We just processed the batch while other coroutines were still running
                             // That means that new batch calls might have been made...
@@ -195,7 +219,7 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                 object : BatchedScope<T, R> {
                     override suspend fun callAutoBatched(request: T): R = suspendCancellableCoroutine { continuation ->
                         val batchCall = SuspendedBatchCall(request, continuation)
-                        state.updateWithContract {
+                        state.update {
                             it.copy(currentRequests = it.currentRequests.add(batchCall))
                         }
                         continuation.invokeOnCancellation {
@@ -203,6 +227,7 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                                 // TODO: Worth optimizing data structure to remove this O(N)?
                                 it.copy(currentRequests = it.currentRequests.remove(batchCall))
                             }
+                            batchCall.invokeCancellationHandler()
                         }
                     }
 
@@ -223,7 +248,34 @@ interface BatchedScope<T, R>: CoroutineContext.Element {
     suspend fun callAutoBatched(request: T): R
 }
 
-data class SuspendedBatchCall<T, R>(val query: T, val continuation: CancellableContinuation<R>)
+val AlreadyCanceledSymbol = object {}
+
+class SuspendedBatchCall<T, R>(val query: T, val continuation: CancellableContinuation<R>) {
+    private var cancellationHandler = AtomicReference<Any?>(null)
+    fun invokeOnCancellation(block: () -> Unit) {
+        val new = cancellationHandler.updateAndGet { old ->
+            when {
+                old === AlreadyCanceledSymbol -> AlreadyCanceledSymbol
+                old === null -> block
+                else -> throw IllegalStateException("Already has a cancellation handler")
+            }
+        }
+        if (new === AlreadyCanceledSymbol) {
+            block()
+        }
+    }
+
+    fun invokeCancellationHandler() {
+        val old = cancellationHandler.getAndUpdate { old ->
+            when {
+                old === AlreadyCanceledSymbol -> throw IllegalStateException("Already got cancelled")
+                else -> AlreadyCanceledSymbol
+            }
+        }
+        @Suppress("UNCHECKED_CAST")
+        if (old !== null && old !== AlreadyCanceledSymbol) (old as () -> Unit).invoke()
+    }
+}
 
 @OptIn(ExperimentalTime::class)
 class CoroutineTrackingDispatcherTest {
