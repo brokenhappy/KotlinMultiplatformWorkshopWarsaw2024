@@ -15,6 +15,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 
@@ -72,12 +73,35 @@ suspend fun <T> withInterceptingDispatcher(
                 }.also { job -> continuation.invokeOnCancellation { job.cancel() } }
             }
 
+            /**
+             * A scheduled timeout counts as an in-flight dispatch, but unlike [dispatch] it may never run: if the
+             * timed block finishes first (e.g. a [withTimeoutOrNull] whose body returns before the deadline) the
+             * handle is disposed and the runnable is never invoked. So we must decrement on whichever happens
+             * first - the timeout firing OR the handle being disposed - otherwise every non-expiring timeout would
+             * leak the active-coroutine count and permanently prevent quiescence from being reached again.
+             */
             override fun invokeOnTimeout(
                 timeMillis: Long,
                 block: Runnable,
                 context: CoroutineContext,
-            ): DisposableHandle =
-                delegateDelay.invokeOnTimeout(timeMillis, prepareForScheduling(block), context)
+            ): DisposableHandle {
+                onDispatchScheduled()
+                val alreadyCompleted = AtomicBoolean(false)
+                fun completeOnce() {
+                    if (alreadyCompleted.compareAndSet(false, true)) onDispatchedRunnableComplete()
+                }
+                val handle = delegateDelay.invokeOnTimeout(timeMillis, Runnable {
+                    try {
+                        block.run()
+                    } finally {
+                        completeOnce()
+                    }
+                }, context)
+                return DisposableHandle {
+                    handle.dispose()
+                    completeOnce()
+                }
+            }
 
             override fun dispatch(context: CoroutineContext, block: Runnable) {
                 delegateDispatcher.dispatch(context, prepareForScheduling(block))
