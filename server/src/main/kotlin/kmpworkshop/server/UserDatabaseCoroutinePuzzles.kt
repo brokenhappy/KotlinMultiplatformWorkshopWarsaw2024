@@ -113,11 +113,9 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
         }
         queryUserById.expectCall {
             timeToCancel.complete(Unit) // we're going to cancel the last call
-            GlobalScope.async {
-                withTimeoutOrNull(5.seconds) {
-                    awaitCancellationOfMatchingSubmitCall()
-                } ?: fail("Your function got canceled, but you left the last query running")
-            }.await()
+            withTimeoutOrNull(5.seconds) {
+                awaitCancellationOfMatchingSubmitCall()
+            } ?: fail("Your function got canceled, but you left the last query running")
         }
         callIsDone.expectCall(Unit)
     } catch (t: Throwable) {
