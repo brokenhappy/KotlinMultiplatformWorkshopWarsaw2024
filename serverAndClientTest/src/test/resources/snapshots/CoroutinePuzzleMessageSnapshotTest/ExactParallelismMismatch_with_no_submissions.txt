@@ -1,0 +1,2 @@
+You tried to call nothing.
+But you were expected to call exactly call foo().

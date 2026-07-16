@@ -44,6 +44,21 @@ class CoroutinePuzzleMessageSnapshotTest {
     }
 
     @Test
+    fun `ExactParallelismMismatch with no submissions`() {
+        // Covers the "nothing" branch of the call-list formatting, which a real puzzle failure wouldn't hit for
+        // submissions (there's always at least one, or this Reason wouldn't have fired) but is worth pinning down
+        // since it's a distinct branch of the rendering logic.
+        Reason.ExactParallelismMismatch(
+            submissions = emptyList(),
+            expectations = listOf(foo),
+        )
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_no_submissions.txt",
+            )
+    }
+
+    @Test
     fun `MoreExpectationsThanSubmissions with a single expected call`() {
         Reason.MoreExpectationsThanSubmissions(expectedFollowups = listOf(foo))
             .toMessage()
@@ -62,6 +77,15 @@ class CoroutinePuzzleMessageSnapshotTest {
     }
 
     @Test
+    fun `MoreExpectationsThanSubmissions with no expected calls`() {
+        Reason.MoreExpectationsThanSubmissions(expectedFollowups = emptyList())
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/CoroutinePuzzleMessageSnapshotTest/MoreExpectationsThanSubmissions_with_no_expected_calls.txt",
+            )
+    }
+
+    @Test
     fun `MoreSubmissionsThanExpectations with a single overshot submission`() {
         Reason.MoreSubmissionsThanExpectations(overshotSubmissions = listOf(foo))
             .toMessage()
@@ -76,6 +100,17 @@ class CoroutinePuzzleMessageSnapshotTest {
             .toMessage()
             .assertMatchesSnapshot(
                 "snapshots/CoroutinePuzzleMessageSnapshotTest/MoreSubmissionsThanExpectations_with_multiple_overshot_submissions.txt",
+            )
+    }
+
+    @Test
+    fun `MoreSubmissionsThanExpectations with no overshot submissions`() {
+        // Covers the "nothing" branch of the call-list formatting; a real puzzle failure wouldn't reach this
+        // Reason with an empty list, but it's a distinct branch of the rendering logic worth pinning down.
+        Reason.MoreSubmissionsThanExpectations(overshotSubmissions = emptyList())
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/CoroutinePuzzleMessageSnapshotTest/MoreSubmissionsThanExpectations_with_no_overshot_submissions.txt",
             )
     }
 
@@ -99,6 +134,21 @@ class CoroutinePuzzleMessageSnapshotTest {
         ).toMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_multiple_expectations_and_multiple_unexpected_submissions.txt",
         )
+    }
+
+    @Test
+    fun `UnexpectedSubmissions with no expectations and no unexpected submissions`() {
+        // Covers the "nothing" branch of both the alternatives formatting (expectations) and the call-list
+        // formatting (unexpectedSubmissions), plus the "actions are" (rather than "action is") text for a
+        // zero-sized expectations list.
+        Reason.UnexpectedSubmissions(
+            unexpectedSubmissions = emptyList(),
+            expectations = emptyList(),
+        )
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_no_expectations_and_no_unexpected_submissions.txt",
+            )
     }
 
     @Test
