@@ -80,7 +80,7 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
     }
     val database = generateUserDatabase()
 
-    getAllUserIds.expectCall { database.keys.toList() }
+    getAllUserIds.expectCall(database.keys.toList())
 
     coroutineScope {
         repeat(database.size - 1) {

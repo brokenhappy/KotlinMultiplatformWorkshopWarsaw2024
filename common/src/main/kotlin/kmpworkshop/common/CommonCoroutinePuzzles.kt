@@ -294,9 +294,7 @@ fun getUserDatabaseWithLegacyQueryUser(
             try {
                 queryUserById
                     .submitCall(id)
-                    ?.let {
-                        onSuccess(User(it.name, it.age))
-                    }
+                    ?.let { onSuccess(User(it.name, it.age)) }
                     ?: onError(QueryFetchFailedForSomeReasonException())
             } finally {
                 isDone.complete(Unit)

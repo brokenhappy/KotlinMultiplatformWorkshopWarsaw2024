@@ -20,6 +20,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -283,17 +284,14 @@ abstract class CoroutinePuzzlesTest(
 
     @Test
     fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runTest2 {
-        withTimeoutOrNull(2.seconds) {
-            doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
-                database.submit(
-                    database
-                        .getAllIds()
-                        .map { async { database.queryUserWithoutException(it) } }
-                        .awaitAll()
-                        .maxOf { it.age }
-                )
+        doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
+            assertFails {
+                database
+                    .getAllIds()
+                    .map { async { database.queryUserWithoutException(it) } }
+                    .awaitAll()
             }
-        }.let { assert(it == null) { "Must time out!" } }
+        }
     }
 
     @Test
@@ -516,19 +514,24 @@ class CoroutinePuzzleUtilitiesTest {
 fun runTest2(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
-    return suspendCancellableCoroutine { continuation ->
-        queryUserWithCallback(
-            id,
-            onSuccess = { continuation.resume(it) },
-            onError = { continuation.resumeWithException(it) },
-        ).let { handle ->
-            continuation.invokeOnCancellation {
-                handle.cancel(onCancellationFinished = {
-                    continuation.resumeWithException(CancellationException())
-                })
+    val isDone = CompletableDeferred<User>()
+    val handle = queryUserWithCallback(
+        id,
+        onSuccess = { isDone.complete(it) },
+        onError = { isDone.completeExceptionally(it) },
+    )
+
+    return try {
+        isDone.await()
+    } catch (t: Throwable) {
+        if (!currentCoroutineContext().isActive) {
+            handle.cancel(onCancellationFinished = { isDone.completeExceptionally(t) })
+            withImportantCleanup {
+                isDone.await()
             }
         }
-    }.also { println("Got user $it") }
+        throw t
+    }
 }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutCancellation(id: Int): User {
@@ -554,9 +557,8 @@ private fun CoroutinePuzzleSolutionResult.assertIsOk(): Unit = when (this) {
     CoroutinePuzzleSolutionResult.Success -> { /** All OK! */ }
 }
 
-private fun CoroutinePuzzleSolutionResult.assertIsNotOk() {
+private fun CoroutinePuzzleSolutionResult.assertIsNotOk(): CoroutinePuzzleSolutionResult.Failure =
     assertIs<CoroutinePuzzleSolutionResult.Failure> { "Puzzle succeeded unexpectedly" }
-}
 
 internal inline fun <reified T> Any?.assertIs(
     message: (Any?) -> String = { "Expected instance of ${T::class}, but got $it" },
