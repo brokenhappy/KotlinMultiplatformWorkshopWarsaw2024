@@ -62,6 +62,16 @@ class AutoBatchedFunctionId<T, C, R>(
      * You can improve the toString of this function id by overriding the [toString].
      */
     internal val key: CoroutineContext.Key<BatchedScope<T, R>> = object : CoroutineContext.Key<BatchedScope<T, R>> {},
+    /**
+     * The function that is called when a batch is ready to be processed.
+     * This function:
+     *  - MUST complete all continuations in the batch.
+     *  - COULD complete those continuations asynchronously.
+     *
+     * [batchResumer] calls will never run concurrently to each other.
+     * Meaning that batch resumptions block all batched calls.
+     * That's why you could run [batchResumer] asynchronously.
+     */
     internal val batchResumer: suspend CoroutineScope.(context: C, batch: List<SuspendedBatchCall<T, R>>) -> Unit,
 ) {
     /**
@@ -151,15 +161,7 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                             return@collectLatest
                         }
                         importantCleanup {
-                            try {
-                                coroutineScope {
-                                    batchResumer(context, currentState.currentRequests)
-                                }
-                            } finally {
-                                if (currentState.currentRequests.any { it.continuation.isActive }) {
-                                    println("Some continuations are still active")
-                                }
-                            }
+                            coroutineScope { batchResumer(context, currentState.currentRequests) }
                             state.update {
                                 it.copy(currentRequests =
                                     // Fast path for happy path
@@ -175,13 +177,7 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                     }
                     clock.delayUntil(momentOfLastBatch + maximumBatchWaitTime)
                     importantCleanup {
-                        try {
-                            coroutineScope { batchResumer(context, currentState.currentRequests) }
-                        } finally {
-                            if (currentState.currentRequests.any { it.continuation.isActive }) {
-                                println("Some continuations are still active")
-                            }
-                        }
+                        coroutineScope { batchResumer(context, currentState.currentRequests) }
                         var processedContinuations: Set<CancellableContinuation<R>>? = null
                         // We just processed the batch while other coroutines were still running
                         // That means that new batch calls might have been made...

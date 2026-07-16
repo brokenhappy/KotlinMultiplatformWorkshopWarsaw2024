@@ -116,47 +116,47 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
     val history = MutableStateFlow<List<CoroutinePuzzleEndPoint<*, *>>>(emptyList())
     return try {
         val puzzleState = MutableStateFlow<CoroutinePuzzleState>(CoroutinePuzzleState.WaitingForExpectations(emptyList()))
-        val coroutinePuzzleSubmissionFunction = AutoBatchedFunctionId<SubmissionCall, JsonElement?>(
-            batchResumer = { submissionCalls ->
-                val submissions = submissionCalls.map { it.query }
-                val expectations = puzzleState
-                    .takeWhile { it !is CoroutinePuzzleState.ExpectationsDone }
-                    .filterIsInstance<CoroutinePuzzleState.WaitingForSubmissions>()
-                    .firstOrNull()
-                    ?: throw CoroutinePuzzleFailedControlFlowException(
-                        CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations(
-                            submissions.map { it.endPoint.descriptor },
-                        )
-                    )
-
-                val expectedDescriptors = expectations.expectedCalls.map { it.endPoint.descriptor }.toSet()
-                if (expectations.isStrictParallelism) {
-                    if (
-                        expectations.expectedCalls.size != submissions.size ||
-                        expectedDescriptors != submissions.map { it.endPoint.descriptor }.toSet()
-                    ) {
-                        throw CoroutinePuzzleFailedControlFlowException(
-                            CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch(
+        coroutineScope toplevel@{
+            val coroutinePuzzleSubmissionFunction = AutoBatchedFunctionId<SubmissionCall, JsonElement?>(
+                batchResumer = { submissionCalls ->
+                    val submissions = submissionCalls.map { it.query }
+                    val expectations = puzzleState
+                        .takeWhile { it !is CoroutinePuzzleState.ExpectationsDone }
+                        .filterIsInstance<CoroutinePuzzleState.WaitingForSubmissions>()
+                        .firstOrNull()
+                        ?: throw CoroutinePuzzleFailedControlFlowException(
+                            CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations(
                                 submissions.map { it.endPoint.descriptor },
-                                expectations.expectedCalls.map { it.endPoint.descriptor },
                             )
                         )
-                    }
-                } else {
-                    val missingSubmissions = submissions.filter { it.endPoint.descriptor !in expectedDescriptors }
-                    if (missingSubmissions.size == submissions.size) {
-                        throw CoroutinePuzzleFailedControlFlowException(
-                            CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions(
-                                unexpectedSubmissions = submissions.map { it.endPoint.descriptor },
-                                expectations = expectations.expectedCalls.map { it.endPoint.descriptor },
-                            )
-                        )
-                    }
-                }
 
-                // This makes sure that multiple expectations to the same endpoint are not processed multiple times.
-                val processedExpectations = Collections.newSetFromMap<CoroutinePuzzleEndPointWaitingState<*, *>>(IdentityHashMap())
-                coroutineScope {
+                    val expectedDescriptors = expectations.expectedCalls.map { it.endPoint.descriptor }.toSet()
+                    if (expectations.isStrictParallelism) {
+                        if (
+                            expectations.expectedCalls.size != submissions.size ||
+                            expectedDescriptors != submissions.map { it.endPoint.descriptor }.toSet()
+                        ) {
+                            throw CoroutinePuzzleFailedControlFlowException(
+                                CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch(
+                                    submissions.map { it.endPoint.descriptor },
+                                    expectations.expectedCalls.map { it.endPoint.descriptor },
+                                )
+                            )
+                        }
+                    } else {
+                        val missingSubmissions = submissions.filter { it.endPoint.descriptor !in expectedDescriptors }
+                        if (missingSubmissions.size == submissions.size) {
+                            throw CoroutinePuzzleFailedControlFlowException(
+                                CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions(
+                                    unexpectedSubmissions = submissions.map { it.endPoint.descriptor },
+                                    expectations = expectations.expectedCalls.map { it.endPoint.descriptor },
+                                )
+                            )
+                        }
+                    }
+
+                    // This makes sure that multiple expectations to the same endpoint are not processed multiple times.
+                    val processedExpectations = Collections.newSetFromMap<CoroutinePuzzleEndPointWaitingState<*, *>>(IdentityHashMap())
                     val submissionsReadyToGo = submissionCalls.map { submissionCall ->
                         val matchingCall = expectations
                             .expectedCalls
@@ -165,7 +165,9 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
 
                         suspend { // We don't want to persist the side effect yet. We want to update the state first.
                             if (!submissionCall.continuation.isCancelled) {
-                                launch {
+                                // We launch this on a higher scope, so long-running `submitCalls` will not
+                                // prevent this batch from completing.
+                                this@toplevel.launch {
                                     submissionCall.continuation.resumeWith(
                                         // The submissions that are not matched need to retry (when we return null)
                                         runCatching { matchingCall?.submitCall(submissionCall.query.argument) },
@@ -184,9 +186,7 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                     }
                     submissionsReadyToGo.forEach { it() }
                 }
-            }
-        )
-        coroutineScope {
+            )
             launch {
                 puzzle(puzzleState)
             }
