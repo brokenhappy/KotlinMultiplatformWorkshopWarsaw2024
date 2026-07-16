@@ -133,10 +133,6 @@ fun coroutinePuzzle(
                     ) {
                         resultDeferred.complete(valueProducer(argument)) // Try to produce value on the "expectCall" side
                     }
-                } catch (failedException: CoroutinePuzzleFailedControlFlowException) {
-                    // Don't complete resultDeferred.
-                    // Just let the solving side wait, since they will get canceled shortly.
-                    throw failedException
                 } catch (t: Throwable) {
                     resultDeferred.completeExceptionally(t)
                 }
