@@ -215,10 +215,9 @@ abstract class CoroutinePuzzlesTest(
         doTimedSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Regular collect must fail collect latest puzzle" }
-            .toMessage()
-            .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
-            .assert({ "1.8" in it.lowercase() }) { "Message must mention expected time" }
+            .assertIsNotOk()
+            .reason
+            .assertIs<ExactParallelismMismatch>()
     }
 
     @Test
@@ -329,11 +328,9 @@ abstract class CoroutinePuzzlesTest(
                     .maxOf { database.queryUser(it).age }
             )
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "synchronous solution for timed maximum age finding should fail" }
-            .toMessage()
-            .assert({ "slow" in it.lowercase() }) { "Message must mention it being slow" }
-            .assert({ "3" in it.lowercase() }) { "Message must mention expected time" }
-
+            .assertIsNotOk()
+            .reason
+            .assertIs<ExactParallelismMismatch>()
     }
 }
 
