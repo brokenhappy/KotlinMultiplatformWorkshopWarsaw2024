@@ -148,20 +148,23 @@ fun coroutinePuzzle(
             return withContext(InStrictParallelismExpectation) { block() }
         }
     }) {
-        @OptIn(ExperimentalTime::class)
-        coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence {
-            withInterceptingDispatcher(
-                onDispatchScheduled = {
-                    branchCount.incrementAndFetch()
-                },
-                onDispatchedRunnableComplete = {
-                    branchCount.decrementAndFetch()
-                },
-            ) {
-                builder()
+        try {
+            @OptIn(ExperimentalTime::class)
+            coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence {
+                withInterceptingDispatcher(
+                    onDispatchScheduled = {
+                        branchCount.incrementAndFetch()
+                    },
+                    onDispatchedRunnableComplete = {
+                        branchCount.decrementAndFetch()
+                    },
+                ) {
+                    builder()
+                }
             }
+        } finally {
+            stateFlow.value = CoroutinePuzzleState.ExpectationsDone
         }
-        stateFlow.value = CoroutinePuzzleState.ExpectationsDone
     }
 }
 
