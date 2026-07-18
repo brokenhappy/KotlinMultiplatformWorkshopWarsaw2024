@@ -184,6 +184,7 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                         if (oldState !== expectations) throw IllegalStateException("Unexpected puzzle state $oldState")
                         CoroutinePuzzleState.WaitingForExpectations(expectations.expectedCalls.filter { it !in processedExpectations })
                     }
+                    history.update { old -> old + processedExpectations.map { it.endPoint } }
                     submissionsReadyToGo.forEach { it() }
                 }
             )
