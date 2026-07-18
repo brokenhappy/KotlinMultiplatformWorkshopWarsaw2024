@@ -151,7 +151,6 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
             withImportantCleanup {
                 var momentOfLastBatch = clock.now()
                 state.collectLatest { currentState ->
-                    println("Observing $currentState")
                     if (currentState.activeCoroutineCount == 0) {
                         if (currentState.currentRequests.isEmpty()) {
                             // Nothing to do *right now*, but that doesn't mean [block] is done - it may just be
