@@ -307,7 +307,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `full solution is correct for last puzzle`(): Unit = runTest2 {
+    fun `correct solution for legacy api with cancellation puzzle`(): Unit = runTest2 {
         doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -317,6 +317,19 @@ abstract class CoroutinePuzzlesTest(
                     .maxOf { it.age },
             )
         }.assertIsOk()
+    }
+
+    @Test
+    fun `solution that forgets to await cancellation completion on legacy api mapping fails`(): Unit = runTest2 {
+        doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUserThatDoesntWaitForCancellationToComplete(it) } }
+                    .awaitAll()
+                    .maxOf { it.age },
+            )
+        }.assertIsNotOk()
     }
 
     @Test
@@ -530,6 +543,16 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
         throw t
     }
 }
+
+private suspend fun UserDatabaseWithLegacyQueryUser.queryUserThatDoesntWaitForCancellationToComplete(id: Int): User =
+    suspendCancellableCoroutine { cc ->
+        val handle = queryUserWithCallback(
+            id,
+            onSuccess = { cc.resume(it) },
+            onError = { cc.resumeWithException(it) },
+        )
+        cc.invokeOnCancellation { handle.cancel(onCancellationFinished = { /* Do not wait for this (incorrect) */ }) }
+    }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutCancellation(id: Int): User {
     return suspendCancellableCoroutine { continuation ->
