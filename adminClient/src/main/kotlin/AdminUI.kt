@@ -653,6 +653,7 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
                 WorkshopStage.MappingFromLegacyApisStepOne,
                 WorkshopStage.MappingFromLegacyApisStepTwo,
                 WorkshopStage.MappingFromLegacyApisStepThree,
+                WorkshopStage.MappingFromLegacyApisStepFour,
                 WorkshopStage.FindMinimumAgeOfUserTask,
                 WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
             }

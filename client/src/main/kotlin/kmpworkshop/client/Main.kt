@@ -37,6 +37,7 @@ suspend fun main() {
             MappingFromLegacyApisStepOne,
             MappingFromLegacyApisStepTwo,
             MappingFromLegacyApisStepThree,
+            MappingFromLegacyApisStepFour,
             SimpleFlow,
             CollectLatest -> runCoroutinePuzzleClient(
                 server,
@@ -84,7 +85,8 @@ suspend fun runCoroutinePuzzleClient(
         solution = { coroutineScope { mappingLegacyApiCoroutineSolution(it) } },
     ) { getUserDatabaseWithLegacyQueryUser(bigScope) }
     MappingFromLegacyApisStepTwo,
-    MappingFromLegacyApisStepThree -> checkCoroutinePuzzleInternal(
+    MappingFromLegacyApisStepThree,
+    MappingFromLegacyApisStepFour -> checkCoroutinePuzzleInternal(
         workshopServer,
         stage.name,
         solution = { mapFromLegacyApiWithScaffolding { coroutineScope { mappingLegacyApiCoroutineSolution(it) } } },

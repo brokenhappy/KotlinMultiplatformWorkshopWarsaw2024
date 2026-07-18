@@ -119,6 +119,7 @@ enum class WorkshopStage(val kotlinFile: String) {
     MappingFromLegacyApisStepOne("MappingFromLegacyApisStepOne.kt"),
     MappingFromLegacyApisStepTwo("MappingFromLegacyApisStepOne.kt"),
     MappingFromLegacyApisStepThree("MappingFromLegacyApisStepOne.kt"),
+    MappingFromLegacyApisStepFour("MappingFromLegacyApisStepOne.kt"),
     SimpleFlow("FlowShow.kt"),
     CollectLatest("FlowShow.kt"),
 }

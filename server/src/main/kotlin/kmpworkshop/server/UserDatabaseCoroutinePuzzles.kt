@@ -136,6 +136,8 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
     }
 }
 
+fun mappingLegacyApiCoroutinePuzzleStepFour(): CoroutinePuzzle = mappingLegacyApiCoroutinePuzzleWithCancellation()
+
 private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequence { (0..10_000).random() }
     .runningFold(emptySet<Int>()) { acc, id -> acc + id }
     .first { it.size == 8 } // Set of unique ids
@@ -177,6 +179,16 @@ suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
 suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
 ): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithCancellation().solve {
+    mapFromLegacyApiWithScaffolding {
+        coroutineScope {
+            onUse(it)
+        }
+    }
+}
+
+suspend fun doMappingLegacyApiStepFourCoroutinePuzzle(
+    onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
+): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleStepFour().solve {
     mapFromLegacyApiWithScaffolding {
         coroutineScope {
             onUse(it)

@@ -15,6 +15,7 @@ fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle? = when (stage
     WorkshopStage.MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()
     WorkshopStage.MappingFromLegacyApisStepTwo -> mappingLegacyApiCoroutinePuzzleWithException()
     WorkshopStage.MappingFromLegacyApisStepThree -> mappingLegacyApiCoroutinePuzzleWithCancellation()
+    WorkshopStage.MappingFromLegacyApisStepFour -> mappingLegacyApiCoroutinePuzzleStepFour()
     WorkshopStage.SimpleFlow -> simpleFlowPuzzle()
     WorkshopStage.CollectLatest -> collectLatestPuzzle()
 }
