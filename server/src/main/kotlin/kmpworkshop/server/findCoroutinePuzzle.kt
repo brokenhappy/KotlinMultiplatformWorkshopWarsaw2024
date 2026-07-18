@@ -10,9 +10,9 @@ fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle? = when (stage
     WorkshopStage.FindOldestUserTask,
     WorkshopStage.SumOfTwoIntsSlow -> simpleSumPuzzle()
     WorkshopStage.SumOfTwoIntsFast -> timedSumPuzzle()
-    WorkshopStage.MappingFromLegacyApisStepOne,
     WorkshopStage.FindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(isTimed = false)
     WorkshopStage.FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(isTimed = true)
+    WorkshopStage.MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()
     WorkshopStage.MappingFromLegacyApisStepTwo -> mappingLegacyApiCoroutinePuzzleWithException()
     WorkshopStage.MappingFromLegacyApisStepThree -> mappingLegacyApiCoroutinePuzzleWithCancellation()
     WorkshopStage.SimpleFlow -> simpleFlowPuzzle()

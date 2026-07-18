@@ -18,8 +18,7 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -48,7 +47,6 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun expectQueryCall(database: Map<Int, SerializableUser>) {
     val id = queryUserById.expectCall { id -> database.getAndVerifyUserExists(id) }
-    println("User with id: $id delivered")
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -93,6 +91,28 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
     isDone.complete(Unit) // As very, very last, so that we don't accidentally cancel any of their stuff.
 }
 
+@OptIn(InternalCoroutinesApi::class)
+fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzle {
+    val isDone = CompletableDeferred<Unit>()
+    launch {
+        callLifetime.expectCall {
+            isDone.await()
+        }
+    }
+
+    val database = generateUserDatabase()
+    getAllUserIds.expectCall(database.keys.toList())
+
+    coroutineScope {
+        repeat(database.size) {
+            launch { expectQueryCall(database) }
+        }
+    }
+    submitNumber.expectCall(database.values.maxOf { it.age })
+    callIsDone.expectCall(Unit)
+    isDone.complete(Unit) // As very, very last, so that we don't accidentally cancel any of their stuff.
+}
+
 @OptIn(ExperimentalAtomicApi::class)
 fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = coroutinePuzzle {
     try {
@@ -104,7 +124,7 @@ fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = corouti
         }
         val database = generateUserDatabase()
 
-        getAllUserIds.expectCall { database.keys.toList() }
+        getAllUserIds.expectCall(database.keys.toList())
 
         coroutineScope {
             repeat(database.size - 1) {
@@ -143,9 +163,9 @@ private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequenc
     )
     .toMap()
 
-suspend fun doMappingLegacyApiCoroutinePuzzle(
+suspend fun doMappingLegacyApiHappyPathCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = maximumAgeFindingTheSecondCoroutinePuzzle(isTimed = false).solve {
+): CoroutinePuzzleSolutionResult = mappingLegacyApiHappyPathCoroutinePuzzle().solve {
     val scope = this
     withImportantCleanup {
         onUse(getUserDatabaseWithLegacyQueryUser(topLevelScope = scope))
@@ -165,7 +185,7 @@ suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
 suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
 ): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithCancellation().solve {
-    mapFromLegacyApiWithScaffolding() {
+    mapFromLegacyApiWithScaffolding {
         onUse(it)
     }
 }

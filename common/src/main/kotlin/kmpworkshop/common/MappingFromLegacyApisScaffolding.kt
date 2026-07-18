@@ -12,7 +12,7 @@ suspend fun mapFromLegacyApiWithScaffolding(
     withImportantCleanup {
         flow {
             emit(1)
-            callLifetime.submitCall(Unit,)
+            callLifetime.submitCall(Unit)
             emit(2)
         }.collectLatest {
             if (it == 2) return@collectLatest

@@ -37,7 +37,7 @@ class CoroutinePuzzleTestWithoutRpcAbstraction : CoroutinePuzzlesTest(
     doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = ::doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle,
     doMappingLegacyApiWithExceptionCoroutinePuzzle = ::doMappingLegacyApiWithExceptionCoroutinePuzzle,
     doMappingLegacyApiWithCancellationCoroutinePuzzle = ::doMappingLegacyApiWithCancellationCoroutinePuzzle,
-    doMappingLegacyApiCoroutinePuzzle = ::doMappingLegacyApiCoroutinePuzzle,
+    doMappingLegacyApiHappyPathCoroutinePuzzle = ::doMappingLegacyApiHappyPathCoroutinePuzzle,
 )
 
 @OptIn(ExperimentalTime::class)
@@ -92,7 +92,7 @@ class CoroutinePuzzleTestWithSingleProcessRpcAbstraction : CoroutinePuzzlesTest(
     doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.FastFindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
     },
-    doMappingLegacyApiCoroutinePuzzle = {
+    doMappingLegacyApiHappyPathCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepOne, mappingLegacyApiCoroutineSolution = it)
     },
     doMappingLegacyApiWithCancellationCoroutinePuzzle = {
@@ -112,7 +112,7 @@ abstract class CoroutinePuzzlesTest(
     private val doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle: DoPuzzleWith<UserDatabase>,
     private val doMappingLegacyApiWithExceptionCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
     private val doMappingLegacyApiWithCancellationCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
-    private val doMappingLegacyApiCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
+    private val doMappingLegacyApiHappyPathCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
 ) {
     @Test
     fun `empty solutions are wrong`(): Unit = runTest(timeout = 1.hours) {
@@ -124,7 +124,7 @@ abstract class CoroutinePuzzlesTest(
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiWithExceptionCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiWithCancellationCoroutinePuzzle { }.assertIsNotOk()
-        doMappingLegacyApiCoroutinePuzzle { }.assertIsNotOk()
+        doMappingLegacyApiHappyPathCoroutinePuzzle { }.assertIsNotOk()
     }
 
     @Test
@@ -259,22 +259,22 @@ abstract class CoroutinePuzzlesTest(
 
     @Test
     fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runTest2 {
-        doMappingLegacyApiCoroutinePuzzle { database ->
+        doMappingLegacyApiHappyPathCoroutinePuzzle { database ->
             database.submit(
                 database
                     .getAllIds()
-                    .maxOf { database.queryUserWithoutException(it).age }
+                    .maxOf { database.queryUserHappyPath(it).age }
             )
         }.assertIsOk()
     }
 
     @Test
     fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runTest2 {
-        doMappingLegacyApiCoroutinePuzzle { database ->
+        doMappingLegacyApiHappyPathCoroutinePuzzle { database ->
             database.submit(
                 database
                     .getAllIds()
-                    .map { async { database.queryUserWithoutException(it) } }
+                    .map { async { database.queryUserHappyPath(it) } }
                     .awaitAll()
                     .maxOf { it.age }
             )
@@ -287,7 +287,7 @@ abstract class CoroutinePuzzlesTest(
             assertFails {
                 database
                     .getAllIds()
-                    .map { async { database.queryUserWithoutException(it) } }
+                    .map { async { database.queryUserHappyPath(it) } }
                     .awaitAll()
             }
         }
@@ -543,7 +543,7 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutCancellation
     }
 }
 
-private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutException(id: Int): User {
+private suspend fun UserDatabaseWithLegacyQueryUser.queryUserHappyPath(id: Int): User {
     return suspendCancellableCoroutine { continuation ->
         queryUserWithCallback(id, onSuccess = { continuation.resume(it) })
     }
