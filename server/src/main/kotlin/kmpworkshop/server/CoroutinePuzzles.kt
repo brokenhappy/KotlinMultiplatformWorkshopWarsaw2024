@@ -88,7 +88,6 @@ fun coroutinePuzzle(
             batch.forEach { it.continuation.resume(it.query !in callsThatDidntHaveMatchingSubmit) }
         }
     )
-    val branchCount = AtomicInt(0)
 
     context(object : CoroutinePuzzleBuilderScope {
         override suspend fun <T, R> expectCallTo(
@@ -139,24 +138,13 @@ fun coroutinePuzzle(
             }
         }
 
-        override suspend fun <T> expectingMatchedParallelism(block: suspend CoroutineScope.() -> T): T {
-            require(branchCount.load() == 1) { "expectingMatchedParallelism must only be used without other parallelism" }
-            return withContext(InStrictParallelismExpectation) { block() }
-        }
+        override suspend fun <T> expectingMatchedParallelism(block: suspend CoroutineScope.() -> T): T =
+            withContext(InStrictParallelismExpectation) { block() }
     }) {
         try {
             @OptIn(ExperimentalTime::class)
             coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence {
-                withInterceptingDispatcher(
-                    onDispatchScheduled = {
-                        branchCount.incrementAndFetch()
-                    },
-                    onDispatchedRunnableComplete = {
-                        branchCount.decrementAndFetch()
-                    },
-                ) {
-                    builder()
-                }
+                builder()
             }
         } finally {
             stateFlow.value = CoroutinePuzzleState.ExpectationsDone
