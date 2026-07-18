@@ -95,10 +95,10 @@ class CoroutinePuzzleTestWithSingleProcessRpcAbstraction : CoroutinePuzzlesTest(
     doMappingLegacyApiHappyPathCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepOne, mappingLegacyApiCoroutineSolution = it)
     },
-    doMappingLegacyApiWithCancellationCoroutinePuzzle = {
+    doMappingLegacyApiWithExceptionCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepTwo, mappingLegacyApiCoroutineSolution = it)
     },
-    doMappingLegacyApiWithExceptionCoroutinePuzzle = {
+    doMappingLegacyApiWithCancellationCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepThree, mappingLegacyApiCoroutineSolution = it)
     },
 )
