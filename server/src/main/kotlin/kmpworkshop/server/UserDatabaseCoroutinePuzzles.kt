@@ -18,7 +18,6 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -91,15 +90,7 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
     isDone.complete(Unit) // As very, very last, so that we don't accidentally cancel any of their stuff.
 }
 
-@OptIn(InternalCoroutinesApi::class)
 fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzle {
-    val isDone = CompletableDeferred<Unit>()
-    launch {
-        callLifetime.expectCall {
-            isDone.await()
-        }
-    }
-
     val database = generateUserDatabase()
     getAllUserIds.expectCall(database.keys.toList())
 
@@ -108,9 +99,10 @@ fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzl
             launch { expectQueryCall(database) }
         }
     }
-    submitNumber.expectCall(database.values.maxOf { it.age })
-    callIsDone.expectCall(Unit)
-    isDone.complete(Unit) // As very, very last, so that we don't accidentally cancel any of their stuff.
+    val submittedValue = submitNumber.expectCall(Unit)
+    verify(submittedValue == database.values.maxOf { it.age }) {
+        "You submitted $submittedValue, but the oldest user is ${database.values.maxOf { it.age }}."
+    }
 }
 
 @OptIn(ExperimentalAtomicApi::class)
@@ -186,6 +178,8 @@ suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
 ): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithCancellation().solve {
     mapFromLegacyApiWithScaffolding {
-        onUse(it)
+        coroutineScope {
+            onUse(it)
+        }
     }
 }
