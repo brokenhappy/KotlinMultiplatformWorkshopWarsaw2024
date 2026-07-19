@@ -125,9 +125,8 @@ fun coroutinePuzzle(
                 try {
                     context(
                         object : CoroutinePuzzleExpectationScope {
-                            override suspend fun awaitSubmissionCancellation(): Nothing {
-                                throw submissionIsCancelled.await()
-                            }
+                            override suspend fun awaitSubmissionCancellation(): CancellationException =
+                                submissionIsCancelled.await()
                         }
                     ) {
                         resultDeferred.complete(valueProducer(argument)) // Try to produce value on the "expectCall" side
@@ -181,8 +180,9 @@ suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */ R
 ): R = expectCall { value }
 
 interface CoroutinePuzzleExpectationScope {
-    suspend fun awaitSubmissionCancellation(): Nothing
+    suspend fun awaitSubmissionCancellation(): CancellationException
 }
 
 context(expectationScope: CoroutinePuzzleExpectationScope)
-suspend fun awaitCancellationOfMatchingSubmitCall(): Nothing = expectationScope.awaitSubmissionCancellation()
+suspend fun awaitCancellationOfMatchingSubmitCall(): CancellationException =
+    expectationScope.awaitSubmissionCancellation()
