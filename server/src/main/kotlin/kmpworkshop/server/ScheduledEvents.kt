@@ -20,14 +20,9 @@ suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
 ): Nothing = coroutineScope {
     val events = Channel<CommittedState>()
     launch {
-        try {
-            val initial = loadInitialStateFromDatabase()
-            if (initial != ServerState()) serverState.value = initial
-            block(initial, events)
-        } catch (t: Throwable) {
-            t.printStackTrace()
-            throw t
-        }
+        val initial = loadInitialStateFromDatabase()
+        if (initial != ServerState()) serverState.value = initial
+        block(initial, events)
     }
     mainEventLoopWritingTo(
         serverState,
@@ -46,37 +41,32 @@ suspend fun mainEventLoopWritingTo(
     onEvent: OnEvent,
 ): Nothing = coroutineScope {
     launch {
-        try {
-            for (scheduledEvent in eventBus) {
-                when (scheduledEvent) {
-                    is ScheduledWorkshopEvent.AwaitingResult<*> -> {
-                        serverState.applyEventWithResult(applicationScope = this, scheduledEvent, onCommittedState)
-                    }
-                    is ScheduledWorkshopEvent.IgnoringResult -> {
-                        var persistedState: CommittedState? = null
-                        serverState.update { oldState ->
-                            try {
-                                oldState.after(scheduledEvent.event, onSoundEvent).also { newState ->
-                                    persistedState = CommittedState(
-                                        oldState,
-                                        TimedEvent(Clock.System.now(), scheduledEvent.event),
-                                        newState,
-                                    )
-                                }
-                            } catch (c: CancellationException) {
-                                throw c
-                            } catch (t: Throwable) {
-                                launch { reportError(oldState, scheduledEvent.event) }
-                                oldState
+        for (scheduledEvent in eventBus) {
+            when (scheduledEvent) {
+                is ScheduledWorkshopEvent.AwaitingResult<*> -> {
+                    serverState.applyEventWithResult(applicationScope = this, scheduledEvent, onCommittedState)
+                }
+                is ScheduledWorkshopEvent.IgnoringResult -> {
+                    var persistedState: CommittedState? = null
+                    serverState.update { oldState ->
+                        try {
+                            oldState.after(scheduledEvent.event, onSoundEvent).also { newState ->
+                                persistedState = CommittedState(
+                                    oldState,
+                                    TimedEvent(Clock.System.now(), scheduledEvent.event),
+                                    newState,
+                                )
                             }
+                        } catch (c: CancellationException) {
+                            throw c
+                        } catch (t: Throwable) {
+                            launch { reportError(oldState, scheduledEvent.event) }
+                            oldState
                         }
-                        persistedState?.let(onCommittedState)
                     }
+                    persistedState?.let(onCommittedState)
                 }
             }
-        } catch (t: Throwable) {
-            t.printStackTrace()
-            throw t
         }
     }
     serverState

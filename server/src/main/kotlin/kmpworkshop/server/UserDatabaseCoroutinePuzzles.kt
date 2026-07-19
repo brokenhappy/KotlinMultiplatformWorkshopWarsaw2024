@@ -108,71 +108,61 @@ fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzl
 
 @OptIn(ExperimentalAtomicApi::class)
 fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = coroutinePuzzle {
-    try {
-        val timeToCancel = CompletableDeferred<Unit>()
-        launch {
-            callLifetime.expectCall {
-                timeToCancel.await()
-            }
+    val timeToCancel = CompletableDeferred<Unit>()
+    launch {
+        callLifetime.expectCall {
+            timeToCancel.await()
         }
-        val database = generateUserDatabase()
+    }
+    val database = generateUserDatabase()
 
-        getAllUserIds.expectCall(database.keys.toList())
+    getAllUserIds.expectCall(database.keys.toList())
 
-        coroutineScope {
-            repeat(database.size - 1) {
-                launch { expectQueryCall(database) }
-            }
+    coroutineScope {
+        repeat(database.size - 1) {
+            launch { expectQueryCall(database) }
         }
-        queryUserById.expectCall {
-            timeToCancel.complete(Unit) // we're going to cancel the last call
-            withTimeoutOrNull(5.seconds) {
-                awaitCancellationOfMatchingSubmitCall()
-            } ?: fail("Your function got canceled, but you left the last query running")
-        }
-        // Step three doesn't care which of these happens first, it just needs both to eventually show up.
-        coroutineScope {
-            launch { legacyCancellationDelay.expectCall(Unit) }
-            launch { callIsDone.expectCall(Unit) }
-        }
-    } catch (t: Throwable) {
-        t.printStackTrace()
-        throw t
+    }
+    queryUserById.expectCall {
+        timeToCancel.complete(Unit) // we're going to cancel the last call
+        withTimeoutOrNull(5.seconds) {
+            awaitCancellationOfMatchingSubmitCall()
+        } ?: fail("Your function got canceled, but you left the last query running")
+    }
+    // Step three doesn't care which of these happens first, it just needs both to eventually show up.
+    coroutineScope {
+        launch { legacyCancellationDelay.expectCall(Unit) }
+        launch { callIsDone.expectCall(Unit) }
     }
 }
 
 @OptIn(ExperimentalAtomicApi::class)
 fun mappingLegacyApiCoroutinePuzzleStepFour(): CoroutinePuzzle = coroutinePuzzle {
-    try {
-        val timeToCancel = CompletableDeferred<Unit>()
-        launch {
-            callLifetime.expectCall {
-                timeToCancel.await()
-            }
+    val timeToCancel = CompletableDeferred<Unit>()
+    launch {
+        callLifetime.expectCall {
+            timeToCancel.await()
         }
-        val database = generateUserDatabase()
-
-        getAllUserIds.expectCall(database.keys.toList())
-
-        coroutineScope {
-            repeat(database.size - 1) {
-                launch { expectQueryCall(database) }
-            }
-        }
-        queryUserById.expectCall {
-            timeToCancel.complete(Unit) // we're going to cancel the last call
-            withTimeoutOrNull(5.seconds) {
-                awaitCancellationOfMatchingSubmitCall()
-            } ?: fail("Your function got canceled, but you left the last query running")
-        }
-        expectingMatchedParallelism {
-            legacyCancellationDelay.expectCall(Unit) // Must happen strictly before the call is done
-        }
-        callIsDone.expectCall(Unit)
-    } catch (t: Throwable) {
-        t.printStackTrace()
-        throw t
     }
+    val database = generateUserDatabase()
+
+    getAllUserIds.expectCall(database.keys.toList())
+
+    coroutineScope {
+        repeat(database.size - 1) {
+            launch { expectQueryCall(database) }
+        }
+    }
+    queryUserById.expectCall {
+        timeToCancel.complete(Unit) // we're going to cancel the last call
+        withTimeoutOrNull(5.seconds) {
+            awaitCancellationOfMatchingSubmitCall()
+        } ?: fail("Your function got canceled, but you left the last query running")
+    }
+    expectingMatchedParallelism {
+        legacyCancellationDelay.expectCall(Unit) // Must happen strictly before the call is done
+    }
+    callIsDone.expectCall(Unit)
 }
 
 private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequence { (0..10_000).random() }

@@ -307,8 +307,6 @@ fun getUserDatabaseWithLegacyQueryUser(
                             job.cancelAndJoin()
                             isDone.await() // I am so confused as to why this is necessary...
                             legacyCancellationDelay.submitCall(Unit)
-                        } catch (t: Throwable) {
-                            t.printStackTrace()
                         } finally {
                             onCancellationFinished()
                         }

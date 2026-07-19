@@ -1,9 +1,7 @@
 package kmpworkshop.common
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
-import kotlin.coroutines.cancellation.CancellationException
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
 suspend fun mapFromLegacyApiWithScaffolding(
