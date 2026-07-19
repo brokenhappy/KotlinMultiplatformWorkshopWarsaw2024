@@ -37,6 +37,7 @@ class CoroutinePuzzleTestWithoutRpcAbstraction : CoroutinePuzzlesTest(
     doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = ::doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle,
     doMappingLegacyApiWithExceptionCoroutinePuzzle = ::doMappingLegacyApiWithExceptionCoroutinePuzzle,
     doMappingLegacyApiWithCancellationCoroutinePuzzle = ::doMappingLegacyApiWithCancellationCoroutinePuzzle,
+    doMappingLegacyApiStepFourCoroutinePuzzle = ::doMappingLegacyApiStepFourCoroutinePuzzle,
     doMappingLegacyApiHappyPathCoroutinePuzzle = ::doMappingLegacyApiHappyPathCoroutinePuzzle,
 )
 
@@ -101,6 +102,9 @@ class CoroutinePuzzleTestWithSingleProcessRpcAbstraction : CoroutinePuzzlesTest(
     doMappingLegacyApiWithCancellationCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepThree, mappingLegacyApiCoroutineSolution = it)
     },
+    doMappingLegacyApiStepFourCoroutinePuzzle = {
+        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepFour, mappingLegacyApiCoroutineSolution = it)
+    },
 )
 
 abstract class CoroutinePuzzlesTest(
@@ -112,6 +116,7 @@ abstract class CoroutinePuzzlesTest(
     private val doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle: DoPuzzleWith<UserDatabase>,
     private val doMappingLegacyApiWithExceptionCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
     private val doMappingLegacyApiWithCancellationCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
+    private val doMappingLegacyApiStepFourCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
     private val doMappingLegacyApiHappyPathCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
 ) {
     @Test
@@ -124,6 +129,7 @@ abstract class CoroutinePuzzlesTest(
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiWithExceptionCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiWithCancellationCoroutinePuzzle { }.assertIsNotOk()
+        doMappingLegacyApiStepFourCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiHappyPathCoroutinePuzzle { }.assertIsNotOk()
     }
 
@@ -320,8 +326,21 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
+    fun `correct solution for legacy api step four puzzle`(): Unit = runTest2 {
+        doMappingLegacyApiStepFourCoroutinePuzzle { database ->
+            database.submit(
+                database
+                    .getAllIds()
+                    .map { async { database.queryUser(it) } }
+                    .awaitAll()
+                    .maxOf { it.age },
+            )
+        }.assertIsOk()
+    }
+
+    @Test
     fun `solution that forgets to await cancellation completion on legacy api mapping fails`(): Unit = runTest2 {
-        doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
+        doMappingLegacyApiStepFourCoroutinePuzzle { database ->
             database.submit(
                 database
                     .getAllIds()
@@ -536,7 +555,7 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
     } catch (t: Throwable) {
         if (!currentCoroutineContext().isActive) {
             handle.cancel(onCancellationFinished = { isDone.completeExceptionally(t) })
-            withImportantCleanup {
+            importantCleanup {
                 isDone.await()
             }
         }
@@ -551,7 +570,9 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserThatDoesntWaitForCa
             onSuccess = { cc.resume(it) },
             onError = { cc.resumeWithException(it) },
         )
-        cc.invokeOnCancellation { handle.cancel(onCancellationFinished = { /* Do not wait for this (incorrect) */ }) }
+        cc.invokeOnCancellation {
+            handle.cancel(onCancellationFinished = {})
+        }
     }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUserWithoutCancellation(id: Int): User {

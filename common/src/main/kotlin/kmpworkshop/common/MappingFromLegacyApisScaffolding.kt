@@ -17,17 +17,9 @@ suspend fun mapFromLegacyApiWithScaffolding(
         }.collectLatest {
             if (it == 2) return@collectLatest
             try {
-                val cancellationHook = CompletableDeferred<Unit>()
-                try {
-                    mapFromLegacyApi(getUserDatabaseWithLegacyQueryUser(
-                        topLevelScope = this@withImportantCleanup,
-                        cancellationHook = cancellationHook,
-                    ))
-                } catch (c: CancellationException) {
-                    withImportantCleanup {
-                        cancellationHook.await()
-                    }
-                }
+                mapFromLegacyApi(getUserDatabaseWithLegacyQueryUser(
+                    topLevelScope = this@withImportantCleanup,
+                ))
             } catch (_: QueryFetchFailedForSomeReasonException) {
                 importantCleanup {
                     queryExceptionThrown.submitCall(Unit,)

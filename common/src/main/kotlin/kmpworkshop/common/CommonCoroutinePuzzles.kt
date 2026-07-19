@@ -285,7 +285,6 @@ fun getUserDatabase(): UserDatabase = object : UserDatabase {
 context(solutionScope: CoroutinePuzzleSolutionScope)
 fun getUserDatabaseWithLegacyQueryUser(
     topLevelScope: CoroutineScope,
-    cancellationHook: CompletableDeferred<Unit> = CompletableDeferred(),
 ): UserDatabaseWithLegacyQueryUser = object : UserDatabaseWithLegacyQueryUser {
     override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
 
@@ -307,10 +306,11 @@ fun getUserDatabaseWithLegacyQueryUser(
                         try {
                             job.cancelAndJoin()
                             isDone.await() // I am so confused as to why this is necessary...
+                            legacyCancellationDelay.submitCall(Unit)
                         } catch (t: Throwable) {
                             t.printStackTrace()
                         } finally {
-                            cancellationHook.completeAfter { onCancellationFinished() }
+                            onCancellationFinished()
                         }
                     }
                 }

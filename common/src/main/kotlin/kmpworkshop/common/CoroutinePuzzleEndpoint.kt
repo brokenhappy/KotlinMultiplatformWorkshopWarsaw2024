@@ -7,5 +7,6 @@ val queryUserById = coroutinePuzzleEndPoint<Int, SerializableUser?>("call queryU
 val queryExceptionThrown = coroutinePuzzleEndPoint<Unit, Unit>("throw the exception given by queryUserWithCallback!")
 val callLifetime = coroutinePuzzleEndPoint<Unit, Unit>("call lifetime check (Done in scaffolding)")
 val callIsDone = coroutinePuzzleEndPoint<Unit, Unit>("finish the execution of your function")
+val legacyCancellationDelay = coroutinePuzzleEndPoint<Unit, Unit>("wait for the legacy system to finish cancelling (Done in scaffolding)")
 val getNumber = coroutinePuzzleEndPoint<Unit, Int>("call getNumber(): Int")
 val submitNumber = coroutinePuzzleEndPoint<Int, Unit>("call submit(number: Int): Unit")
