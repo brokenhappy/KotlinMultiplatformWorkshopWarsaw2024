@@ -134,7 +134,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `regular collect must fail collect latest puzzle`(): Unit = runTest2 {
+    fun `regular collect must fail collect latest puzzle`(): Unit = runTestWithRandomizedDispatchOrdering {
         doCollectLatestPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }
@@ -145,7 +145,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `collectLatest correct solution`(): Unit = runTest2 {
+    fun `collectLatest correct solution`(): Unit = runTestWithRandomizedDispatchOrdering {
         doCollectLatestPuzzle { api ->
             api.numbers().collectLatest {
                 api.submit(it)
@@ -154,14 +154,14 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple flow puzzle does not need collect latest`(): Unit = runTest2 {
+    fun `simple flow puzzle does not need collect latest`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleCollectPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }.assertIsOk()
     }
 
     @Test
-    fun `simple flow puzzle might pass with collect latest`(): Unit = runTest2 {
+    fun `simple flow puzzle might pass with collect latest`(): Unit = runTestWithRandomizedDispatchOrdering {
         // Not strictly needed behavior, but I keep it in here to increase coverage
         doSimpleCollectPuzzle { api ->
             api.numbers().collectLatest { api.submit(it) }
@@ -169,14 +169,14 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple sum correct solution`(): Unit = runTest2 {
+    fun `simple sum correct solution`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }.assertIsOk()
     }
 
     @Test
-    fun `sum of too many numbers`(): Unit = runTest2 {
+    fun `sum of too many numbers`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber() + api.getNumber())
         }.assertIsNotOk()
@@ -188,7 +188,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `submitting incorrect sum is not ok`(): Unit = runTest2 {
+    fun `submitting incorrect sum is not ok`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber())
         }.assertIsNotOk()
@@ -201,7 +201,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `submitting in parallel is ok`(): Unit = runTest2 {
+    fun `submitting in parallel is ok`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
@@ -209,7 +209,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `timed sum correct solution`(): Unit = runTest2 {
+    fun `timed sum correct solution`(): Unit = runTestWithRandomizedDispatchOrdering {
         doTimedSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
@@ -217,7 +217,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `timed sum too slow solution fails`(): Unit = runTest2 {
+    fun `timed sum too slow solution fails`(): Unit = runTestWithRandomizedDispatchOrdering {
         doTimedSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
@@ -227,7 +227,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `correct simple maximum age finding solution`(): Unit = runTest2 {
+    fun `correct simple maximum age finding solution`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -238,7 +238,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `correct timed maximum age finding solution`(): Unit = runTest2 {
+    fun `correct timed maximum age finding solution`(): Unit = runTestWithRandomizedDispatchOrdering {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -251,7 +251,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runTest2 {
+    fun `simple maximum age finding solution should also be solvable in parallel`(): Unit = runTestWithRandomizedDispatchOrdering {
         doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -264,7 +264,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runTest2 {
+    fun `simple legacy api solution works without exception and cancellation handling`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiHappyPathCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -275,7 +275,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runTest2 {
+    fun `simple legacy api solution without exception and cancellation handling works in parallel too`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiHappyPathCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -288,7 +288,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runTest2 {
+    fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
             assertFails {
                 database
@@ -300,7 +300,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runTest2 {
+    fun `solution with exceptions but without cancellation does work for the legacy mapping with exceptions puzzle`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -313,7 +313,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `correct solution for legacy api with cancellation puzzle`(): Unit = runTest2 {
+    fun `correct solution for legacy api with cancellation puzzle`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiWithCancellationCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -326,7 +326,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `correct solution for legacy api step four puzzle`(): Unit = runTest2 {
+    fun `correct solution for legacy api step four puzzle`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiStepFourCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -339,7 +339,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `solution that forgets to await cancellation completion on legacy api mapping fails`(): Unit = runTest2 {
+    fun `solution that forgets to await cancellation completion on legacy api mapping fails`(): Unit = runTestWithRandomizedDispatchOrdering {
         doMappingLegacyApiStepFourCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -352,7 +352,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `synchronous solution for timed maximum age finding fails`(): Unit = runTest2 {
+    fun `synchronous solution for timed maximum age finding fails`(): Unit = runTestWithRandomizedDispatchOrdering {
         doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
             database.submit(
                 database
@@ -368,7 +368,7 @@ abstract class CoroutinePuzzlesTest(
 
 class CoroutinePuzzleUtilitiesTest {
     @Test
-    fun `internal calls are NOT shown in history of error message`() = runTest2 {
+    fun `internal calls are NOT shown in history of error message`() = runTestWithRandomizedDispatchOrdering {
         val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public")
         coroutinePuzzle {
             callLifetime.expectCall(Unit)
@@ -382,7 +382,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `internal calls ARE shown in expected calls part of error message`() = runTest2 {
+    fun `internal calls ARE shown in expected calls part of error message`() = runTestWithRandomizedDispatchOrdering {
         val publicEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("public")
         coroutinePuzzle {
             publicEndpoint.expectCall(Unit)
@@ -397,7 +397,7 @@ class CoroutinePuzzleUtilitiesTest {
     class ExceptionForTestBelow() : Exception("Test exception")
 
     @Test
-    fun `error that happens in expect call is thrown into submit call`() = runTest2 {
+    fun `error that happens in expect call is thrown into submit call`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         coroutinePuzzle {
             endpoint.expectCall { throw ExceptionForTestBelow() }
@@ -409,7 +409,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `nothing hangs when submit call gets canceled`() = runTest2 {
+    fun `nothing hangs when submit call gets canceled`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         val cancellationStartHook = CompletableDeferred<Unit>()
         val cancellationFinishedHook = CompletableDeferred<Unit>()
@@ -432,7 +432,7 @@ class CoroutinePuzzleUtilitiesTest {
     class SpecialCancellationExceptionForTestBelow() : CancellationException()
 
     @Test
-    fun `await cancellation of matching submit call does not throw into coroutine puzzle scope`() = runTest2 {
+    fun `await cancellation of matching submit call does not throw into coroutine puzzle scope`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         val cancellationStartHook = CompletableDeferred<Unit>()
         coroutinePuzzle {
@@ -458,7 +458,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `trying to call a coroutine puzzle endpoint synchronously while the expectation is parallel fails`() = runTest2 {
+    fun `trying to call a coroutine puzzle endpoint synchronously while the expectation is parallel fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
             expectingMatchedParallelism {
@@ -475,7 +475,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails`() = runTest2 {
+    fun `trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
             expectingMatchedParallelism {
@@ -490,7 +490,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `trying to call a coroutine puzzle endpoint with double parallel while the expectation is triple parallel fails`() = runTest2 {
+    fun `trying to call a coroutine puzzle endpoint with double parallel while the expectation is triple parallel fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
             expectingMatchedParallelism {
@@ -507,7 +507,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `trying to call a coroutine puzzle endpoint with triple parallel while the expectation is double parallel fails`() = runTest2 {
+    fun `trying to call a coroutine puzzle endpoint with triple parallel while the expectation is double parallel fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
             expectingMatchedParallelism {
@@ -524,7 +524,7 @@ class CoroutinePuzzleUtilitiesTest {
     }
 
     @Test
-    fun `trying to call a coroutine puzzle endpoint with matching parallelism succeeds`() = runTest2 {
+    fun `trying to call a coroutine puzzle endpoint with matching parallelism succeeds`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
             expectingMatchedParallelism {
@@ -540,7 +540,23 @@ class CoroutinePuzzleUtilitiesTest {
     }
 }
 
-fun runTest2(block: suspend CoroutineScope.() -> Unit) = kotlinx.coroutines.test.runTest(timeout = 1.seconds) { block() }
+/**
+ * Runs [block] once per seed in [seeds], each time under [withRandomizedDispatchOrder], so races between
+ * concurrently-launched coroutines get shuffled differently on every run while staying in virtual time - the test
+ * scheduler would otherwise always pick the same single interleaving. Fails with the offending seed attached, so a
+ * failure can be reproduced by rerunning just that seed (e.g. `runTest2(seeds = 17L..17L) { ... }`).
+ */
+fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 30L, block: suspend CoroutineScope.() -> Unit) {
+    for (seed in seeds) {
+        try {
+            kotlinx.coroutines.test.runTest(timeout = 1.seconds) {
+                withRandomizedDispatchOrder(seed) { block() }
+            }
+        } catch (t: Throwable) {
+            throw AssertionError("Failed with dispatch-order seed $seed", t)
+        }
+    }
+}
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
     val isDone = CompletableDeferred<User>()
