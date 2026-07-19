@@ -25,12 +25,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration.Companion.seconds
 
-fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle = coroutinePuzzle {
+fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): CoroutinePuzzle = coroutinePuzzle {
     val database = generateUserDatabase()
 
     getAllUserIds.expectCall { database.keys.toList() }
 
-    if (isTimed) {
+    if (mustBeConcurrent) {
         expectingMatchedParallelism {
             repeat(database.size) { launch { expectQueryCall(database) } }
         }
@@ -46,7 +46,7 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(isTimed: Boolean): CoroutinePuzzle
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun expectQueryCall(database: Map<Int, SerializableUser>) {
-    val id = queryUserById.expectCall { id -> database.getAndVerifyUserExists(id) }
+    queryUserById.expectCall { id -> database.getAndVerifyUserExists(id) }
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -55,10 +55,10 @@ private fun Map<Int, SerializableUser>.getAndVerifyUserExists(id: Int): Serializ
 }
 
 suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleSolutionResult =
-    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(isTimed = false), onUse)
+    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false), onUse)
 
 suspend fun doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleSolutionResult =
-    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(isTimed = true), onUse)
+    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true), onUse)
 
 private suspend fun doUserDatabasePuzzle(
     puzzle: CoroutinePuzzle,
