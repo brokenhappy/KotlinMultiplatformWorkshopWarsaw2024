@@ -10,6 +10,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.InternalForInheritanceCoroutinesApi
 import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -37,7 +38,17 @@ suspend fun <T> withInterceptingDispatcher(
 
     @OptIn(InternalCoroutinesApi::class)
     fun wrapDispatcher(delegateDispatcher: CoroutineDispatcher, delegateDelay: Delay): CoroutineDispatcher {
-        return object : CoroutineDispatcher(), Delay {
+        return object : CoroutineDispatcher(), Delay, InterceptingDispatcher {
+            override suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T {
+                onDispatchScheduled()
+                return try {
+                    (delegateDispatcher as? InterceptingDispatcher)?.pretendActiveAndRunUnintercepted(block)
+                        ?: withContext(delegateDispatcher) { block() }
+                } finally {
+                    onDispatchedRunnableComplete()
+                }
+            }
+
             /**
              * This is a bit of a tricky case, since this isn't just a Runnable we can wrap.
              * The Runnable comes later, namely at the moment that our [delegateDispatcher] calls [continuation].
@@ -128,6 +139,33 @@ suspend fun <T> withInterceptingDispatcher(
         block,
     )
 }
+
+/**
+ * A [CoroutineDispatcher] conforms to this if it's one of [withInterceptingDispatcher]'s wrappers, exposing just
+ * enough for [pretendActiveAndRunUnintercepted] to peel it off without needing a separate context element.
+ */
+private interface InterceptingDispatcher {
+    suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T
+}
+
+/**
+ * Marks a piece of work as "in flight" for every enclosing [withInterceptingDispatcher] - and therefore every
+ * [autoBatchedOnQuiescence] built on top of one - then runs [block] on the real, un-intercepted dispatcher that
+ * those layers wrap.
+ *
+ * Quiescence tracking assumes all work stays on the intercepted dispatcher, but that assumption breaks the moment
+ * code hands off to something that doesn't: an RPC framework's own actor/job, a callback-based API, `GlobalScope`,
+ * etc. Left alone, such a hand-off looks like "nothing is happening" to every tracker watching, so they may declare
+ * quiescence (and batch/deadlock-detect) too early. Wrapping the hand-off in this function tells all of them "stay
+ * active until told otherwise", while [block] itself runs unobserved - so anything it does isn't double-counted.
+ *
+ * A no-op wrapper (just runs [block] as-is) if no [withInterceptingDispatcher] is currently active.
+ */
+suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T =
+    @OptIn(ExperimentalStdlibApi::class)
+    (currentCoroutineContext()[CoroutineDispatcher] as? InterceptingDispatcher)
+        ?.pretendActiveAndRunUnintercepted(block)
+        ?: coroutineScope { block() }
 
 @OptIn(InternalCoroutinesApi::class)
 private val DefaultDelay: Delay by lazy {
