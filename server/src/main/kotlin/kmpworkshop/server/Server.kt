@@ -154,13 +154,17 @@ fun workshopService(
                                     .submitRawCall(callOrConfirmation.argument)
                                 send(CallAnswered(
                                     callId = callOrConfirmation.callId,
-                                    answer = answer,
+                                    answer = CallAnswered.CallAnswer.Success(answer),
                                 ))
                             } catch (e: CoroutinePuzzleFailedControlFlowException) {
                                 throw e
                             } catch (e: Throwable) {
                                 if (e !is CancellationException) e.printStackTrace()
-                                send(CallAnswered(callOrConfirmation.callId, null)) // Internal server error! Oops!
+                                send(CallAnswered(
+                                    callOrConfirmation.callId,
+                                    if (e is CancellationException) CallAnswered.CallAnswer.Canceled
+                                    else CallAnswered.CallAnswer.Exceptional
+                                )) // Internal server error! Oops!
                             } finally {
                                 jobs.remove(callOrConfirmation.callId)
                             }

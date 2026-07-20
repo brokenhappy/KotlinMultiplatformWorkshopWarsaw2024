@@ -2,6 +2,7 @@
 
 package kmpworkshop.common
 
+import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered.CallAnswer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
@@ -13,6 +14,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.fetchAndIncrement
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCall
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCallCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
@@ -90,9 +92,13 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                     if (!answeredCall.isTaken.compareAndSet(expectedValue = false, newValue = true))
                         return@mapNotNull null
                     callsInProgress.updateWithContract { oldCalls -> oldCalls - answeredCall }
-                    reply.answer?.sideEffect { answer ->
-                        answeredCall.deferred.complete(answer)
-                    } ?: answeredCall.deferred.completeExceptionally(Exception("500: Internal server error... :("))
+
+                    when (val answer = reply.answer) {
+                        is CallAnswer.Success -> answeredCall.deferred.complete(answer.content)
+                        CallAnswer.Canceled -> answeredCall.deferred.cancel()
+                        CallAnswer.Exceptional ->
+                            answeredCall.deferred.completeExceptionally(Exception("500: Internal server error... :("))
+                    }
                     null
                 }
                 is CoroutinePuzzleEndpointAnswer.Done -> reply.result
@@ -147,8 +153,18 @@ sealed class CoroutinePuzzleEndpointAnswer {
     data class CallAnswered(
         val callId: Int,
         /** null implies 500 internal server error */
-        val answer: JsonElement?,
-    ) : CoroutinePuzzleEndpointAnswer()
+        val answer: CallAnswer,
+    ) : CoroutinePuzzleEndpointAnswer() {
+        @Serializable
+        sealed class CallAnswer {
+            @Serializable
+            data class Success(val content: JsonElement) : CallAnswer()
+            @Serializable
+            data object Exceptional : CallAnswer()
+            @Serializable
+            data object Canceled : CallAnswer()
+        }
+    }
     @Serializable
     data class Done(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleEndpointAnswer()
     @Serializable
