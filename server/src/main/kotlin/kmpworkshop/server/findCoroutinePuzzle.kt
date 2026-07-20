@@ -14,7 +14,7 @@ fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle? = when (stage
     WorkshopStage.FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true)
     WorkshopStage.MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()
     WorkshopStage.MappingFromLegacyApisStepTwo -> mappingLegacyApiCoroutinePuzzleWithException()
-    WorkshopStage.MappingFromLegacyApisStepThree -> mappingLegacyApiCoroutinePuzzleWithCancellation()
+    WorkshopStage.MappingFromLegacyApisStepThree -> mappingLegacyApiCoroutinePuzzleWithEscapingCancellation()
     WorkshopStage.MappingFromLegacyApisStepFour -> mappingLegacyApiCoroutinePuzzleStepFour()
     WorkshopStage.SimpleFlow -> simpleFlowPuzzle()
     WorkshopStage.CollectLatest -> collectLatestPuzzle()

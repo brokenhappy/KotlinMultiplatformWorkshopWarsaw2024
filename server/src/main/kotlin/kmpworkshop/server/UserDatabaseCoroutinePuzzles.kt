@@ -1,28 +1,7 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.CoroutinePuzzle
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.SerializableUser
-import kmpworkshop.common.UserDatabase
-import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
-import kmpworkshop.common.callIsDone
-import kmpworkshop.common.callLifetime
-import kmpworkshop.common.queryExceptionThrown
-import kmpworkshop.common.getAllUserIds
-import kmpworkshop.common.getUserDatabase
-import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
-import kmpworkshop.common.legacyCancellationDelay
-import kmpworkshop.common.mapFromLegacyApiWithScaffolding
-import kmpworkshop.common.queryUserById
-import kmpworkshop.common.solve
-import kmpworkshop.common.submitNumber
-import kmpworkshop.common.withImportantCleanup
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kmpworkshop.common.*
+import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.seconds
 
 fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): CoroutinePuzzle = coroutinePuzzle {
@@ -69,28 +48,6 @@ private suspend fun doUserDatabasePuzzle(
     }
 }
 
-fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutinePuzzle {
-    val isDone = CompletableDeferred<Unit>()
-    launch {
-        callLifetime.expectCall {
-            isDone.await()
-        }
-    }
-    val database = generateUserDatabase()
-
-    getAllUserIds.expectCall(database.keys.toList())
-
-    coroutineScope {
-        repeat(database.size - 1) {
-            launch { expectQueryCall(database) }
-        }
-    }
-    queryUserById.expectCall(null) // The last one throws an exception
-    queryExceptionThrown.expectCall(Unit)
-    callIsDone.expectCall(Unit)
-    isDone.complete(Unit) // As very, very last, so that we don't accidentally cancel any of their stuff.
-}
-
 fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzle {
     val database = generateUserDatabase()
     getAllUserIds.expectCall(database.keys.toList())
@@ -106,63 +63,78 @@ fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzl
     }
 }
 
-@OptIn(ExperimentalAtomicApi::class)
-fun mappingLegacyApiCoroutinePuzzleWithCancellation(): CoroutinePuzzle = coroutinePuzzle {
-    val timeToCancel = CompletableDeferred<Unit>()
-    launch {
-        callLifetime.expectCall {
-            timeToCancel.await()
-        }
-    }
-    val database = generateUserDatabase()
-
-    getAllUserIds.expectCall(database.keys.toList())
-
-    coroutineScope {
-        repeat(database.size - 1) {
-            launch { expectQueryCall(database) }
-        }
-    }
-    queryUserById.expectCall {
-        timeToCancel.complete(Unit) // we're going to cancel the last call
-        withTimeoutOrNull(5.seconds) {
-            awaitCancellationOfMatchingSubmitCall()
-        } ?: fail("Your function got canceled, but you left the last query running")
-    }
-    // Step three doesn't care which of these happens first, it just needs both to eventually show up.
-    coroutineScope {
-        launch { legacyCancellationDelay.expectCall(Unit) }
-        launch { callIsDone.expectCall(Unit) }
+fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutinePuzzle {
+    expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne {
+        queryUserById.expectCall(null) // Throw an exception on the last call
+        queryExceptionThrown.expectCall(Unit) // Expect it to be caught in the scaffolding
+        callIsDone.expectCall(Unit)
     }
 }
 
-@OptIn(ExperimentalAtomicApi::class)
+fun mappingLegacyApiCoroutinePuzzleWithEscapingCancellation(): CoroutinePuzzle = coroutinePuzzle {
+    expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
+        expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
+        // We don't care yet that cancellation happens is fully awaited for in this step.
+        launch { legacyCancellationCompletion.expectCall(Unit) }
+        callIsDone.expectCall(Unit)
+    }
+}
+
 fun mappingLegacyApiCoroutinePuzzleStepFour(): CoroutinePuzzle = coroutinePuzzle {
-    val timeToCancel = CompletableDeferred<Unit>()
+    expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
+        expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
+        /**
+         * Unlike the previous step, we want an explicit guarantee that the cancellation is awaited for.
+         * That means that [callIsDone] and [legacyCancellationCompletion] MUST NOT run concurrently.
+         */
+        expectingMatchedParallelism { legacyCancellationCompletion.expectCall(Unit) }
+        callIsDone.expectCall(Unit)
+    }
+}
+
+context(builder: CoroutinePuzzleBuilderScope)
+private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal: CompletableDeferred<Unit>) {
+    queryUserById.expectCall {
+        cancellationSignal.complete(Unit) // Now we're signaling to the submission that we should get canceled.
+        withTimeoutOrNull(5.seconds) {
+            throw awaitCancellationOfMatchingSubmitCall()
+        } ?: fail("Your function got canceled, but you left the last query running")
+    }
+}
+
+context(builder: CoroutinePuzzleBuilderScope)
+private suspend fun expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne(
+    handleTrailingCalls: suspend CoroutineScope.(
+        /** Completing this signals that cancellation should start. If you don't want to get canceled, ignore this. */
+        cancellationSignal: CompletableDeferred<Unit>
+    ) -> Unit
+): Unit = coroutineScope {
+    // Completing this hook signals to the submission that it should get canceled.
+    // This cancellation happens in scaffolding.
+    val cancellationSignal = CompletableDeferred<Unit>()
     launch {
         callLifetime.expectCall {
-            timeToCancel.await()
+            cancellationSignal.await()
         }
     }
     val database = generateUserDatabase()
 
     getAllUserIds.expectCall(database.keys.toList())
 
+    // We let all but the last call (Note the ` - 1`) succeed.
     coroutineScope {
         repeat(database.size - 1) {
             launch { expectQueryCall(database) }
         }
     }
-    queryUserById.expectCall {
-        timeToCancel.complete(Unit) // we're going to cancel the last call
-        withTimeoutOrNull(5.seconds) {
-            awaitCancellationOfMatchingSubmitCall()
-        } ?: fail("Your function got canceled, but you left the last query running")
-    }
-    expectingMatchedParallelism {
-        legacyCancellationDelay.expectCall(Unit) // Must happen strictly before the call is done
-    }
-    callIsDone.expectCall(Unit)
+    // Then handle the last call and closing logic
+    coroutineScope { handleTrailingCalls(cancellationSignal) }
+    /**
+     * We should make sure that [callLifetime] completes,
+     * otherwise we'd hang. Since everything is done at this point,
+     * the cancellation shouldn't affect anything.
+     */
+    cancellationSignal.complete(Unit)
 }
 
 private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequence { (0..10_000).random() }
@@ -205,7 +177,7 @@ suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
 
 suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithCancellation().solve {
+): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithEscapingCancellation().solve {
     mapFromLegacyApiWithScaffolding {
         coroutineScope {
             onUse(it)

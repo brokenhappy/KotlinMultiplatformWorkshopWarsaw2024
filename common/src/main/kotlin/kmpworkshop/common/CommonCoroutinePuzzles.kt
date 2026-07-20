@@ -2,7 +2,6 @@ package kmpworkshop.common
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -23,7 +22,7 @@ import java.util.IdentityHashMap
 import kotlin.jvm.JvmInline
 import kotlin.time.ExperimentalTime
 
-data class CoroutinePuzzleEndPoint<in T, out R>(val descriptor: CoroutinePuzzleEndPointDescriptor)
+data class CoroutinePuzzleEndPoint<T, R>(val descriptor: CoroutinePuzzleEndPointDescriptor)
 
 @Serializable
 @JvmInline
@@ -306,7 +305,7 @@ fun getUserDatabaseWithLegacyQueryUser(
                         try {
                             job.cancelAndJoin()
                             isDone.await() // I am so confused as to why this is necessary...
-                            legacyCancellationDelay.submitCall(Unit)
+                            legacyCancellationCompletion.submitCall(Unit)
                         } finally {
                             onCancellationFinished()
                         }
