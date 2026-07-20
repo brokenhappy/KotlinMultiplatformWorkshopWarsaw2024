@@ -159,17 +159,27 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                             // tracking coroutine - not by momentarily observing nothing pending.
                             return@collectLatest
                         }
-                        importantCleanup {
-                            coroutineScope { batchResumer(context, currentState.currentRequests) }
-                            state.update {
-                                it.copy(currentRequests =
-                                    // Fast path for happy path
-                                    if (it === currentState) persistentListOf()
-                                    // I'm not 100% sure why this fixed [CoroutinePuzzleUtilitiesTest.trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails]
-                                    // Shouldn't we have the assumption that there is no parallelism rn?
-                                    else it.currentRequests.removeAll(currentState.currentRequests)
-                                )
+                        // Claim the pending requests by removing them from the state *before* resuming them.
+                        // collectLatest restarts this collector on any later state emission, and that restart can
+                        // happen before the cancellation-shielded resume below has finished; if we removed the
+                        // requests only after resuming (as before), the restart would read the very same requests
+                        // and resume their continuations a second time - "Already resumed". Removing atomically
+                        // up-front makes each continuation owned by exactly one invocation. We re-check quiescence
+                        // inside the update so a request that arrived alongside a newly-active coroutine isn't torn
+                        // out from under it.
+                        var claimedRequests = persistentListOf<SuspendedBatchCall<T, R>>()
+                        state.update { latest ->
+                            if (latest.activeCoroutineCount == 0 && latest.currentRequests.isNotEmpty()) {
+                                claimedRequests = latest.currentRequests
+                                latest.copy(currentRequests = persistentListOf())
+                            } else {
+                                claimedRequests = persistentListOf()
+                                latest
                             }
+                        }
+                        if (claimedRequests.isEmpty()) return@collectLatest
+                        importantCleanup {
+                            coroutineScope { batchResumer(context, claimedRequests) }
                         }
                         momentOfLastBatch = clock.now()
                         return@collectLatest
