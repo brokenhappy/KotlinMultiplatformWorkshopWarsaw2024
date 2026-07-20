@@ -24,6 +24,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
     testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-server-netty-jvm:3.3.0")
+    testImplementation("io.ktor:ktor-client-cio-jvm:3.3.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server:0.9.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.9.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server:0.9.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
 }
 
 tasks.test {

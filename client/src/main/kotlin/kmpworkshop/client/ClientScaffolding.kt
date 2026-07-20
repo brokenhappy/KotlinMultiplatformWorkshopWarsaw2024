@@ -21,20 +21,36 @@ import kotlinx.rpc.withService
 // It's too big of a topic to explain why in these comments.
 // Ask me if you're curious why this is not recommended in production environments!
 private var _workshopService: WorkshopApiService? = null
-val workshopService: WorkshopApiService get() = _workshopService ?: createService().also { _workshopService = it }
+val workshopService: WorkshopApiService get() = _workshopService ?: createWorkshopService().also { _workshopService = it }
 
-private fun createService(): WorkshopApiService = runBlocking {
-    val ktorClient = HttpClient {
+/**
+ * Connects to the workshop server and returns a [WorkshopApiService] over a real kotlinx-rpc transport, owning the
+ * lifetime of the underlying ktor client for the rest of the process (as befits the app's singleton service).
+ */
+fun createWorkshopService(): WorkshopApiService = runBlocking {
+    HttpClient {
         installKrpc {
             waitForServices = true
         }
-    }
+    }.connectWorkshopService()
+}
 
-    val client: KtorRpcClient = ktorClient.rpc {
+/**
+ * Wires this ktor client up to the workshop RPC service. The connection parameters default to the production
+ * server, but are injectable so that end-to-end tests can point the *same* client wiring at a locally hosted
+ * server (e.g. `URLProtocol.WS`, `localhost`, an ephemeral port) - and, by supplying their own [HttpClient], own
+ * its lifecycle so it can be closed between runs instead of re-implementing the client setup.
+ */
+suspend fun HttpClient.connectWorkshopService(
+    protocol: URLProtocol = URLProtocol.WSS,
+    host: String = serverUrl,
+    port: Int = serverWebsocketPort,
+): WorkshopApiService {
+    val client: KtorRpcClient = rpc {
         url {
-            protocol = URLProtocol.WSS
-            host = serverUrl
-            port = serverWebsocketPort
+            this.protocol = protocol
+            this.host = host
+            this.port = port
             encodedPath = "rpc"
         }
 
@@ -45,7 +61,7 @@ private fun createService(): WorkshopApiService = runBlocking {
         }
     }
 
-    client.withService<WorkshopApiService>()
+    return client.withService<WorkshopApiService>()
 }
 
 @Composable

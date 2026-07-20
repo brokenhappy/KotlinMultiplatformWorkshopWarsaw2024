@@ -23,7 +23,20 @@ inline fun <@Rpc reified Service : Any> rpcService(noinline factory: () -> Servi
     RpcService(Service::class, factory)
 
 suspend fun serve(services: List<RpcService<*>>): Nothing {
-    embeddedServer(Netty, port = 8080) {
+    rpcServer(services = services).startSuspend(wait = true)
+
+    println("Extremely questionable event happened, this is definitely not supposed to be printed if ktor APIs were properly designed")
+    awaitCancellation()
+}
+
+/**
+ * Builds the workshop's RPC server without starting it, so callers control the lifecycle (start/stop) themselves.
+ * [port] defaults to the production port, but tests can pass `0` to bind an ephemeral port and read it back via
+ * `engine.resolvedConnectors()`. This is the same wiring [serve] runs in production, so exercising it keeps
+ * end-to-end tests honest about the real ktor + kotlinx-rpc setup.
+ */
+fun rpcServer(port: Int = 8080, services: List<RpcService<*>>) =
+    embeddedServer(Netty, port = port) {
         install(Krpc)
         routing {
             get("/healthz") {
@@ -41,11 +54,7 @@ suspend fun serve(services: List<RpcService<*>>): Nothing {
                 services.forEach { register(it) }
             }
         }
-    }.startSuspend(wait = true)
-
-    println("Extremely questionable event happened, this is definitely not supposed to be printed if ktor APIs were properly designed")
-    awaitCancellation()
-}
+    }
 
 private fun <@Rpc Service : Any> KrpcRoute.register(service: RpcService<Service>) =
     registerService(service.klass, service.factory)
