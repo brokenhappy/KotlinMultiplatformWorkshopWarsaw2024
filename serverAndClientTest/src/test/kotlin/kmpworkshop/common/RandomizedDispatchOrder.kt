@@ -42,10 +42,17 @@ suspend fun <T> withRandomizedDispatchOrder(
             private var drainScheduled = false
 
             /**
-             * Everything dispatched between two drains is, from this dispatcher's point of view, "ready at the same
-             * moment" - so instead of forwarding each dispatch immediately (which would preserve enqueue order), we
-             * buffer them and release the whole batch, shuffled, via a single follow-up dispatch. Since dispatching
-             * this drain itself goes through [delegateDispatcher] (not straight execution), any dispatch calls made
+             * Everything dispatched since the previous release is, from this dispatcher's point of view, "ready at
+             * the same moment", so we buffer it in [pending] and release it in a randomized order instead of the
+             * enqueue order the delegate would preserve.
+             *
+             * Crucially we release only ONE randomly-chosen runnable per drain. When that runnable runs it may
+             * re-dispatch its coroutine's next step straight back into [pending], where it then competes on equal
+             * footing with everything still waiting - so a coroutine can get several steps ahead of another, not
+             * merely advance one lockstep round at a time. Releasing the whole batch each round (a previous
+             * approach) only ever shuffled the order *within* a round, leaving every "one coroutine runs ahead"
+             * interleaving unreachable - and those are exactly the interleavings most races need. Since scheduling
+             * the drain itself goes through [delegateDispatcher] (not straight execution), any dispatch calls made
              * synchronously before it runs are guaranteed to have already landed in [pending].
              */
             private fun scheduleDrain() {
@@ -53,9 +60,10 @@ suspend fun <T> withRandomizedDispatchOrder(
                 drainScheduled = true
                 delegateDispatcher.dispatch(EmptyCoroutineContext, Runnable {
                     drainScheduled = false
-                    val batch = pending.toList()
-                    pending.clear()
-                    batch.shuffled(random).forEach { (context, runnable) -> delegateDispatcher.dispatch(context, runnable) }
+                    if (pending.isEmpty()) return@Runnable
+                    val (context, runnable) = pending.removeAt(random.nextInt(pending.size))
+                    delegateDispatcher.dispatch(context, runnable)
+                    if (pending.isNotEmpty()) scheduleDrain()
                 })
             }
 
@@ -64,8 +72,14 @@ suspend fun <T> withRandomizedDispatchOrder(
                 scheduleDrain()
             }
 
+            /**
+             * Route yields through the same randomized [pending] buffer as [dispatch]. Forwarding them straight to
+             * the delegate (as before) meant `yield()` points kept their strict FIFO order and weren't shuffled at
+             * all - so multi-step coroutines could only ever advance in lockstep no matter the seed.
+             */
             override fun dispatchYield(context: CoroutineContext, block: Runnable) {
-                delegateDispatcher.dispatchYield(context, block)
+                pending.add(context to block)
+                scheduleDrain()
             }
 
             override fun isDispatchNeeded(context: CoroutineContext): Boolean =
