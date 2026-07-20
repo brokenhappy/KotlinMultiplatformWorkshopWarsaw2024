@@ -119,7 +119,12 @@ suspend fun <T> withInterceptingDispatcher(
             }
 
             override fun dispatchYield(context: CoroutineContext, block: Runnable) {
-                delegateDispatcher.dispatchYield(context, block)
+                // A yielding coroutine is NOT idle - it hands the thread to others but will resume itself right
+                // away - so it must keep counting as in-flight, exactly like [dispatch]. Forwarding the yield
+                // untracked (as before) made the coroutine momentarily invisible to the active-coroutine count,
+                // so a quiescence tracker could declare quiescence while it was merely mid-yield - firing a batch
+                // with only part of a concurrent group, or miscounting into a hang.
+                delegateDispatcher.dispatchYield(context, prepareForScheduling(block))
             }
 
             override fun isDispatchNeeded(context: CoroutineContext): Boolean =
