@@ -210,36 +210,6 @@ sealed class NameVerificationResult {
 }
 
 @Serializable
-sealed class NextNumberResult {
-    @Serializable
-    data class Success(val number: Int) : NextNumberResult()
-    @Serializable
-    data object TooSlow : NextNumberResult()
-    @Serializable
-    data object AskedForTooManyNumbers : NextNumberResult()
-    @Serializable
-    data object NotCurrentlyActiveStage : NextNumberResult()
-}
-
-@Serializable
-sealed class SumSubmissionResult {
-    @Serializable
-    data object Success : SumSubmissionResult()
-    @Serializable
-    data object NotOpenedYet : SumSubmissionResult()
-    @Serializable
-    data object AlreadySolved : SumSubmissionResult()
-    @Serializable
-    data class WrongSum(val expected: Int) : SumSubmissionResult()
-    @Serializable
-    data object InvalidApiKey : SumSubmissionResult()
-    @Serializable
-    data object TooSlow : SumSubmissionResult()
-    @Serializable
-    data object NotCurrentlyActiveStage : SumSubmissionResult()
-}
-
-@Serializable
 data class ApiKey(val stringRepresentation: String)
 
 // We don't want to burden the user with @Serializable, so we hide it here
