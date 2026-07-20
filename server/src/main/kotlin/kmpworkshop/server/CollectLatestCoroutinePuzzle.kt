@@ -32,8 +32,9 @@ fun collectLatestPuzzle() = coroutinePuzzle {
             val actual = submitNumber.expectCall {
                 readyToGetCanceledHook.complete(Unit) // Let's get this canceled!
                 withTimeoutOrNull(2.seconds) {
-                    awaitCancellationOfMatchingSubmitCall()
-                } ?: fail("submitNumber() is expected to be canceled by the new emission into the flow")
+                    throw awaitCancellationOfMatchingSubmitCall()
+                }
+                fail("submitNumber() is expected to be canceled by the new emission into the flow")
             }
             verify(actual == last) { "The value that you submit must be a value collected from the flow!" }
         }

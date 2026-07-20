@@ -98,7 +98,8 @@ private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(cancellationSig
         cancellationSignal.complete(Unit) // Now we're signaling to the submission that we should get canceled.
         withTimeoutOrNull(5.seconds) {
             throw awaitCancellationOfMatchingSubmitCall()
-        } ?: fail("Your function got canceled, but you left the last query running")
+        }
+        fail("Your function got canceled, but you left the last query running")
     }
 }
 

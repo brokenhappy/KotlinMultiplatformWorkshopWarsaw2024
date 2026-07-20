@@ -440,7 +440,7 @@ class CoroutinePuzzleUtilitiesTest {
                 endpoint.expectCall {
                     cancellationStartHook.complete(Unit)
                     assertThrows<SpecialCancellationExceptionForTestBelow> {
-                        awaitCancellationOfMatchingSubmitCall()
+                        throw awaitCancellationOfMatchingSubmitCall()
                     }
                     Unit
                 }
