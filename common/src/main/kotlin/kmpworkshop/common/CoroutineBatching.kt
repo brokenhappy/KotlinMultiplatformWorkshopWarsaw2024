@@ -162,13 +162,8 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                         importantCleanup {
                             var claimedRequests: PersistentList<SuspendedBatchCall<T, R>>
                             state.updateWithContract { latest ->
-                                if (latest.activeCoroutineCount == 0 && latest.currentRequests.isNotEmpty()) {
-                                    claimedRequests = latest.currentRequests
-                                    latest.copy(currentRequests = persistentListOf())
-                                } else {
-                                    claimedRequests = persistentListOf()
-                                    latest
-                                }
+                                claimedRequests = latest.currentRequests
+                                latest.copy(currentRequests = persistentListOf())
                             }
                             if (claimedRequests.isNotEmpty())
                                 coroutineScope { batchResumer(context, claimedRequests) }
