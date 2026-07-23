@@ -186,7 +186,7 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                             } else {
                                 // ... Only if another request has been made we remove only continuations that we completed
                                 processedContinuations = processedContinuations
-                                    ?: old.currentRequests.mapTo(HashSet()) { it.continuation }
+                                    ?: currentState.currentRequests.mapTo(HashSet()) { it.continuation }
                                 old.copy(
                                     currentRequests = old
                                         .currentRequests
