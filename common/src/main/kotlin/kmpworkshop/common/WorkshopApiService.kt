@@ -142,8 +142,6 @@ sealed class CoroutinePuzzleEndpointCallOrConfirmation {
         val argument: JsonElement,
     ) : CoroutinePuzzleEndpointCallOrConfirmation()
     @Serializable
-    data class CoroutinePuzzleEndpointConfirmation(val callId: Int) : CoroutinePuzzleEndpointCallOrConfirmation()
-    @Serializable
     data class CoroutinePuzzleEndpointCallCancellation(val callId: Int) : CoroutinePuzzleEndpointCallOrConfirmation()
 }
 

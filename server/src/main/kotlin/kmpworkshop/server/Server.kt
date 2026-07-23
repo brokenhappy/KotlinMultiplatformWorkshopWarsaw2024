@@ -7,7 +7,6 @@ import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCall
 import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCallCancellation
-import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointConfirmation
 import kmpworkshop.common.WorkshopStage.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -168,9 +167,6 @@ fun workshopService(
                             } finally {
                                 jobs.remove(callOrConfirmation.callId)
                             }
-                        }
-                        is CoroutinePuzzleEndpointConfirmation -> {
-                            // No longer needed: the new CoroutinePuzzle API doesn't require an arrival confirmation.
                         }
                         is CoroutinePuzzleEndpointCallCancellation -> jobs[callOrConfirmation.callId]?.cancel()
                     }
