@@ -4,13 +4,8 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered
-import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCall
-import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCallCancellation
 import kmpworkshop.common.WorkshopStage.*
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
@@ -22,7 +17,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import workshop.adminaccess.*
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -128,62 +122,37 @@ fun workshopService(
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
-        calls: Flow<CoroutinePuzzleEndpointCallOrConfirmation>,
-    ): Flow<CoroutinePuzzleEndpointAnswer> = channelFlow {
+        messages: Flow<CoroutinePuzzleClientMessage>,
+    ): Flow<CoroutinePuzzleServerMessage> = channelFlow {
         val puzzle = WorkshopStage
             .entries
             .firstOrNull { it.name == puzzleId }
             ?.let { findCoroutinePuzzleFor(it) }
             ?: run {
                 println("Someone tried to request coroutine puzzle id: $puzzleId")
-                send(CoroutinePuzzleEndpointAnswer.IncorrectInput)
+                send(CoroutinePuzzleServerMessage.IncorrectInput)
                 return@channelFlow
             }
 
-        val jobs = ConcurrentHashMap<Int, Job>()
+        // The client owns the solution-side batching detection; here we only match the batches it streams us against
+        // the puzzle's expectations and stream back per-call answers.
         send(try {
-            puzzle.solve {
-                calls.collect { callOrConfirmation ->
-                    when (callOrConfirmation) {
-                        is CoroutinePuzzleEndpointCall -> jobs[callOrConfirmation.callId] = launch {
-                            try {
-                                val answer = callOrConfirmation
-                                    .descriptor
-                                    .toEndpoint()
-                                    .submitRawCall(callOrConfirmation.argument)
-                                send(CallAnswered(
-                                    callId = callOrConfirmation.callId,
-                                    answer = CallAnswered.CallAnswer.Success(answer),
-                                ))
-                            } catch (e: CoroutinePuzzleFailedControlFlowException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                if (e !is CancellationException) e.printStackTrace()
-                                send(CallAnswered(
-                                    callOrConfirmation.callId,
-                                    if (e is CancellationException) CallAnswered.CallAnswer.Canceled
-                                    else CallAnswered.CallAnswer.Exceptional
-                                )) // Internal server error! Oops!
-                            } finally {
-                                jobs.remove(callOrConfirmation.callId)
-                            }
-                        }
-                        is CoroutinePuzzleEndpointCallCancellation -> jobs[callOrConfirmation.callId]?.cancel()
-                    }
-                }
-            }.let {
+            puzzle.solveReceivingBatches(
+                incomingMessages = messages,
+                answer = { callId, answer -> send(CoroutinePuzzleServerMessage.CallAnswered(callId, answer)) },
+            ).let {
                 when (it) {
-                    is CoroutinePuzzleSolutionResult.Failure -> CoroutinePuzzleEndpointAnswer.Done(it)
+                    is CoroutinePuzzleSolutionResult.Failure -> CoroutinePuzzleServerMessage.Done(it)
                     is CoroutinePuzzleSolutionResult.Success ->
                         when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
-                            PuzzleCompletionResult.AlreadySolved -> CoroutinePuzzleEndpointAnswer.AlreadySolved
-                            PuzzleCompletionResult.Done -> CoroutinePuzzleEndpointAnswer.Done(it)
-                            PuzzleCompletionResult.PuzzleNotOpenedYet -> CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet
+                            PuzzleCompletionResult.AlreadySolved -> CoroutinePuzzleServerMessage.AlreadySolved
+                            PuzzleCompletionResult.Done -> CoroutinePuzzleServerMessage.Done(it)
+                            PuzzleCompletionResult.PuzzleNotOpenedYet -> CoroutinePuzzleServerMessage.PuzzleNotOpenedYet
                         }
                 }
             }
         } catch (_: SerializationException) {
-            CoroutinePuzzleEndpointAnswer.IncorrectInput
+            CoroutinePuzzleServerMessage.IncorrectInput
         })
     }
 }

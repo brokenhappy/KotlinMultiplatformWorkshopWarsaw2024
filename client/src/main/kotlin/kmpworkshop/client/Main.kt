@@ -17,7 +17,6 @@ import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
 import kmpworkshop.common.mapFromLegacyApiWithScaffolding
 import kmpworkshop.common.numberFlowAndSubmit
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
@@ -42,7 +41,6 @@ suspend fun main() {
             CollectLatest -> runCoroutinePuzzleClient(
                 server,
                 stage,
-                bigScope = GlobalScope,
                 sumSolution = { numberSummer(it) },
                 collectSolution = { showingHowItsFlowing(it) },
                 maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
@@ -57,7 +55,6 @@ suspend fun main() {
 suspend fun runCoroutinePuzzleClient(
     workshopServer: WorkshopServer,
     stage: WorkshopStage,
-    bigScope: CoroutineScope,
     sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit,
@@ -83,7 +80,7 @@ suspend fun runCoroutinePuzzleClient(
         workshopServer,
         stage.name,
         solution = { coroutineScope { mappingLegacyApiCoroutineSolution(it) } },
-    ) { getUserDatabaseWithLegacyQueryUser(bigScope) }
+    ) { resourceScope -> getUserDatabaseWithLegacyQueryUser(resourceScope) }
     MappingFromLegacyApisStepTwo,
     MappingFromLegacyApisStepThree,
     MappingFromLegacyApisStepFour -> checkCoroutinePuzzleInternal(

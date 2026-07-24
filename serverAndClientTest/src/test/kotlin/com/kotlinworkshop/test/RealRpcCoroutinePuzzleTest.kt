@@ -117,7 +117,6 @@ private suspend fun runRealRpcTestClient(
         runCoroutinePuzzleClient(
             workshopServer = service.asServer(ApiKey("1234-5678")),
             stage = stage,
-            bigScope = this,
             sumSolution = sumSolution,
             collectSolution = collectSolution,
             maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,

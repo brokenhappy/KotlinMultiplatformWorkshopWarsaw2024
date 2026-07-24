@@ -12,8 +12,8 @@ suspend fun <T> checkCoroutinePuzzle(
     workshopServer: WorkshopServer,
     puzzleId: String,
     solution: suspend (T) -> Unit,
-    builder: context(CoroutinePuzzleSolutionScope) () -> T,
-): CoroutinePuzzleSolutionResult = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder()) }
+    builder: context(CoroutinePuzzleSolutionScope) (resourceScope: CoroutineScope) -> T,
+): CoroutinePuzzleSolutionResult = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder(this)) }
 
 suspend fun checkCoroutinePuzzleInternal(
     workshopServer: WorkshopServer,

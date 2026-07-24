@@ -70,7 +70,6 @@ suspend fun runTestClient(
                 onEvent = { launch { eventBus.send(it) } },
             ).asServer(ApiKey("1234-5678")),
             stage = stage,
-            bigScope = this,
             sumSolution = sumSolution,
             collectSolution = collectSolution,
             maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,

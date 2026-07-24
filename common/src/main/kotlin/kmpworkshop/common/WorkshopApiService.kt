@@ -1,22 +1,20 @@
-@file:OptIn(ExperimentalAtomicApi::class)
+@file:OptIn(ExperimentalAtomicApi::class, kotlin.time.ExperimentalTime::class)
 
 package kmpworkshop.common
 
-import kmpworkshop.common.CoroutinePuzzleEndpointAnswer.CallAnswered.CallAnswer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.fetchAndIncrement
-import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCall
-import kmpworkshop.common.CoroutinePuzzleEndpointCallOrConfirmation.CoroutinePuzzleEndpointCallCancellation
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
-import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 
 interface WorkshopServer {
@@ -32,7 +30,12 @@ interface WorkshopServer {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
     fun currentStage(): Flow<WorkshopStage>
-    fun doCoroutinePuzzleSolveAttempt(key: ApiKey, puzzleId: String, calls: Flow<CoroutinePuzzleEndpointCallOrConfirmation>): Flow<CoroutinePuzzleEndpointAnswer>
+    /**
+     * The batching/quiescence detection for the *solution* lives on the client (see [asServer]): the client watches
+     * the user's own code go quiescent, forms a batch, and sends it here. The server only owns the *puzzle* side
+     * (the expectation quiescence detection) and the matching of incoming batches against those expectations.
+     */
+    fun doCoroutinePuzzleSolveAttempt(key: ApiKey, puzzleId: String, messages: Flow<CoroutinePuzzleClientMessage>): Flow<CoroutinePuzzleServerMessage>
     fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
 }
 
@@ -44,71 +47,99 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
     override suspend fun doCoroutinePuzzleSolveAttempt(
         puzzleId: String,
         callback: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
-    ): CoroutinePuzzleSolutionResult = coroutineScope {
-        data class CallInProgress(
-            val callId: Int,
-            val deferred: CompletableDeferred<JsonElement>,
-            val isTaken: AtomicBoolean,
-        )
-        val callsInProgress = MutableStateFlow<List<CallInProgress>>(emptyList())
-        return@coroutineScope doCoroutinePuzzleSolveAttempt(
-            key = apiKey,
-            puzzleId = puzzleId,
-            calls = channelFlow {
-                val callIdCounter = AtomicInt(0)
-                callback(object: CoroutinePuzzleSolutionScope {
-                    override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
-                        val callInProgress = CallInProgress(
-                            callId = callIdCounter.fetchAndIncrement(),
-                            deferred = CompletableDeferred(),
-                            isTaken = AtomicBoolean(false),
-                        )
-                        callsInProgress.update { it + callInProgress }
-                        try {
-                            send(CoroutinePuzzleEndpointCall(callInProgress.callId, this.descriptor, t))
-                        } catch (t: Throwable) {
-                            callsInProgress.update { it - callInProgress }
-                            throw t
-                        }
-                        return try {
-                            callInProgress.deferred.await()
-                        } catch (c: CancellationException) {
-                            if (callInProgress.isTaken.compareAndSet(expectedValue = false, newValue = true)) {
-                                callsInProgress.update { it - callInProgress }
-                                importantCleanup {
-                                    send(CoroutinePuzzleEndpointCallCancellation(callInProgress.callId))
-                                }
-                            }
-                            throw c
-                        }
-                    }
-                }, this)
-            },
-        ).mapNotNull { reply ->
-            when (reply) {
-                is CoroutinePuzzleEndpointAnswer.CallAnswered -> {
-                    val answeredCall = callsInProgress.value.firstOrNull { it.callId == reply.callId }
-                        ?: return@mapNotNull null
-                    if (!answeredCall.isTaken.compareAndSet(expectedValue = false, newValue = true))
-                        return@mapNotNull null
-                    callsInProgress.updateWithContract { oldCalls -> oldCalls - answeredCall }
+    ): CoroutinePuzzleSolutionResult = coroutineScope toplevel@{
+        // The solution-side batching detection runs *here*, on the client, wrapping the user's real code.
+        // Each detected batch is sent to the server as a single [CoroutinePuzzleClientMessage.Batch]; the server
+        // matches it against its expectations and streams back per-call answers.
+        val outgoing = Channel<CoroutinePuzzleClientMessage>(Channel.UNLIMITED)
+        val pending = ConcurrentHashMap<Int, CompletableDeferred<CallAnswer>>()
+        val callIdCounter = AtomicInt(0)
+        val finalResult = CompletableDeferred<CoroutinePuzzleSolutionResult>()
 
-                    when (val answer = reply.answer) {
-                        is CallAnswer.Success -> answeredCall.deferred.complete(answer.content)
-                        CallAnswer.Canceled -> answeredCall.deferred.cancel()
-                        CallAnswer.Exceptional ->
-                            answeredCall.deferred.completeExceptionally(Exception("500: Internal server error... :("))
-                    }
-                    null
+        val submissionFunction = AutoBatchedFunctionId<SubmissionCall, JsonElement?>(
+            batchResumer = { batch ->
+                val wired = batch.map { call ->
+                    val callId = callIdCounter.fetchAndIncrement()
+                    val answer = CompletableDeferred<CallAnswer>()
+                    pending[callId] = answer
+                    Triple(callId, call, answer)
                 }
-                is CoroutinePuzzleEndpointAnswer.Done -> reply.result
-                CoroutinePuzzleEndpointAnswer.IncorrectInput -> accidentalChangesMadeError()
-                CoroutinePuzzleEndpointAnswer.AlreadySolved ->
-                    CoroutinePuzzleSolutionResult.Failure(emptyList(), CoroutinePuzzleSolutionResult.Failure.Reason.Custom("You have already solved this puzzle!"))
-                CoroutinePuzzleEndpointAnswer.PuzzleNotOpenedYet ->
-                    CoroutinePuzzleSolutionResult.Failure(emptyList(), CoroutinePuzzleSolutionResult.Failure.Reason.Custom("The puzzle has not been opened yet!"))
+                outgoing.send(CoroutinePuzzleClientMessage.Batch(wired.map { (callId, call, _) ->
+                    CoroutinePuzzleBatchedCall(callId, call.query.endPoint.descriptor, call.query.argument)
+                }))
+                wired.forEach { (callId, call, answer) ->
+                    // Awaiting the answer runs on the outer scope (off the intercepting dispatcher), so a long-running
+                    // server call does not keep the solution from going quiescent again.
+                    val job = this@toplevel.launch {
+                        call.continuation.resumeWith(runCatching {
+                            when (val serverAnswer = answer.await()) {
+                                is CallAnswer.Success -> serverAnswer.content
+                                CallAnswer.Retry -> null // Not matched: the batched() retry loop will re-batch it.
+                                CallAnswer.Canceled -> throw CancellationException("Call was canceled")
+                                CallAnswer.Exceptional -> throw Exception("500: Internal server error... :(")
+                            }
+                        })
+                    }
+                    call.invokeOnCancellation {
+                        job.cancel()
+                        pending.remove(callId)
+                        outgoing.trySend(CoroutinePuzzleClientMessage.CancelCall(callId))
+                    }
+                }
             }
-        }.first()
+        )
+
+        val solutionJob = launch {
+            try {
+                context(
+                    object : CoroutinePuzzleSolutionScope {
+                        override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
+                            while (true) {
+                                return submissionFunction.batched(SubmissionCall(this, t)) ?: continue
+                            }
+                        }
+                    },
+                ) {
+                    submissionFunction.autoBatchedOnQuiescence { callback() }
+                }
+            } catch (e: CancellationException) {
+                throw e // Structured cancellation (e.g. the router cancelled us after the server sent its verdict).
+            } catch (e: Throwable) {
+                // The user's own solution threw. Don't tear down the whole RPC with it: the *puzzle* owns the verdict,
+                // and the server will report a Failure reflecting the calls that were (or weren't) made. This mirrors
+                // in-process `solve`, where such an exception loses the race to the puzzle-side control-flow failure.
+                e.printStackTrace()
+            } finally {
+                outgoing.close() // Closing the message stream signals to the server that the solution is done.
+            }
+        }
+
+        val router = launch {
+            this@asServer.doCoroutinePuzzleSolveAttempt(apiKey, puzzleId, outgoing.consumeAsFlow()).collect { message ->
+                when (message) {
+                    is CoroutinePuzzleServerMessage.CallAnswered -> pending.remove(message.callId)?.complete(message.answer)
+                    is CoroutinePuzzleServerMessage.Done -> {
+                        finalResult.complete(message.result)
+                        solutionJob.cancel() // In case the server finished (e.g. a failure) while the solution is still suspended.
+                    }
+                    CoroutinePuzzleServerMessage.IncorrectInput -> finalResult.completeExceptionally(
+                        IllegalStateException(
+                            "You accidentally made changes to the puzzle types or scaffolding.\n" +
+                                "Please revert those changes yourself or ask the workshop host for help!"
+                        )
+                    )
+                    CoroutinePuzzleServerMessage.AlreadySolved -> finalResult.complete(
+                        CoroutinePuzzleSolutionResult.Failure(emptyList(), CoroutinePuzzleSolutionResult.Failure.Reason.Custom("You have already solved this puzzle!"))
+                    )
+                    CoroutinePuzzleServerMessage.PuzzleNotOpenedYet -> finalResult.complete(
+                        CoroutinePuzzleSolutionResult.Failure(emptyList(), CoroutinePuzzleSolutionResult.Failure.Reason.Custom("The puzzle has not been opened yet!"))
+                    )
+                }
+            }
+        }
+
+        solutionJob.join()
+        finalResult.await().also { router.cancel() }
     }
 }
 
@@ -133,44 +164,49 @@ enum class WorkshopStage(val kotlinFile: String) {
 @Serializable
 data class SerializableColor(val red: Int, val green: Int, val blue: Int)
 
+/** Client -> server. The client streams whole detected batches (plus per-call cancellations). */
 @Serializable
-sealed class CoroutinePuzzleEndpointCallOrConfirmation {
+sealed class CoroutinePuzzleClientMessage {
+    /** A batch of submissions the client detected as simultaneously outstanding (a quiescence point). */
     @Serializable
-    data class CoroutinePuzzleEndpointCall(
-        val callId: Int,
-        val descriptor: CoroutinePuzzleEndPointDescriptor, // Should be: CoroutinePuzzleEndpoint<*, *>, but that crashes the kotlinx compiler :sweat_smile:
-        val argument: JsonElement,
-    ) : CoroutinePuzzleEndpointCallOrConfirmation()
+    data class Batch(val calls: List<CoroutinePuzzleBatchedCall>) : CoroutinePuzzleClientMessage()
     @Serializable
-    data class CoroutinePuzzleEndpointCallCancellation(val callId: Int) : CoroutinePuzzleEndpointCallOrConfirmation()
+    data class CancelCall(val callId: Int) : CoroutinePuzzleClientMessage()
 }
 
 @Serializable
-sealed class CoroutinePuzzleEndpointAnswer {
+data class CoroutinePuzzleBatchedCall(
+    val callId: Int,
+    val descriptor: CoroutinePuzzleEndPointDescriptor, // Should be: CoroutinePuzzleEndpoint<*, *>, but that crashes the kotlinx compiler :sweat_smile:
+    val argument: JsonElement,
+)
+
+/** Server -> client. Per-call answers, followed by a single terminal message. */
+@Serializable
+sealed class CoroutinePuzzleServerMessage {
     @Serializable
-    data class CallAnswered(
-        val callId: Int,
-        /** null implies 500 internal server error */
-        val answer: CallAnswer,
-    ) : CoroutinePuzzleEndpointAnswer() {
-        @Serializable
-        sealed class CallAnswer {
-            @Serializable
-            data class Success(val content: JsonElement) : CallAnswer()
-            @Serializable
-            data object Exceptional : CallAnswer()
-            @Serializable
-            data object Canceled : CallAnswer()
-        }
-    }
+    data class CallAnswered(val callId: Int, val answer: CallAnswer) : CoroutinePuzzleServerMessage()
     @Serializable
-    data class Done(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleEndpointAnswer()
+    data class Done(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleServerMessage()
     @Serializable
-    data object IncorrectInput : CoroutinePuzzleEndpointAnswer()
+    data object IncorrectInput : CoroutinePuzzleServerMessage()
     @Serializable
-    data object PuzzleNotOpenedYet : CoroutinePuzzleEndpointAnswer()
+    data object PuzzleNotOpenedYet : CoroutinePuzzleServerMessage()
     @Serializable
-    data object AlreadySolved : CoroutinePuzzleEndpointAnswer()
+    data object AlreadySolved : CoroutinePuzzleServerMessage()
+}
+
+@Serializable
+sealed class CallAnswer {
+    @Serializable
+    data class Success(val content: JsonElement) : CallAnswer()
+    /** The submission didn't match any current expectation; the client should re-batch it. */
+    @Serializable
+    data object Retry : CallAnswer()
+    @Serializable
+    data object Canceled : CallAnswer()
+    @Serializable
+    data object Exceptional : CallAnswer()
 }
 
 @Serializable
