@@ -39,15 +39,17 @@ suspend fun <T> withInterceptingDispatcher(
     @OptIn(InternalCoroutinesApi::class)
     fun wrapDispatcher(delegateDispatcher: CoroutineDispatcher, delegateDelay: Delay): CoroutineDispatcher {
         return object : CoroutineDispatcher(), Delay, InterceptingDispatcher {
-            override suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T {
+            override fun fakeDispatchStart() {
                 onDispatchScheduled()
-                return try {
-                    (delegateDispatcher as? InterceptingDispatcher)?.pretendActiveAndRunUnintercepted(block)
-                        ?: withContext(delegateDispatcher) { block() }
-                } finally {
-                    onDispatchedRunnableComplete()
-                }
+                (delegateDispatcher as? InterceptingDispatcher)?.fakeDispatchStart()
             }
+
+            override fun fakeDispatchedRunnableCompleted() {
+                onDispatchedRunnableComplete()
+                (delegateDispatcher as? InterceptingDispatcher)?.fakeDispatchStart()
+            }
+
+            override val delegateDispatcher: CoroutineDispatcher get() = delegateDispatcher
 
             /**
              * This is a bit of a tricky case, since this isn't just a Runnable we can wrap.
@@ -150,7 +152,19 @@ suspend fun <T> withInterceptingDispatcher(
  * enough for [pretendActiveAndRunUnintercepted] to peel it off without needing a separate context element.
  */
 private interface InterceptingDispatcher {
-    suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T
+    fun fakeDispatchStart()
+    fun fakeDispatchedRunnableCompleted()
+    val delegateDispatcher: CoroutineDispatcher
+}
+
+private suspend fun <T> InterceptingDispatcher.pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T {
+    fakeDispatchStart()
+    return try {
+        (delegateDispatcher as? InterceptingDispatcher)?.pretendActiveAndRunUnintercepted(block)
+            ?: withContext(delegateDispatcher) { block() }
+    } finally {
+        fakeDispatchedRunnableCompleted()
+    }
 }
 
 /**
@@ -167,10 +181,20 @@ private interface InterceptingDispatcher {
  * A no-op wrapper (just runs [block] as-is) if no [withInterceptingDispatcher] is currently active.
  */
 suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T =
-    @OptIn(ExperimentalStdlibApi::class)
-    (currentCoroutineContext()[CoroutineDispatcher] as? InterceptingDispatcher)
-        ?.pretendActiveAndRunUnintercepted(block)
-        ?: coroutineScope { block() }
+    currentCoroutineContext().interceptingDispatcherOrNull()?.pretendActiveAndRunUnintercepted(block) ?: coroutineScope { block() }
+
+fun CoroutineContext.fakeInterceptingDispatchStart() {
+    interceptingDispatcherOrNull()?.fakeDispatchStart() ?: error("AAAA")
+}
+
+fun CoroutineContext.fakeInterceptingDispatchedRunnableCompleted() {
+    interceptingDispatcherOrNull()?.fakeDispatchedRunnableCompleted() ?: error("AAAA")
+}
+
+@OptIn(ExperimentalStdlibApi::class)
+private fun CoroutineContext.interceptingDispatcherOrNull(): InterceptingDispatcher? =
+    (this[CoroutineDispatcher] as? InterceptingDispatcher)
+
 
 @OptIn(InternalCoroutinesApi::class)
 private val DefaultDelay: Delay by lazy {
