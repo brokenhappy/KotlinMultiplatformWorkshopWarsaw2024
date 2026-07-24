@@ -2,7 +2,6 @@ package kmpworkshop.server
 
 import kmpworkshop.common.*
 import kotlinx.coroutines.*
-import kotlin.time.Duration.Companion.seconds
 
 fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): CoroutinePuzzle = coroutinePuzzle {
     val database = generateUserDatabase()
@@ -96,10 +95,7 @@ context(builder: CoroutinePuzzleBuilderScope)
 private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal: CompletableDeferred<Unit>) {
     queryUserById.expectCall {
         cancellationSignal.complete(Unit) // Now we're signaling to the submission that we should get canceled.
-        withTimeoutOrNull(5.seconds) {
-            throw awaitCancellationOfMatchingSubmitCall()
-        }
-        fail("Your function got canceled, but you left the last query running")
+        throw awaitCancellationOfMatchingSubmitCall()
     }
 }
 

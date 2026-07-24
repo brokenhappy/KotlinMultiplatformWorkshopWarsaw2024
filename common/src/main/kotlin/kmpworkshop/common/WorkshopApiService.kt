@@ -39,7 +39,10 @@ interface WorkshopServer {
     fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
 }
 
-fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
+fun WorkshopApiService.asServer(
+    apiKey: ApiKey,
+    rpcBoundaryIdle: StateFlow<Boolean> = MutableStateFlow(true),
+) = object : WorkshopServer {
     override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
         this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
@@ -55,6 +58,14 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
         val pending = ConcurrentHashMap<Int, CompletableDeferred<CallAnswer>>()
         val callIdCounter = AtomicInt(0)
         val finalResult = CompletableDeferred<CoroutinePuzzleSolutionResult>()
+        val backendQuiescent = MutableStateFlow(false)
+        val batchingIdle = MutableStateFlow(false)
+        val frontendQuiescent = combine(batchingIdle, rpcBoundaryIdle) { batching, boundary -> batching && boundary }
+        val quiescenceObserver = launch {
+            frontendQuiescent.distinctUntilChanged().collect {
+                outgoing.send(CoroutinePuzzleClientMessage.FrontendQuiescence(it))
+            }
+        }
 
         val submissionFunction = AutoBatchedFunctionId<SubmissionCall, JsonElement?>(
             batchResumer = { batch ->
@@ -100,7 +111,10 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                         }
                     },
                 ) {
-                    submissionFunction.autoBatchedOnQuiescence { callback() }
+                    submissionFunction.autoBatchedOnQuiescence(
+                        quiescence = batchingIdle,
+                        awaitFlushPermission = { backendQuiescent.first { it } },
+                    ) { callback() }
                 }
             } catch (e: CancellationException) {
                 throw e // Structured cancellation (e.g. the router cancelled us after the server sent its verdict).
@@ -110,6 +124,7 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
                 // in-process `solve`, where such an exception loses the race to the puzzle-side control-flow failure.
                 e.printStackTrace()
             } finally {
+                quiescenceObserver.cancel()
                 outgoing.close() // Closing the message stream signals to the server that the solution is done.
             }
         }
@@ -118,6 +133,7 @@ fun WorkshopApiService.asServer(apiKey: ApiKey) = object : WorkshopServer {
             this@asServer.doCoroutinePuzzleSolveAttempt(apiKey, puzzleId, outgoing.consumeAsFlow()).collect { message ->
                 when (message) {
                     is CoroutinePuzzleServerMessage.CallAnswered -> pending.remove(message.callId)?.complete(message.answer)
+                    is CoroutinePuzzleServerMessage.BackendQuiescence -> backendQuiescent.value = message.isQuiescent
                     is CoroutinePuzzleServerMessage.Done -> {
                         finalResult.complete(message.result)
                         solutionJob.cancel() // In case the server finished (e.g. a failure) while the solution is still suspended.
@@ -172,6 +188,8 @@ sealed class CoroutinePuzzleClientMessage {
     data class Batch(val calls: List<CoroutinePuzzleBatchedCall>) : CoroutinePuzzleClientMessage()
     @Serializable
     data class CancelCall(val callId: Int) : CoroutinePuzzleClientMessage()
+    @Serializable
+    data class FrontendQuiescence(val isQuiescent: Boolean) : CoroutinePuzzleClientMessage()
 }
 
 @Serializable
@@ -186,6 +204,8 @@ data class CoroutinePuzzleBatchedCall(
 sealed class CoroutinePuzzleServerMessage {
     @Serializable
     data class CallAnswered(val callId: Int, val answer: CallAnswer) : CoroutinePuzzleServerMessage()
+    @Serializable
+    data class BackendQuiescence(val isQuiescent: Boolean) : CoroutinePuzzleServerMessage()
     @Serializable
     data class Done(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleServerMessage()
     @Serializable

@@ -12,8 +12,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration.Companion.seconds
 
 fun collectLatestPuzzle() = coroutinePuzzle {
     val numbers = (0..< 5).map { (0..100).random() }
@@ -31,10 +29,7 @@ fun collectLatestPuzzle() = coroutinePuzzle {
             }
             val actual = submitNumber.expectCall {
                 readyToGetCanceledHook.complete(Unit) // Let's get this canceled!
-                withTimeoutOrNull(2.seconds) {
-                    throw awaitCancellationOfMatchingSubmitCall()
-                }
-                fail("submitNumber() is expected to be canceled by the new emission into the flow")
+                throw awaitCancellationOfMatchingSubmitCall()
             }
             verify(actual == last) { "The value that you submit must be a value collected from the flow!" }
         }

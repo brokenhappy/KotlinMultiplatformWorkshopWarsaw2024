@@ -147,9 +147,8 @@ abstract class CoroutinePuzzlesTest(
             api.numbers().collect { api.submit(it) }
         }
             .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Regular collect must fail collect latest puzzle" }
-            .toMessage()
-            .assert({ "cancel" in it.lowercase() }) { "Message must mention cancellation" }
-            .assert({ "submit" in it.lowercase() }) { "Message must mention submit" }
+            .reason
+            .assertIs<CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions>()
     }
 
     @Test

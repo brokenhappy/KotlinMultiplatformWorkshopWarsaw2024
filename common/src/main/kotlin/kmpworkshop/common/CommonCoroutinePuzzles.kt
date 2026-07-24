@@ -6,13 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.takeWhile
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -67,7 +61,7 @@ class CoroutinePuzzleEndPointWaitingState<T, R>(
 }
 
 data class CoroutinePuzzle(
-    val puzzle: suspend CoroutineScope.(MutableStateFlow<CoroutinePuzzleState>) -> Unit,
+    val puzzle: suspend CoroutineScope.(MutableStateFlow<CoroutinePuzzleState>, MutableStateFlow<Boolean>) -> Unit,
 )
 
 interface CoroutinePuzzleSolutionScope {
@@ -116,11 +110,18 @@ class CoroutinePuzzleFailedControlFlowException(
     val reason: CoroutinePuzzleSolutionResult.Failure.Reason,
 ) : Exception(null, null) // TODO: Optimize away stacktrace hydration?
 
+private sealed interface MatcherInput {
+    data class Batch(val calls: List<CoroutinePuzzleBatchedCall>) : MatcherInput
+    data class FrontendQuiescence(val isQuiescent: Boolean) : MatcherInput
+}
+
 suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit): CoroutinePuzzleSolutionResult {
     val history = MutableStateFlow<List<CoroutinePuzzleEndPoint<*, *>>>(emptyList())
     return try {
         val puzzleState = MutableStateFlow<CoroutinePuzzleState>(CoroutinePuzzleState.WaitingForExpectations(emptyList()))
         coroutineScope toplevel@{
+            val puzzleQuiescent = MutableStateFlow(false)
+            val solutionQuiescent = MutableStateFlow(false)
             val coroutinePuzzleSubmissionFunction = AutoBatchedFunctionId<SubmissionCall, JsonElement?>(
                 batchResumer = { submissionCalls ->
                     val matches: List<CoroutinePuzzleEndPointWaitingState<*, *>?> = matchSubmissionsAgainstExpectations(
@@ -143,8 +144,14 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                     }
                 }
             )
-            launch {
-                puzzle(puzzleState)
+            launch { puzzle(puzzleState, puzzleQuiescent) }
+            val detector = launch {
+                combine(puzzleQuiescent, solutionQuiescent) { puzzleIdle, solutionIdle -> puzzleIdle && solutionIdle }
+                    .collectLatest { bothIdle ->
+                        if (bothIdle && puzzleState.value is CoroutinePuzzleState.WaitingForSubmissions) {
+                            finalExpectationCheck(puzzleState)
+                        }
+                    }
             }
             context(
                 object : CoroutinePuzzleSolutionScope {
@@ -156,8 +163,12 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
                 },
             ) {
                 @OptIn(ExperimentalTime::class)
-                coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence { solution(this) }
+                coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence(
+                    quiescence = solutionQuiescent,
+                    awaitFlushPermission = { puzzleQuiescent.first { it } },
+                ) { solution(this) }
             }
+            detector.cancel()
             finalExpectationCheck(puzzleState)
             CoroutinePuzzleSolutionResult.Success
         }
@@ -179,44 +190,62 @@ suspend fun CoroutinePuzzle.solve(solution: suspend context(CoroutinePuzzleSolut
 suspend fun CoroutinePuzzle.solveReceivingBatches(
     incomingMessages: Flow<CoroutinePuzzleClientMessage>,
     answer: suspend (callId: Int, answer: CallAnswer) -> Unit,
+    emitBackendQuiescence: suspend (Boolean) -> Unit,
 ): CoroutinePuzzleSolutionResult {
     val history = MutableStateFlow<List<CoroutinePuzzleEndPoint<*, *>>>(emptyList())
     return try {
         val puzzleState = MutableStateFlow<CoroutinePuzzleState>(CoroutinePuzzleState.WaitingForExpectations(emptyList()))
         coroutineScope toplevel@{
-            launch { puzzle(puzzleState) }
+            val puzzleQuiescent = MutableStateFlow(false)
+            val frontendQuiescent = MutableStateFlow(false)
+            launch { puzzle(puzzleState, puzzleQuiescent) }
+            val backendQuiescenceObserver = launch {
+                puzzleQuiescent.collect { emitBackendQuiescence(it) }
+            }
+            val detector = launch {
+                combine(puzzleQuiescent, frontendQuiescent) { puzzleIdle, frontendIdle -> puzzleIdle && frontendIdle }
+                    .collectLatest { bothIdle ->
+                        if (bothIdle && puzzleState.value is CoroutinePuzzleState.WaitingForSubmissions) {
+                            finalExpectationCheck(puzzleState)
+                        }
+                    }
+            }
             val jobs = ConcurrentHashMap<Int, Job>()
             // Batch matching must be serial (it advances the shared puzzleState rendezvous), but cancellations must
             // be handled promptly - even while a match is suspended waiting for the puzzle side. So batches go through
             // a dedicated matcher and cancellations are handled directly in the collect loop.
-            val batches = Channel<List<CoroutinePuzzleBatchedCall>>(Channel.UNLIMITED)
+            val batches = Channel<MatcherInput>(Channel.UNLIMITED)
             val matcher = launch {
-                for (batch in batches) {
-                    val matches = matchSubmissionsAgainstExpectations(
-                        batch.map { SubmissionCall(it.descriptor.toEndpoint(), it.argument) }, puzzleState, history,
-                    )
-                    batch.forEachIndexed { index, call ->
-                        val matchingCall = matches[index]
-                        // Launched on the outer scope so a long-running submitCall doesn't hold up the next batch.
-                        jobs[call.callId] = this@toplevel.launch {
-                            try {
-                                answer(
-                                    call.callId,
-                                    // A null match means the submission didn't match any expectation: ask to retry.
-                                    if (matchingCall == null) CallAnswer.Retry
-                                    else CallAnswer.Success(matchingCall.submitCall(call.argument)),
-                                )
-                            } catch (e: CoroutinePuzzleFailedControlFlowException) {
-                                throw e
-                            } catch (e: CancellationException) {
-                                // The client cancelled this call; it already tore down its own continuation, so there's
-                                // nothing to answer.
-                                throw e
-                            } catch (e: Throwable) {
-                                e.printStackTrace()
-                                answer(call.callId, CallAnswer.Exceptional) // Internal server error! Oops!
-                            } finally {
-                                jobs.remove(call.callId)
+                for (input in batches) when (input) {
+                    is MatcherInput.FrontendQuiescence -> frontendQuiescent.value = input.isQuiescent
+                    is MatcherInput.Batch -> {
+                        val batch = input.calls
+                        val matches = matchSubmissionsAgainstExpectations(
+                            batch.map { SubmissionCall(it.descriptor.toEndpoint(), it.argument) }, puzzleState, history,
+                        )
+                        batch.forEachIndexed { index, call ->
+                            val matchingCall = matches[index]
+                            // Launched on the outer scope so a long-running submitCall doesn't hold up the next batch.
+                            jobs[call.callId] = this@toplevel.launch {
+                                try {
+                                    answer(
+                                        call.callId,
+                                        // A null match means the submission didn't match any expectation: ask to retry.
+                                        if (matchingCall == null) CallAnswer.Retry
+                                        else CallAnswer.Success(matchingCall.submitCall(call.argument)),
+                                    )
+                                } catch (e: CoroutinePuzzleFailedControlFlowException) {
+                                    throw e
+                                } catch (e: CancellationException) {
+                                    // The client cancelled this call; it already tore down its own continuation, so there's
+                                    // nothing to answer.
+                                    throw e
+                                } catch (e: Throwable) {
+                                    e.printStackTrace()
+                                    answer(call.callId, CallAnswer.Exceptional) // Internal server error! Oops!
+                                } finally {
+                                    jobs.remove(call.callId)
+                                }
                             }
                         }
                     }
@@ -224,14 +253,18 @@ suspend fun CoroutinePuzzle.solveReceivingBatches(
             }
             incomingMessages.collect { message ->
                 when (message) {
-                    is CoroutinePuzzleClientMessage.Batch -> batches.send(message.calls)
+                    is CoroutinePuzzleClientMessage.Batch -> batches.send(MatcherInput.Batch(message.calls))
                     is CoroutinePuzzleClientMessage.CancelCall -> jobs[message.callId]?.cancel()
+                    is CoroutinePuzzleClientMessage.FrontendQuiescence ->
+                        batches.send(MatcherInput.FrontendQuiescence(message.isQuiescent))
                 }
             }
             // The client closed the message stream: the solution is done. Drain the matcher, then check expectations.
             batches.close()
             matcher.join()
             finalExpectationCheck(puzzleState)
+            detector.cancelAndJoin()
+            backendQuiescenceObserver.cancelAndJoin()
             CoroutinePuzzleSolutionResult.Success
         }
     } catch (e: CoroutinePuzzleFailedControlFlowException) {

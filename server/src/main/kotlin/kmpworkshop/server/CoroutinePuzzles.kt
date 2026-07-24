@@ -52,7 +52,7 @@ private object InStrictParallelismExpectation : AbstractCoroutineContextElement(
 @OptIn(ExperimentalAtomicApi::class)
 fun coroutinePuzzle(
     builder: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.() -> Unit,
-): CoroutinePuzzle = CoroutinePuzzle { stateFlow ->
+): CoroutinePuzzle = CoroutinePuzzle { stateFlow, puzzleQuiescence ->
 
     val coroutinePuzzleSubmissionFunction = AutoBatchedFunctionId<CoroutinePuzzleEndPointWaitingState<*, *>, Boolean>(
         batchResumer = { batch ->
@@ -142,7 +142,7 @@ fun coroutinePuzzle(
     }) {
         try {
             @OptIn(ExperimentalTime::class)
-            coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence {
+            coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence(quiescence = puzzleQuiescence) {
                 builder()
             }
         } finally {

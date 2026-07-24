@@ -10,6 +10,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -91,8 +93,10 @@ class AutoBatchedFunctionId<T, C, R>(
 suspend fun <U, T, R> AutoBatchedFunctionId<T, Unit, R>.autoBatchedOnQuiescence(
     maximumBatchWaitTime: Duration = Duration.INFINITE,
     clock: Clock = Clock.System,
+    quiescence: MutableStateFlow<Boolean>? = null,
+    awaitFlushPermission: (suspend () -> Unit)? = null,
     block: suspend CoroutineScope.() -> U,
-): U = autoBatchedOnQuiescence(Unit, maximumBatchWaitTime, clock, block)
+): U = autoBatchedOnQuiescence(Unit, maximumBatchWaitTime, clock, quiescence, awaitFlushPermission, block)
 
 /**
  * Ensures all calls of [this].[batched](AutoBatchedFunctionId.batched) inside [block] are batched.
@@ -137,6 +141,8 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
     maximumBatchWaitTime: Duration = Duration.INFINITE,
     @OptIn(ExperimentalTime::class)
     clock: Clock = Clock.System,
+    quiescence: MutableStateFlow<Boolean>? = null,
+    awaitFlushPermission: (suspend () -> Unit)? = null,
     block: suspend CoroutineScope.() -> U,
 ): U {
     data class StateOfCoroutines(
@@ -147,6 +153,16 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
     val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 0, currentRequests = persistentListOf()))
     @OptIn(ExperimentalTime::class)
     return coroutineScope {
+        // Keep publication independent from the collectLatest flush body: that body can intentionally remain inside
+        // importantCleanup while a batch resumer waits for its peer, but raw-idle transitions must still be visible.
+        val quiescenceJob = quiescence?.let { published ->
+            launch {
+                state
+                    .map { it.activeCoroutineCount == 0 && it.currentRequests.isEmpty() }
+                    .distinctUntilChanged()
+                    .collect { published.value = it }
+            }
+        }
         val trackingJob = launch {
             withImportantCleanup {
                 var momentOfLastBatch = clock.now()
@@ -159,6 +175,8 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
                             // tracking coroutine - not by momentarily observing nothing pending.
                             return@collectLatest
                         }
+                        // TODO: Race against delayUntil for timed batch functions?
+                        awaitFlushPermission?.invoke()
                         importantCleanup {
                             var claimedRequests: PersistentList<SuspendedBatchCall<T, R>>
                             state.updateWithContract { latest ->
@@ -235,6 +253,7 @@ suspend fun <U, T, C, R> AutoBatchedFunctionId<T, C, R>.autoBatchedOnQuiescence(
             // pending requests, since any of those would still be suspended as part of block's own coroutine tree,
             // which would have kept it from completing. It's now safe to stop watching for batches to resume.
             trackingJob.cancel()
+            quiescenceJob?.cancel()
         }
     }
 }

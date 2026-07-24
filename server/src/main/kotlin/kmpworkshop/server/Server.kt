@@ -140,6 +140,7 @@ fun workshopService(
             puzzle.solveReceivingBatches(
                 incomingMessages = messages,
                 answer = { callId, answer -> send(CoroutinePuzzleServerMessage.CallAnswered(callId, answer)) },
+                emitBackendQuiescence = { send(CoroutinePuzzleServerMessage.BackendQuiescence(it)) },
             ).let {
                 when (it) {
                     is CoroutinePuzzleSolutionResult.Failure -> CoroutinePuzzleServerMessage.Done(it)
