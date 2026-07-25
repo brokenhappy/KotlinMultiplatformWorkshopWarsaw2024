@@ -240,7 +240,7 @@ class PretendActiveAndRunUninterceptedTest {
         launch {
             fn.autoBatchedOnQuiescence {
                 launch { pretendActiveAndRunUnintercepted { signalA.await() } }
-//                launch { pretendActiveAndRunUnintercepted { signalB.await() } }
+                launch { pretendActiveAndRunUnintercepted { signalB.await() } }
                 fn.batched(Unit)
             }
         }

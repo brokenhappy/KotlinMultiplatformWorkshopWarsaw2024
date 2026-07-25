@@ -46,7 +46,7 @@ suspend fun <T> withInterceptingDispatcher(
 
             override fun fakeDispatchedRunnableCompleted() {
                 onDispatchedRunnableComplete()
-                (delegateDispatcher as? InterceptingDispatcher)?.fakeDispatchStart()
+                (delegateDispatcher as? InterceptingDispatcher)?.fakeDispatchedRunnableCompleted()
             }
 
             override val delegateDispatcher: CoroutineDispatcher get() = delegateDispatcher
