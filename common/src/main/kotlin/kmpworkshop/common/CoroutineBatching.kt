@@ -93,7 +93,7 @@ class AutoBatchedFunctionId<T, C, R>(
 suspend fun <U, T, R> AutoBatchedFunctionId<T, Unit, R>.autoBatchedOnQuiescence(
     maximumBatchWaitTime: Duration = Duration.INFINITE,
     clock: Clock = Clock.System,
-    quiescence: MutableStateFlow<Boolean>? = null,
+    quiescence: MutableStateFlow<Boolean>? = null, // TODO: Remove this. People should just wrap in custom withInterceptor
     awaitFlushPermission: (suspend () -> Unit)? = null,
     block: suspend CoroutineScope.() -> U,
 ): U = autoBatchedOnQuiescence(Unit, maximumBatchWaitTime, clock, quiescence, awaitFlushPermission, block)
