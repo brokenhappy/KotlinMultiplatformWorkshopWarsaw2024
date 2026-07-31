@@ -1,6 +1,10 @@
 package com.kotlinworkshop.test
 
+import kmpworkshop.client.mapFromLegacyApi
+import kmpworkshop.client.maximumAgeFindingWithCoroutines
+import kmpworkshop.client.numberSummer
 import kmpworkshop.client.runCoroutinePuzzleClient
+import kmpworkshop.client.showingHowItsFlowing
 import kmpworkshop.client.toMessage
 import kmpworkshop.common.*
 import kmpworkshop.server.*
@@ -137,6 +141,20 @@ abstract class CoroutinePuzzlesTest(
         doMappingLegacyApiWithCancellationCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiStepFourCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiHappyPathCoroutinePuzzle { }.assertIsNotOk()
+    }
+
+    @Test
+    fun `default implementations are wrong`(): Unit = runTest(timeout = 1.hours) {
+        doSimpleSumPuzzle { numberSummer(it) }.assertIsNotOk()
+        doTimedSumPuzzle { numberSummer(it) }.assertIsNotOk()
+        doSimpleCollectPuzzle { showingHowItsFlowing(it) }.assertIsNotOk()
+        doCollectLatestPuzzle { showingHowItsFlowing(it) }.assertIsNotOk()
+        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { maximumAgeFindingWithCoroutines(it) }.assertIsNotOk()
+        doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { maximumAgeFindingWithCoroutines(it) }.assertIsNotOk()
+        doMappingLegacyApiWithExceptionCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
+        doMappingLegacyApiWithCancellationCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
+        doMappingLegacyApiStepFourCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
+        doMappingLegacyApiHappyPathCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
     }
 
     @Test
