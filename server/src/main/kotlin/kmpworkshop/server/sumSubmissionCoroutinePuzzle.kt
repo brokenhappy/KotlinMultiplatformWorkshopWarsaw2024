@@ -1,7 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzle
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.GetNumberAndSubmit
 import kmpworkshop.common.getNumber
 import kmpworkshop.common.getNumberAndSubmit
@@ -12,7 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 
-fun simpleSumPuzzle() = coroutinePuzzle {
+fun simpleSumPuzzle(): CoroutinePuzzle = coroutinePuzzle {
     val number1 = (0..100).random()
     getNumber.expectCall(number1)
     val number2 = (0..100).random()
@@ -23,7 +23,7 @@ fun simpleSumPuzzle() = coroutinePuzzle {
     }
 }
 
-fun timedSumPuzzle() = coroutinePuzzle {
+fun timedSumPuzzle(): CoroutinePuzzle = coroutinePuzzle {
     val randomNumbers = List(2) { (0..100).random() }
     expectingMatchedParallelism {
         randomNumbers.forEach { number -> launch { getNumber.expectCall { number } } }
@@ -36,16 +36,16 @@ fun timedSumPuzzle() = coroutinePuzzle {
 
 suspend fun doSimpleSumPuzzle(
     onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleSolutionResult = doSumPuzzle(simpleSumPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doSumPuzzle(simpleSumPuzzle(), onUse)
 
 suspend fun doTimedSumPuzzle(
     onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleSolutionResult = doSumPuzzle(timedSumPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doSumPuzzle(timedSumPuzzle(), onUse)
 
 private suspend fun doSumPuzzle(
     puzzle: CoroutinePuzzle,
     onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleSolutionResult = puzzle.solve {
+): CoroutinePuzzleResultWithHistory = puzzle.solve {
     withImportantCleanup {
         onUse(getNumberAndSubmit())
     }

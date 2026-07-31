@@ -41,7 +41,7 @@ fun createWorkshopService(): WorkshopApiService = runBlocking {
  * server (e.g. `URLProtocol.WS`, `localhost`, an ephemeral port) - and, by supplying their own [HttpClient], own
  * its lifecycle so it can be closed between runs instead of re-implementing the client setup.
  */
-suspend fun HttpClient.connectWorkshopService(
+fun HttpClient.connectWorkshopService(
     protocol: URLProtocol = URLProtocol.WSS,
     host: String = serverUrl,
     port: Int = serverWebsocketPort,

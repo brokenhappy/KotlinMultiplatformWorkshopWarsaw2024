@@ -38,19 +38,7 @@ suspend fun <T> withInterceptingDispatcher(
 
     @OptIn(InternalCoroutinesApi::class)
     fun wrapDispatcher(delegateDispatcher: CoroutineDispatcher, delegateDelay: Delay): CoroutineDispatcher {
-        return object : CoroutineDispatcher(), Delay, InterceptingDispatcher {
-            override fun fakeDispatchStart() {
-                onDispatchScheduled()
-                (delegateDispatcher as? InterceptingDispatcher)?.fakeDispatchStart()
-            }
-
-            override fun fakeDispatchedRunnableCompleted() {
-                onDispatchedRunnableComplete()
-                (delegateDispatcher as? InterceptingDispatcher)?.fakeDispatchedRunnableCompleted()
-            }
-
-            override val delegateDispatcher: CoroutineDispatcher get() = delegateDispatcher
-
+        return object : CoroutineDispatcher(), Delay {
             /**
              * This is a bit of a tricky case, since this isn't just a Runnable we can wrap.
              * The Runnable comes later, namely at the moment that our [delegateDispatcher] calls [continuation].
@@ -74,7 +62,6 @@ suspend fun <T> withInterceptingDispatcher(
                 GlobalScope.launch(delegateDispatcher) {
                     runCatching {
                         suspendCancellableCoroutine { wrapperContinuation ->
-                            @OptIn(InternalForInheritanceCoroutinesApi::class)
                             delegateDelay.scheduleResumeAfterDelay(timeMillis, wrapperContinuation)
                         }
                     }.also { result ->
@@ -103,7 +90,7 @@ suspend fun <T> withInterceptingDispatcher(
                 fun completeOnce() {
                     if (alreadyCompleted.compareAndSet(false, true)) onDispatchedRunnableComplete()
                 }
-                val handle = delegateDelay.invokeOnTimeout(timeMillis, Runnable {
+                val handle = delegateDelay.invokeOnTimeout(timeMillis, {
                     try {
                         block.run()
                     } finally {
@@ -146,55 +133,6 @@ suspend fun <T> withInterceptingDispatcher(
         block,
     )
 }
-
-/**
- * A [CoroutineDispatcher] conforms to this if it's one of [withInterceptingDispatcher]'s wrappers, exposing just
- * enough for [pretendActiveAndRunUnintercepted] to peel it off without needing a separate context element.
- */
-private interface InterceptingDispatcher {
-    fun fakeDispatchStart()
-    fun fakeDispatchedRunnableCompleted()
-    val delegateDispatcher: CoroutineDispatcher
-}
-
-private suspend fun <T> InterceptingDispatcher.pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T {
-    fakeDispatchStart()
-    return try {
-        (delegateDispatcher as? InterceptingDispatcher)?.pretendActiveAndRunUnintercepted(block)
-            ?: withContext(delegateDispatcher) { block() }
-    } finally {
-        fakeDispatchedRunnableCompleted()
-    }
-}
-
-/**
- * Marks a piece of work as "in flight" for every enclosing [withInterceptingDispatcher] - and therefore every
- * [autoBatchedOnQuiescence] built on top of one - then runs [block] on the real, un-intercepted dispatcher that
- * those layers wrap.
- *
- * Quiescence tracking assumes all work stays on the intercepted dispatcher, but that assumption breaks the moment
- * code hands off to something that doesn't: an RPC framework's own actor/job, a callback-based API, `GlobalScope`,
- * etc. Left alone, such a hand-off looks like "nothing is happening" to every tracker watching, so they may declare
- * quiescence (and batch/deadlock-detect) too early. Wrapping the hand-off in this function tells all of them "stay
- * active until told otherwise", while [block] itself runs unobserved - so anything it does isn't double-counted.
- *
- * A no-op wrapper (just runs [block] as-is) if no [withInterceptingDispatcher] is currently active.
- */
-suspend fun <T> pretendActiveAndRunUnintercepted(block: suspend CoroutineScope.() -> T): T =
-    currentCoroutineContext().interceptingDispatcherOrNull()?.pretendActiveAndRunUnintercepted(block) ?: coroutineScope { block() }
-
-fun CoroutineContext.fakeInterceptingDispatchStart() {
-    interceptingDispatcherOrNull()?.fakeDispatchStart() ?: error("AAAA")
-}
-
-fun CoroutineContext.fakeInterceptingDispatchedRunnableCompleted() {
-    interceptingDispatcherOrNull()?.fakeDispatchedRunnableCompleted() ?: error("AAAA")
-}
-
-@OptIn(ExperimentalStdlibApi::class)
-private fun CoroutineContext.interceptingDispatcherOrNull(): InterceptingDispatcher? =
-    (this[CoroutineDispatcher] as? InterceptingDispatcher)
-
 
 @OptIn(InternalCoroutinesApi::class)
 private val DefaultDelay: Delay by lazy {

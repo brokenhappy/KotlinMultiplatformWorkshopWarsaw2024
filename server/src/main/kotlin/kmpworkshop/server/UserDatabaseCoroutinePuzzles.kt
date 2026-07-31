@@ -32,16 +32,16 @@ private fun Map<Int, SerializableUser>.getAndVerifyUserExists(id: Int): Serializ
     "User with id $id does not exist! Please use the ids retrieved from ${getAllUserIds.descriptor.description}"
 }
 
-suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleSolutionResult =
+suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleResultWithHistory =
     doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false), onUse)
 
-suspend fun doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleSolutionResult =
+suspend fun doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleResultWithHistory =
     doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true), onUse)
 
 private suspend fun doUserDatabasePuzzle(
     puzzle: CoroutinePuzzle,
     onUse: suspend CoroutineScope.(UserDatabase) -> Unit,
-): CoroutinePuzzleSolutionResult = puzzle.solve {
+): CoroutinePuzzleResultWithHistory = puzzle.solve {
     withImportantCleanup {
         onUse(getUserDatabase())
     }
@@ -93,9 +93,9 @@ fun mappingLegacyApiCoroutinePuzzleStepFour(): CoroutinePuzzle = coroutinePuzzle
 
 context(builder: CoroutinePuzzleBuilderScope)
 private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal: CompletableDeferred<Unit>) {
-    queryUserById.expectCall {
+    queryUserById.expectCanceledCall {
         cancellationSignal.complete(Unit) // Now we're signaling to the submission that we should get canceled.
-        throw awaitCancellationOfMatchingSubmitCall()
+        awaitCancellation()
     }
 }
 
@@ -155,7 +155,7 @@ private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequenc
 
 suspend fun doMappingLegacyApiHappyPathCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = mappingLegacyApiHappyPathCoroutinePuzzle().solve {
+): CoroutinePuzzleResultWithHistory = mappingLegacyApiHappyPathCoroutinePuzzle().solve {
     val scope = this
     withImportantCleanup {
         onUse(getUserDatabaseWithLegacyQueryUser(topLevelScope = scope))
@@ -164,7 +164,7 @@ suspend fun doMappingLegacyApiHappyPathCoroutinePuzzle(
 
 suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithException().solve {
+): CoroutinePuzzleResultWithHistory = mappingLegacyApiCoroutinePuzzleWithException().solve {
     mapFromLegacyApiWithScaffolding {
         coroutineScope {
             onUse(it)
@@ -174,7 +174,7 @@ suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(
 
 suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleWithEscapingCancellation().solve {
+): CoroutinePuzzleResultWithHistory = mappingLegacyApiCoroutinePuzzleWithEscapingCancellation().solve {
     mapFromLegacyApiWithScaffolding {
         coroutineScope {
             onUse(it)
@@ -184,7 +184,7 @@ suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(
 
 suspend fun doMappingLegacyApiStepFourCoroutinePuzzle(
     onUse: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = mappingLegacyApiCoroutinePuzzleStepFour().solve {
+): CoroutinePuzzleResultWithHistory = mappingLegacyApiCoroutinePuzzleStepFour().solve {
     mapFromLegacyApiWithScaffolding {
         coroutineScope {
             onUse(it)

@@ -1,16 +1,12 @@
 @file:OptIn(ExperimentalTime::class)
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,14 +18,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
-import androidx.compose.ui.input.pointer.PointerButton
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.isAltPressed
-import androidx.compose.ui.input.pointer.isCtrlPressed
-import androidx.compose.ui.input.pointer.isMetaPressed
-import androidx.compose.ui.input.pointer.isShiftPressed
-import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -47,18 +36,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.ktor.client.*
 import io.ktor.http.*
-import kmpworkshop.common.ApiKey
-import kmpworkshop.common.WorkshopApiService
-import kmpworkshop.common.WorkshopStage
-import kmpworkshop.common.serverUrl
-import kmpworkshop.common.serverWebsocketPort
-import kmpworkshop.common.sideEffect
+import kmpworkshop.common.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.*
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
@@ -66,14 +46,11 @@ import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import workshop.adminaccess.*
 import workshop.adminaccess.ScheduledWorkshopEvent.AwaitingResult
 import workshop.adminaccess.ScheduledWorkshopEvent.IgnoringResult
 import java.nio.file.NoSuchFileException
-import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
@@ -163,7 +140,7 @@ fun AdminApp(onExit: () -> Unit) {
                     }
                     launch {
                         adminAccess.soundEvents(adminPassword).collect { soundEvent ->
-                            launch { soundEvent.play() }
+                            this@launch.launch { soundEvent.play() }
                         }
                     }
                     adminAccessService = adminAccessWithSharedStateFlow

@@ -3,7 +3,7 @@ package kmpworkshop.server
 import kmpworkshop.common.CoroutinePuzzle
 import kmpworkshop.common.WorkshopStage
 
-fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle? = when (stage) {
+fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle = when (stage) {
     WorkshopStage.Registration,
     WorkshopStage.PalindromeCheckTask,
     WorkshopStage.FindMinimumAgeOfUserTask,

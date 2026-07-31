@@ -20,11 +20,11 @@ suspend fun mapFromLegacyApiWithScaffolding(
                 ))
             } catch (_: QueryFetchFailedForSomeReasonException) {
                 importantCleanup {
-                    queryExceptionThrown.submitCall(Unit,)
+                    queryExceptionThrown.submitCall(Unit)
                 }
             } finally {
                 importantCleanup {
-                    callIsDone.submitCall(Unit,)
+                    callIsDone.submitCall(Unit)
                 }
             }
         }

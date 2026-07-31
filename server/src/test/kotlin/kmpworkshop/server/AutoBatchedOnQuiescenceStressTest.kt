@@ -2,14 +2,10 @@ package kmpworkshop.server
 
 import kmpworkshop.common.AutoBatchedFunctionId
 import kmpworkshop.common.autoBatchedOnQuiescence
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kmpworkshop.common.resume
+import kmpworkshop.common.resumeAllQuiescentTrackedScope
+import kotlinx.coroutines.*
 import org.junit.jupiter.api.Test
-import kotlin.coroutines.resume
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -34,7 +30,7 @@ class AutoBatchedOnQuiescenceStressTest {
                 val echo = AutoBatchedFunctionId<Int, Int> { batch ->
                     // Resume asynchronously, like the coroutine-puzzle batchResumer does: it widens the window
                     // between resuming a continuation and the batch being cleared from the tracker's state.
-                    batch.forEach { call -> launch { call.continuation.resume(call.query) } }
+                    batch.resumeAllQuiescentTrackedScope { call -> launch { call.continuation.resume(call.query) } }
                 }
                 // Each resumed call immediately issues the next one, so fresh requests keep landing in the tracker's
                 // state *while* earlier batches are still being resumed - which is what makes collectLatest restart

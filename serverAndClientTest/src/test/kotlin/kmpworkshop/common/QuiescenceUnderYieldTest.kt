@@ -5,7 +5,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.jupiter.api.Test
-import kotlin.coroutines.resume
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -30,7 +29,7 @@ class QuiescenceUnderYieldTest {
                         val batchSizes = mutableListOf<Int>()
                         val fn = AutoBatchedFunctionId<Int, Int> { batch ->
                             batchSizes.add(batch.size)
-                            batch.forEach { it.continuation.resume(it.query) }
+                            batch.resumeAllQuiescentTrackedScope { it.continuation.resume(it.query) }
                         }
                         val results = fn.autoBatchedOnQuiescence {
                             (0 until 3).map { i ->

@@ -1,7 +1,7 @@
 package kmpworkshop.client
 
 import kmpworkshop.common.ApiKey
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.GetNumberAndSubmit
 import kmpworkshop.common.NumberFlowAndSubmit
 import kmpworkshop.common.UserDatabase
@@ -59,7 +59,7 @@ suspend fun runCoroutinePuzzleClient(
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit,
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-): CoroutinePuzzleSolutionResult = when (stage) {
+): CoroutinePuzzleResultWithHistory = when (stage) {
     Registration,
     PalindromeCheckTask,
     FindMinimumAgeOfUserTask,

@@ -88,12 +88,10 @@ suspend fun <T> withRandomizedDispatchOrder(
             override fun limitedParallelism(parallelism: Int, name: String?): CoroutineDispatcher =
                 wrapDispatcher(delegateDispatcher.limitedParallelism(parallelism, name), delegateDelay)
 
-            @OptIn(InternalForInheritanceCoroutinesApi::class)
             override fun scheduleResumeAfterDelay(timeMillis: Long, continuation: CancellableContinuation<Unit>) {
                 delegateDelay.scheduleResumeAfterDelay(timeMillis, continuation)
             }
 
-            @OptIn(InternalForInheritanceCoroutinesApi::class)
             override fun invokeOnTimeout(timeMillis: Long, block: Runnable, context: CoroutineContext): DisposableHandle =
                 delegateDelay.invokeOnTimeout(timeMillis, block, context)
         }

@@ -1,10 +1,13 @@
 package kmpworkshop.client
 
+import kmpworkshop.common.CoroutinePuzzleBatchEntry
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
+import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
 import kmpworkshop.common.WorkshopServer
 import kmpworkshop.common.callLifetime
+import kmpworkshop.common.solve
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
 
@@ -13,16 +16,14 @@ suspend fun <T> checkCoroutinePuzzle(
     puzzleId: String,
     solution: suspend (T) -> Unit,
     builder: context(CoroutinePuzzleSolutionScope) (resourceScope: CoroutineScope) -> T,
-): CoroutinePuzzleSolutionResult = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder(this)) }
+): CoroutinePuzzleResultWithHistory = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder(this)) }
 
 suspend fun checkCoroutinePuzzleInternal(
     workshopServer: WorkshopServer,
     puzzleId: String,
     solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
-): CoroutinePuzzleSolutionResult = withImportantCleanup {
-    workshopServer.doCoroutinePuzzleSolveAttempt(puzzleId) {
-        solution()
-    }
+): CoroutinePuzzleResultWithHistory = withImportantCleanup {
+    workshopServer.coroutinePuzzle(puzzleId).solve(solution)
 }
 
 /**
@@ -33,42 +34,40 @@ private val endpointsHiddenFromHistory: Set<CoroutinePuzzleEndPointDescriptor> =
 
 fun CoroutinePuzzleEndPointDescriptor.isHiddenFromHistory(): Boolean = this in endpointsHiddenFromHistory
 
-fun CoroutinePuzzleSolutionResult.Failure.toMessage(): String {
-    val visibleHistory = history.filterNot { it.isHiddenFromHistory() }
-    val historySection = if (visibleHistory.isEmpty()) {
-        "  (no actions were called yet)"
-    } else {
-        visibleHistory.joinToString("\n") { "  - ${it.description}" }
-    }
-    return "${reason.toMessage()}\n\nThe history of actions was:\n$historySection"
-}
+fun CoroutinePuzzleResultWithHistory.toMessage(): String = """
+    |
+    |${renderCoroutinePuzzleHistory(history)}
+    |${result.toMessage()}
+""".trimMargin()
 
-fun CoroutinePuzzleSolutionResult.Failure.Reason.toMessage(): String = when (this) {
-    is CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch ->
-        "You tried to call " + formatCallAttemptsWithMargins(submissions.map { it.description }.distinct()) + ".\n" +
+fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
+    is CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure ->
+        "You tried to call " + formatCallAttemptsWithMargins(submissions.map { it.description }) + ".\n" +
             "But you were expected to call exactly " +
-            formatCallAttemptsWithMargins(expectations.map { it.description }.distinct()) + "."
-    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions ->
+            formatCallAttemptsWithMargins(expectations.map { it.description }) + "."
+    is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure ->
         "You made too few function calls. We're still expecting " +
             formatExpectedAlternatives(expectedFollowups.map { it.description }.distinct()) + "."
-    is CoroutinePuzzleSolutionResult.Failure.Reason.MoreSubmissionsThanExpectations ->
+    is CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure ->
         "You made too many function calls. No more calls were expected right now, but you called " +
-            formatCallAttemptsWithMargins(overshotSubmissions.map { it.description }.distinct()) + "."
-    is CoroutinePuzzleSolutionResult.Failure.Reason.UnexpectedSubmissions -> {
+            formatCallAttemptsWithMargins(overshotSubmissions.map { it.description }) + "."
+    is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> {
         val expectedDescriptions = expectations.map { it.description }.distinct()
         val actionOrActions = if (expectedDescriptions.size == 1) "action is" else "actions are"
         "Currently the expected $actionOrActions " + formatExpectedAlternatives(expectedDescriptions) + ".\n" +
             "But instead you called " +
             formatCallAttemptsWithMargins(unexpectedSubmissions.map { it.description }.distinct()) + "."
     }
-    is CoroutinePuzzleSolutionResult.Failure.Reason.Custom -> message
+    is CoroutinePuzzleSolutionResult.CustomFailure -> message
+    CoroutinePuzzleSolutionResult.FullyQuiescent -> "All coroutines got stuck waiting for each other."
+    CoroutinePuzzleSolutionResult.Success -> "The puzzle was solved"
 }
 
 /** Describes a set of calls that happened (or were expected to happen) together, at the same time. */
 private fun formatCallAttemptsWithMargins(attempts: List<String>): String = when (attempts.size) {
     0 -> "nothing"
     1 -> attempts.single()
-    else -> "all of these, at the same time:\n" + attempts.joinToString("\n") { "  - $it" }
+    else -> "all of these at the same time:\n" + attempts.joinToString("\n") { "  - $it" }
 }
 
 /** Describes a set of calls where any single one of them would have been an acceptable next step. */

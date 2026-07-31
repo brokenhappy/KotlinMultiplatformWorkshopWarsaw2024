@@ -1,7 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzle
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.NumberFlowAndSubmit
 import kmpworkshop.common.emitNumber
 import kmpworkshop.common.numberFlowAndSubmit
@@ -10,13 +10,14 @@ import kmpworkshop.common.submitNumber
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 fun collectLatestPuzzle() = coroutinePuzzle {
     val numbers = (0..< 5).map { (0..100).random() }
     emitNumber.expectCall(numbers.first())
-    numbers.zipWithNext().forEach { (last, next) ->
+    numbers.zipWithNext().forEach { (_, next) ->
         coroutineScope {
             val readyToGetCanceledHook = CompletableDeferred<Unit>()
             launch {
@@ -27,11 +28,10 @@ fun collectLatestPuzzle() = coroutinePuzzle {
                     next
                 }
             }
-            val actual = submitNumber.expectCall {
+            submitNumber.expectCanceledCall {
                 readyToGetCanceledHook.complete(Unit) // Let's get this canceled!
-                throw awaitCancellationOfMatchingSubmitCall()
+                awaitCancellation()
             }
-            verify(actual == last) { "The value that you submit must be a value collected from the flow!" }
         }
     }
     launch {
@@ -56,16 +56,16 @@ fun simpleFlowPuzzle() = coroutinePuzzle {
 
 suspend fun doCollectLatestPuzzle(
     onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleSolutionResult = doFlowAndSubmitPuzzle(collectLatestPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(collectLatestPuzzle(), onUse)
 
 suspend fun doSimpleCollectPuzzle(
     onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleSolutionResult = doFlowAndSubmitPuzzle(simpleFlowPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(simpleFlowPuzzle(), onUse)
 
 private suspend fun doFlowAndSubmitPuzzle(
     puzzle: CoroutinePuzzle,
     onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleSolutionResult = puzzle.solve {
+): CoroutinePuzzleResultWithHistory = puzzle.solve {
     withImportantCleanup {
         onUse(numberFlowAndSubmit())
     }

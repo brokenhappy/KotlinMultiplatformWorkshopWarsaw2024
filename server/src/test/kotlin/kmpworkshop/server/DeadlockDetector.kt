@@ -2,11 +2,9 @@ package kmpworkshop.server
 
 import kmpworkshop.common.AutoBatchedFunctionId
 import kmpworkshop.common.autoBatchedOnQuiescence
+import kmpworkshop.common.resume
+import kmpworkshop.common.resumeAllQuiescentTrackedScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.selects.select
-import kotlin.coroutines.resume
 import kotlin.time.ExperimentalTime
 
 interface QuiescenceDetectionScope {
@@ -19,7 +17,7 @@ interface QuiescenceDetectionScope {
 context(scope: QuiescenceDetectionScope) suspend fun awaitQuiescence() = scope.awaitQuiescence()
 
 private val quiescenceFunction = AutoBatchedFunctionId<Unit, Unit> { batch ->
-    batch.forEach { it.continuation.resume(Unit) }
+    batch.resumeAllQuiescentTrackedScope { it.continuation.resume(Unit) }
 }
 
 suspend fun <T> withQuiescenceDetection(block: suspend context(QuiescenceDetectionScope) CoroutineScope.() -> T): T {

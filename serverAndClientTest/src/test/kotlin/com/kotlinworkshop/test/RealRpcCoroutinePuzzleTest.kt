@@ -25,8 +25,8 @@ import kotlin.time.ExperimentalTime
 
 /**
  * The whole [CoroutinePuzzlesTest] suite, but driven through a *real* kotlinx-rpc transport over a real (loopback)
- * socket, instead of the in-process abstractions [CoroutinePuzzleTestWithoutRpcAbstraction] and
- * [CoroutinePuzzleTestWithSingleProcessRpcAbstraction] (which share one coroutine hierarchy with no
+ * socket, instead of the in-process abstractions [CoroutinePuzzleTestWithoutRpcService] and
+ * [CoroutinePuzzleTestWithRpcService] (which share one coroutine hierarchy with no
  * serialization/transport in between). It deliberately reuses the production entry points on both ends -
  * [rpcServer] (the exact ktor module [kmpworkshop.server.serve] hosts) and [connectWorkshopService] (the exact
  * client wiring [kmpworkshop.client.createWorkshopService] uses) - so the coverage tracks the real bootstrap rather
@@ -40,7 +40,6 @@ import kotlin.time.ExperimentalTime
  * `doCoroutinePuzzleSolveAttempt`'s `channelFlow`) fire before all the concurrent calls it's supposed to batch have
  * actually arrived - something the in-process fake transport can never reproduce.
  */
-@OptIn(ExperimentalTime::class)
 class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
     doSimpleSumPuzzle = { runRealRpcTestClient(stage = WorkshopStage.SumOfTwoIntsSlow, sumSolution = it) },
     doTimedSumPuzzle = { runRealRpcTestClient(stage = WorkshopStage.SumOfTwoIntsFast, sumSolution = it) },
@@ -71,7 +70,7 @@ class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
 }
 
 @OptIn(ExperimentalTime::class)
-private suspend fun runRealRpcTestClient(
+internal suspend fun runRealRpcTestClient(
     stage: WorkshopStage,
     puzzleStates: Map<String, PuzzleState> = mapOf(
         stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
@@ -80,7 +79,7 @@ private suspend fun runRealRpcTestClient(
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
-): CoroutinePuzzleSolutionResult = coroutineScope {
+): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = puzzleStates))
     val eventBus = Channel<ScheduledWorkshopEvent>()
     val eventLoopJob = launch {

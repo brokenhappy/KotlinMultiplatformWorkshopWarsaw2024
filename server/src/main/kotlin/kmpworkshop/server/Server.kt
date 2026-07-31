@@ -122,39 +122,49 @@ fun workshopService(
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
-        messages: Flow<CoroutinePuzzleClientMessage>,
-    ): Flow<CoroutinePuzzleServerMessage> = channelFlow {
+        messages: Flow<List<CoroutinePuzzleBatchEntry<CoroutinePuzzleBatchEntry.SubmissionPayload>>>
+    ): Flow<CoroutinePuzzleExpectationBatchOrCompletion> = channelFlow {
+        fun customFailure(string: String): CoroutinePuzzleExpectationBatchOrCompletion.Completion =
+            CoroutinePuzzleExpectationBatchOrCompletion.Completion(CoroutinePuzzleSolutionResult.CustomFailure(string))
+
         val puzzle = WorkshopStage
             .entries
             .firstOrNull { it.name == puzzleId }
             ?.let { findCoroutinePuzzleFor(it) }
             ?: run {
                 println("Someone tried to request coroutine puzzle id: $puzzleId")
-                send(CoroutinePuzzleServerMessage.IncorrectInput)
+                send(customFailure(accidentalChangesMadeMessage))
                 return@channelFlow
             }
 
-        // The client owns the solution-side batching detection; here we only match the batches it streams us against
-        // the puzzle's expectations and stream back per-call answers.
-        send(try {
-            puzzle.solveReceivingBatches(
-                incomingMessages = messages,
-                answer = { callId, answer -> send(CoroutinePuzzleServerMessage.CallAnswered(callId, answer)) },
-                emitBackendQuiescence = { send(CoroutinePuzzleServerMessage.BackendQuiescence(it)) },
-            ).let {
-                when (it) {
-                    is CoroutinePuzzleSolutionResult.Failure -> CoroutinePuzzleServerMessage.Done(it)
-                    is CoroutinePuzzleSolutionResult.Success ->
-                        when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
-                            PuzzleCompletionResult.AlreadySolved -> CoroutinePuzzleServerMessage.AlreadySolved
-                            PuzzleCompletionResult.Done -> CoroutinePuzzleServerMessage.Done(it)
-                            PuzzleCompletionResult.PuzzleNotOpenedYet -> CoroutinePuzzleServerMessage.PuzzleNotOpenedYet
-                        }
+        puzzle.use { (incoming, outgoing) ->
+            launch {
+                try {
+                    messages.collect { outgoing.send(it) }
+                } finally {
+                    outgoing.close()
                 }
             }
-        } catch (_: SerializationException) {
-            CoroutinePuzzleServerMessage.IncorrectInput
-        })
+            for (message in incoming) {
+                send(
+                    if (
+                        message is CoroutinePuzzleExpectationBatchOrCompletion.Completion &&
+                        message.result is CoroutinePuzzleSolutionResult.Success
+                    ) {
+                        when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
+                            PuzzleCompletionResult.AlreadySolved -> customFailure("""
+                                Yaay! You solved it again! Perhaps you could look around and see if some of your peers would like your help? :))
+                            """.trimIndent())
+                            PuzzleCompletionResult.Done -> message
+                            PuzzleCompletionResult.PuzzleNotOpenedYet -> customFailure("""
+                                Hold on there pal! Don't get ahead of yourself, the puzzle is not yet open for solving!
+                                I'm sure there's people around you that you can help :))
+                            """.trimIndent())
+                        }
+                    } else message
+                )
+            }
+        }
     }
 }
 

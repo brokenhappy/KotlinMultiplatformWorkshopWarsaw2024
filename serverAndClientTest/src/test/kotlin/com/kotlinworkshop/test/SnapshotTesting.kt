@@ -1,6 +1,5 @@
 package com.kotlinworkshop.test
 
-import org.intellij.lang.annotations.Language
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.FileInfo
 import java.nio.charset.StandardCharsets
@@ -41,7 +40,7 @@ fun String.assertMatchesSnapshot(snapshotPath: String) {
         "Snapshot mismatch for $snapshotPath (snapshot file: $path). " +
             "If the new output is correct, accept it to update the snapshot on disk.",
         FileInfo(path, expectedBytes),
-        FileInfo(path, actualBytes),
+        this,
     )
 }
 

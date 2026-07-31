@@ -2,7 +2,6 @@ package com.kotlinworkshop.test
 
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.toMessage
-import kmpworkshop.common.CoroutinePuzzleSolutionResult.Failure.Reason.ExactParallelismMismatch
 import kmpworkshop.common.*
 import kmpworkshop.server.*
 import kotlinx.coroutines.*
@@ -12,11 +11,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.fail as junitFail
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
@@ -25,10 +22,11 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
+import org.junit.jupiter.api.fail as junitFail
 
-typealias DoPuzzleWith<Api> = suspend (suspend CoroutineScope.(Api) -> Unit) -> CoroutinePuzzleSolutionResult
+typealias DoPuzzleWith<Api> = suspend (suspend CoroutineScope.(Api) -> Unit) -> CoroutinePuzzleResultWithHistory
 
-class CoroutinePuzzleTestWithoutRpcAbstraction : CoroutinePuzzlesTest(
+class CoroutinePuzzleTestWithoutRpcService : CoroutinePuzzlesTest(
     doSimpleSumPuzzle = ::doSimpleSumPuzzle,
     doTimedSumPuzzle = ::doTimedSumPuzzle,
     doSimpleCollectPuzzle = ::doSimpleCollectPuzzle,
@@ -51,7 +49,7 @@ suspend fun runTestClient(
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
-): CoroutinePuzzleSolutionResult = coroutineScope {
+): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = puzzleStates))
     val eventBus = Channel<ScheduledWorkshopEvent>()
     val job = launch {
@@ -81,7 +79,7 @@ suspend fun runTestClient(
     }
 }
 
-class CoroutinePuzzleTestWithSingleProcessRpcAbstraction : CoroutinePuzzlesTest(
+class CoroutinePuzzleTestWithRpcService : CoroutinePuzzlesTest(
     doSimpleSumPuzzle = { runTestClient(stage = WorkshopStage.SumOfTwoIntsSlow, sumSolution = it) },
     doTimedSumPuzzle = { runTestClient(stage = WorkshopStage.SumOfTwoIntsFast, sumSolution = it) },
     doSimpleCollectPuzzle = { runTestClient(stage = WorkshopStage.SimpleFlow, collectSolution = it) },
@@ -146,9 +144,7 @@ abstract class CoroutinePuzzlesTest(
         doCollectLatestPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Regular collect must fail collect latest puzzle" }
-            .reason
-            .assertIs<CoroutinePuzzleSolutionResult.Failure.Reason.MoreExpectationsThanSubmissions>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.FullyQuiescent>()
     }
 
     @Test
@@ -176,7 +172,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `simple sum correct solution`(): Unit = runPuzzleTest {
+    fun simpleSumCorrectSolution(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }.assertIsOk()
@@ -203,7 +199,7 @@ abstract class CoroutinePuzzlesTest(
             api.submit(api.getNumber() + api.getNumber() + 1)
         }.assertIsNotOk()
         doSimpleSumPuzzle { api ->
-            api.submit(13)
+            api.submit(123123123)
         }.assertIsNotOk()
     }
 
@@ -211,7 +207,8 @@ abstract class CoroutinePuzzlesTest(
     fun `submitting in parallel is ok`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
-            api.submit(api.getNumber() + firstSum.await())
+            val asd = api.getNumber() + firstSum.await()
+            api.submit(asd)
         }.assertIsOk()
     }
 
@@ -228,9 +225,7 @@ abstract class CoroutinePuzzlesTest(
         doTimedSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
-            .assertIsNotOk()
-            .reason
-            .assertIs<ExactParallelismMismatch>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
     }
 
     @Test
@@ -296,8 +291,8 @@ abstract class CoroutinePuzzlesTest(
 
     @Test
     fun `solution without exceptions does not work for the legacy mapping with exceptions puzzle`(): Unit = runPuzzleTest {
-        doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
-            assertFails {
+        assertFails {
+            doMappingLegacyApiWithExceptionCoroutinePuzzle { database ->
                 database
                     .getAllIds()
                     .map { async { database.queryUserHappyPath(it) } }
@@ -367,9 +362,7 @@ abstract class CoroutinePuzzlesTest(
                     .maxOf { database.queryUser(it).age }
             )
         }
-            .assertIsNotOk()
-            .reason
-            .assertIs<ExactParallelismMismatch>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
     }
 }
 
@@ -383,9 +376,14 @@ class CoroutinePuzzleUtilitiesTest {
             callLifetime.submitCall(Unit)
             publicEndpoint.submitCall(Unit) // Should result in error
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure>()
+            .assertIsNotOk()
             .toMessage()
             .assert({ "lifetime" !in it.lowercase() }) { "Message must not mention internal endpoint" }
+    }
+
+    @Test
+    fun `empty puzzle works with empty solution`() = runTestWithRandomizedDispatchOrdering {
+        coroutinePuzzle { }.solve { }.assertIsOk()
     }
 
     @Test
@@ -396,20 +394,22 @@ class CoroutinePuzzleUtilitiesTest {
         }.solve {
             callLifetime.submitCall(Unit)
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure>()
+            .assertIsNotOk()
             .toMessage()
             .assert({ "lifetime" in it.lowercase() }) { "Message must mention internal endpoint" }
     }
 
-    class ExceptionForTestBelow() : Exception("Test exception")
+    class ExceptionForTestBelow : Exception("Test exception")
 
     @Test
     fun `error that happens in expect call is thrown into submit call`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
         coroutinePuzzle {
-            endpoint.expectCall { throw ExceptionForTestBelow() }
-        }.solve {
             assertThrows<ExceptionForTestBelow> {
+                endpoint.expectCall { throw ExceptionForTestBelow() }
+            }
+        }.solve {
+            assertThrows<ExceptionAcrossRpc> {
                 endpoint.submitCall(Unit)
             }
         }
@@ -418,47 +418,59 @@ class CoroutinePuzzleUtilitiesTest {
     @Test
     fun `nothing hangs when submit call gets canceled`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
-        val cancellationStartHook = CompletableDeferred<Unit>()
-        val cancellationFinishedHook = CompletableDeferred<Unit>()
+        val endpointIsRunning = coroutinePuzzleEndPoint<Unit, Unit>("bar")
         coroutinePuzzle {
             endpoint.expectCall {
-                cancellationStartHook.complete(Unit)
-                cancellationFinishedHook.await()
+                endpointIsRunning.expectCall(Unit)
             }
         }.solve {
             launch {
                 endpoint.submitCall(Unit)
             }.sideEffect {
-                cancellationStartHook.await()
+                endpointIsRunning.submitCall(Unit)
                 it.cancelAndJoin()
-                cancellationFinishedHook.complete(Unit)
             }
         }
     }
 
-    class SpecialCancellationExceptionForTestBelow() : CancellationException()
+    @Test
+    fun `expectCanceledCall of matching submit call does NOT throw into coroutine puzzle scope`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Int, Int>("foo")
+        val endpointIsRunning = coroutinePuzzleEndPoint<Unit, Unit>("bar")
+        coroutinePuzzle {
+            endpoint.expectCanceledCall {
+                endpointIsRunning.expectCall(Unit)
+                throw assertThrows<CancellationAcrossRpc> {
+                    awaitCancellation()
+                }
+            }
+        }.solve {
+            launch {
+                endpoint.submitCall(5)
+            }.sideEffect {
+                endpointIsRunning.submitCall(Unit)
+                it.cancel()
+            }
+        }.assertIsOk()
+    }
 
     @Test
-    fun `await cancellation of matching submit call does not throw into coroutine puzzle scope`() = runTestWithRandomizedDispatchOrdering {
+    fun `regular expectCall cancellation of matching submit call DOES throw into coroutine puzzle scope`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
-        val cancellationStartHook = CompletableDeferred<Unit>()
+        val endpointIsRunning = coroutinePuzzleEndPoint<Unit, Unit>("bar")
         coroutinePuzzle {
-            try {
-                endpoint.expectCall {
-                    cancellationStartHook.complete(Unit)
-                    assertThrows<SpecialCancellationExceptionForTestBelow> {
-                        throw awaitCancellationOfMatchingSubmitCall()
-                    }
+            endpoint.expectCall {
+                endpointIsRunning.expectCall(Unit)
+                assertThrows<CancellationAcrossRpc> {
+                    awaitCancellation()
                 }
-            } catch (t: Throwable) {
-                junitFail("Exception should not be thrown, not even cancellation", t)
             }
         }.solve {
             launch {
                 endpoint.submitCall(Unit)
             }.sideEffect {
-                cancellationStartHook.await()
-                it.cancel(SpecialCancellationExceptionForTestBelow())
+                endpointIsRunning.submitCall(Unit)
+                it.cancel()
             }
         }
     }
@@ -476,8 +488,8 @@ class CoroutinePuzzleUtilitiesTest {
         }.solve {
             endpoint.submitCall(42)
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Synchronous submission should fail an exact-parallelism expectation" }
-            .reason.assertIs<ExactParallelismMismatch>()
+            .result
+            .assertIs<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure> { "Synchronous submission should fail an exact-parallelism expectation" }
     }
 
     @Test
@@ -491,8 +503,8 @@ class CoroutinePuzzleUtilitiesTest {
             launch { endpoint.submitCall(42) }
             endpoint.submitCall(42)
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Parallel submission should fail a synchronous exact-parallelism expectation" }
-            .reason.assertIs<ExactParallelismMismatch>()
+            .result
+            .assertIs<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure> { "Parallel submission should fail a synchronous exact-parallelism expectation" }
     }
 
     @Test
@@ -508,8 +520,8 @@ class CoroutinePuzzleUtilitiesTest {
             launch { endpoint.submitCall(42) }
             endpoint.submitCall(42)
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Double parallel submission should fail a triple-parallel expectation" }
-            .reason.assertIs<ExactParallelismMismatch>()
+            .result
+            .assertIs<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure> { "Double parallel submission should fail a triple-parallel expectation" }
     }
 
     @Test
@@ -525,8 +537,8 @@ class CoroutinePuzzleUtilitiesTest {
             launch { endpoint.submitCall(42) }
             endpoint.submitCall(42)
         }
-            .assertIs<CoroutinePuzzleSolutionResult.Failure> { "Triple parallel submission should fail a double-parallel expectation" }
-            .reason.assertIs<ExactParallelismMismatch>()
+            .result
+            .assertIs<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure> { "Triple parallel submission should fail a double-parallel expectation" }
     }
 
     @Test
@@ -544,6 +556,65 @@ class CoroutinePuzzleUtilitiesTest {
             endpoint.submitCall(42)
         }.assertIsOk()
     }
+
+    @Test
+    fun `full quiescence is detected`() = runTestWithRandomizedDispatchOrdering {
+        coroutinePuzzle {
+            awaitCancellation()
+        }.solve {
+            awaitCancellation()
+        }
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.FullyQuiescent>()
+    }
+
+    @Test
+    fun `quiescence is detected on solution side`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+        coroutinePuzzle {
+            endpoint.expectCall(Unit)
+        }.solve {
+            awaitCancellation()
+        }.assertIsNotOk()
+    }
+
+    @Test
+    fun `quiescence is detected on expectation side`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+        coroutinePuzzle {
+            awaitCancellation()
+        }.solve {
+            endpoint.submitCall(Unit)
+        }.assertIsNotOk()
+    }
+
+    @Test
+    fun `verify works`() = runTestWithRandomizedDispatchOrdering {
+        coroutinePuzzle {
+            verify(false) { "AAAH" }
+        }.solve {
+        }
+            .assertIsNotOk()
+            .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals("AAAH")
+        coroutinePuzzle {
+            verify(true) { "AAAH" }
+        }.solve {
+        }
+            .assertIsOk()
+    }
+
+    @Test
+    fun `fail works`() = runTestWithRandomizedDispatchOrdering {
+        coroutinePuzzle {
+            fail("AAAH")
+        }.solve {
+        }
+            .assertIsNotOk()
+            .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals("AAAH")
+    }
 }
 
 /**
@@ -552,16 +623,21 @@ class CoroutinePuzzleUtilitiesTest {
  * scheduler would otherwise always pick the same single interleaving. Fails with the offending seed attached, so a
  * failure can be reproduced by rerunning just that seed (e.g. `runTest2(seeds = 17L..17L) { ... }`).
  */
-fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 30L, block: suspend CoroutineScope.() -> Unit) {
+fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 50L, block: suspend CoroutineScope.() -> Unit) {
     for (seed in seeds) {
         try {
-            kotlinx.coroutines.test.runTest(timeout = 1.seconds) {
+            runTest(timeout = 1.seconds) {
                 withRandomizedDispatchOrder(seed) { block() }
             }
         } catch (t: Throwable) {
             throw AssertionError("Failed with dispatch-order seed $seed", t)
         }
     }
+}
+
+private fun <T> Any?.assertEquals(other: T): T {
+    assertEquals(other, this)
+    return other
 }
 
 private suspend fun UserDatabaseWithLegacyQueryUser.queryUser(id: Int): User {
@@ -615,13 +691,20 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserHappyPath(id: Int):
     }
 }
 
-private fun CoroutinePuzzleSolutionResult.assertIsOk(): Unit = when (this) {
-    is CoroutinePuzzleSolutionResult.Failure -> junitFail { this.toMessage() }
+private fun CoroutinePuzzleResultWithHistory.assertIsOk(): Unit = when (result) {
     CoroutinePuzzleSolutionResult.Success -> { /** All OK! */ }
+    else -> junitFail { toMessage() }
 }
 
-private fun CoroutinePuzzleSolutionResult.assertIsNotOk(): CoroutinePuzzleSolutionResult.Failure =
-    assertIs<CoroutinePuzzleSolutionResult.Failure> { "Puzzle succeeded unexpectedly" }
+private fun CoroutinePuzzleResultWithHistory.assertIsNotOk(): CoroutinePuzzleSolutionResult = result.also {
+    assert(it !is CoroutinePuzzleSolutionResult.Success) { "Puzzle succeeded unexpectedly \n${toMessage()}" }
+}
+
+@JvmName("assertIsNotOkGeneric")
+private inline fun <reified T: CoroutinePuzzleSolutionResult> CoroutinePuzzleResultWithHistory.assertIsNotOk(
+): CoroutinePuzzleSolutionResult = assertIsNotOk().assertIs<T> {
+    "Expected ${T::class.simpleName} but got ${it!!::class.simpleName}\n${toMessage()}"
+}
 
 internal inline fun <reified T> Any?.assertIs(
     message: (Any?) -> String = { "Expected instance of ${T::class}, but got $it" },
