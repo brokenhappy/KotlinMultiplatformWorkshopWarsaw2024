@@ -1,15 +1,8 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.CoroutinePuzzle
-import kmpworkshop.common.CoroutinePuzzleResultWithHistory
-import kmpworkshop.common.NumberFlowAndSubmit
 import kmpworkshop.common.emitNumber
-import kmpworkshop.common.numberFlowAndSubmit
-import kmpworkshop.common.solve
 import kmpworkshop.common.submitNumber
-import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -52,21 +45,4 @@ fun simpleFlowPuzzle() = coroutinePuzzle {
         }
     }
     emitNumber.expectCall(null) // Close flow
-}
-
-suspend fun doCollectLatestPuzzle(
-    onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(collectLatestPuzzle(), onUse)
-
-suspend fun doSimpleCollectPuzzle(
-    onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(simpleFlowPuzzle(), onUse)
-
-private suspend fun doFlowAndSubmitPuzzle(
-    puzzle: CoroutinePuzzle,
-    onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = puzzle.solve {
-    withImportantCleanup {
-        onUse(numberFlowAndSubmit())
-    }
 }

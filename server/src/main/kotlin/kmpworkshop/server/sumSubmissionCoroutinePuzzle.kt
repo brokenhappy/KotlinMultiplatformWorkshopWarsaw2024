@@ -1,14 +1,8 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzle
-import kmpworkshop.common.CoroutinePuzzleResultWithHistory
-import kmpworkshop.common.GetNumberAndSubmit
 import kmpworkshop.common.getNumber
-import kmpworkshop.common.getNumberAndSubmit
-import kmpworkshop.common.solve
 import kmpworkshop.common.submitNumber
-import kmpworkshop.common.withImportantCleanup
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 
@@ -32,21 +26,4 @@ fun timedSumPuzzle(): CoroutinePuzzle = coroutinePuzzle {
 
     val actual = submitNumber.expectCall(Unit)
     verify(actual == sum) { "The value that you submit must the sum of the numbers you got ($sum), but got $actual" }
-}
-
-suspend fun doSimpleSumPuzzle(
-    onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doSumPuzzle(simpleSumPuzzle(), onUse)
-
-suspend fun doTimedSumPuzzle(
-    onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doSumPuzzle(timedSumPuzzle(), onUse)
-
-private suspend fun doSumPuzzle(
-    puzzle: CoroutinePuzzle,
-    onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = puzzle.solve {
-    withImportantCleanup {
-        onUse(getNumberAndSubmit())
-    }
 }
