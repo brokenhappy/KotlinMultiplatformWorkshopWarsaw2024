@@ -68,30 +68,30 @@ suspend fun runCoroutinePuzzleClient(
     SumOfTwoIntsFast -> checkCoroutinePuzzle(
         workshopServer,
         stage.name,
-        solution = { coroutineScope { sumSolution(it) } },
+        solution = { sumSolution(it) },
     ) { getNumberAndSubmit() }
     FindMaximumAgeCoroutines,
     FastFindMaximumAgeCoroutines -> checkCoroutinePuzzle(
         workshopServer,
         stage.name,
-        solution = { coroutineScope { maximumAgeFindingTheSecondCoroutineSolution(it) } },
+        solution = { maximumAgeFindingTheSecondCoroutineSolution(it) },
     ) { getUserDatabase() }
     MappingFromLegacyApisStepOne -> checkCoroutinePuzzle(
         workshopServer,
         stage.name,
-        solution = { coroutineScope { mappingLegacyApiCoroutineSolution(it) } },
+        solution = { mappingLegacyApiCoroutineSolution(it) },
     ) { resourceScope -> getUserDatabaseWithLegacyQueryUser(resourceScope) }
     MappingFromLegacyApisStepTwo,
     MappingFromLegacyApisStepThree,
     MappingFromLegacyApisStepFour -> checkCoroutinePuzzleInternal(
         workshopServer,
         stage.name,
-        solution = { mapFromLegacyApiWithScaffolding { coroutineScope { mappingLegacyApiCoroutineSolution(it) } } },
+        solution = { mapFromLegacyApiWithScaffolding { mappingLegacyApiCoroutineSolution(it) } },
     )
     SimpleFlow,
     CollectLatest -> checkCoroutinePuzzle(
         workshopServer,
         stage.name,
-        solution = { coroutineScope { collectSolution(it) } },
+        solution = { collectSolution(it) },
     ) { numberFlowAndSubmit() }
 }

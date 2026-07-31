@@ -14,7 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 suspend fun <T> checkCoroutinePuzzle(
     workshopServer: WorkshopServer,
     puzzleId: String,
-    solution: suspend (T) -> Unit,
+    solution: suspend CoroutineScope.(T) -> Unit,
     builder: context(CoroutinePuzzleSolutionScope) (resourceScope: CoroutineScope) -> T,
 ): CoroutinePuzzleResultWithHistory = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder(this)) }
 
