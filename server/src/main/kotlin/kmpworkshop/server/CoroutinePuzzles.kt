@@ -234,14 +234,14 @@ private fun strictParallelismValidation(
     submissions: List<CoroutinePuzzleBatchEntry<SubmissionPayload.CallSubmitted>>,
 ) {
     if (accumulatedExpectations.isEmpty()) return
-    val expectedDescriptors = accumulatedExpectations.map { it.query.state.endPoint }
+    val expectedDescriptors = accumulatedExpectations.groupingBy { it.query.state.endPoint }.eachCount()
     if (
         accumulatedExpectations.first().query.state.isStrictParallelism &&
-        expectedDescriptors != submissions.map { it.payload.endPoint }
+        expectedDescriptors != submissions.map { it.payload.endPoint }.groupingBy { it }.eachCount()
     ) {
         failInternal(CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions.map { it.payload.endPoint },
-            expectedDescriptors,
+            expectedDescriptors.keys.toList(),
         ))
     }
 }
