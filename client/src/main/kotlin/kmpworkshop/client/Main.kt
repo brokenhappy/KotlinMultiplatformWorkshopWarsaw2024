@@ -2,6 +2,7 @@ package kmpworkshop.client
 
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory
+import kmpworkshop.common.ExceptionalApi
 import kmpworkshop.common.GetNumberAndSubmit
 import kmpworkshop.common.NumberFlowAndSubmit
 import kmpworkshop.common.UserDatabase
@@ -14,10 +15,8 @@ import kmpworkshop.common.clientApiKey
 import kmpworkshop.common.getNumberAndSubmit
 import kmpworkshop.common.getUserDatabase
 import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
-import kmpworkshop.common.mapFromLegacyApiWithScaffolding
 import kmpworkshop.common.numberFlowAndSubmit
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 
 suspend fun main() {
@@ -37,6 +36,7 @@ suspend fun main() {
             MappingFromLegacyApisStepTwo,
             MappingFromLegacyApisStepThree,
             MappingFromLegacyApisStepFour,
+            ExceptionCatchingWithCoroutines,
             SimpleFlow,
             CollectLatest -> runCoroutinePuzzleClient(
                 server,
@@ -45,6 +45,7 @@ suspend fun main() {
                 collectSolution = { showingHowItsFlowing(it) },
                 maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
                 mappingLegacyApiCoroutineSolution = { mapFromLegacyApi(it) },
+                exceptionHandlingSolution = { exceptionHandlingPuzzle(it) },
             )
         }
     } finally {
@@ -59,6 +60,7 @@ suspend fun runCoroutinePuzzleClient(
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit,
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
+    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit,
 ): CoroutinePuzzleResultWithHistory = when (stage) {
     Registration,
     PalindromeCheckTask,
@@ -86,7 +88,12 @@ suspend fun runCoroutinePuzzleClient(
     MappingFromLegacyApisStepFour -> checkCoroutinePuzzleInternal(
         workshopServer,
         stage.name,
-        solution = { mapFromLegacyApiWithScaffolding { mappingLegacyApiCoroutineSolution(it) } },
+        solution = { mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution) },
+    )
+    ExceptionCatchingWithCoroutines -> checkCoroutinePuzzleInternal(
+        workshopServer,
+        stage.name,
+        solution = { exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution) },
     )
     SimpleFlow,
     CollectLatest -> checkCoroutinePuzzle(

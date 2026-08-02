@@ -195,6 +195,7 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
     MappingFromLegacyApisStepTwo,
     MappingFromLegacyApisStepThree,
     MappingFromLegacyApisStepFour,
+    ExceptionCatchingWithCoroutines,
     PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,

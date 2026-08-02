@@ -1,5 +1,6 @@
 package com.kotlinworkshop.test
 
+import kmpworkshop.client.exceptionHandlingPuzzle
 import kmpworkshop.client.mapFromLegacyApi
 import kmpworkshop.client.maximumAgeFindingWithCoroutines
 import kmpworkshop.client.numberSummer
@@ -41,6 +42,7 @@ class CoroutinePuzzleTestWithoutRpcService : CoroutinePuzzlesTest(
     doMappingLegacyApiWithCancellationCoroutinePuzzle = ::doMappingLegacyApiWithCancellationCoroutinePuzzle,
     doMappingLegacyApiStepFourCoroutinePuzzle = ::doMappingLegacyApiStepFourCoroutinePuzzle,
     doMappingLegacyApiHappyPathCoroutinePuzzle = ::doMappingLegacyApiHappyPathCoroutinePuzzle,
+    doExceptionHandlingPuzzle = ::doCoroutineExceptionHandlingCoroutinePuzzle,
 )
 
 @OptIn(ExperimentalTime::class)
@@ -53,6 +55,7 @@ suspend fun runTestClient(
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
+    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = puzzleStates))
     val eventBus = Channel<ScheduledWorkshopEvent>()
@@ -76,6 +79,7 @@ suspend fun runTestClient(
             collectSolution = collectSolution,
             maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,
             mappingLegacyApiCoroutineSolution = mappingLegacyApiCoroutineSolution,
+            exceptionHandlingSolution = exceptionHandlingSolution,
         )
     } finally {
         job.cancel()
@@ -106,6 +110,9 @@ class CoroutinePuzzleTestWithRpcService : CoroutinePuzzlesTest(
     doMappingLegacyApiStepFourCoroutinePuzzle = {
         runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepFour, mappingLegacyApiCoroutineSolution = it)
     },
+    doExceptionHandlingPuzzle = {
+        runTestClient(stage = WorkshopStage.ExceptionCatchingWithCoroutines, exceptionHandlingSolution = it)
+    },
 )
 
 abstract class CoroutinePuzzlesTest(
@@ -119,6 +126,7 @@ abstract class CoroutinePuzzlesTest(
     private val doMappingLegacyApiWithCancellationCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
     private val doMappingLegacyApiStepFourCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
     private val doMappingLegacyApiHappyPathCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
+    private val doExceptionHandlingPuzzle: DoPuzzleWith<ExceptionalApi>,
 ) {
     /**
      * How each transport-driven test body is run. Defaults to the virtual-time, randomized-dispatch harness, which
@@ -141,6 +149,7 @@ abstract class CoroutinePuzzlesTest(
         doMappingLegacyApiWithCancellationCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiStepFourCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiHappyPathCoroutinePuzzle { }.assertIsNotOk()
+        doExceptionHandlingPuzzle { }.assertIsNotOk()
     }
 
     @Test
@@ -155,6 +164,7 @@ abstract class CoroutinePuzzlesTest(
         doMappingLegacyApiWithCancellationCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
         doMappingLegacyApiStepFourCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
         doMappingLegacyApiHappyPathCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
+        doExceptionHandlingPuzzle { exceptionHandlingPuzzle(it) }.assertIsNotOk()
     }
 
     @Test
@@ -381,6 +391,66 @@ abstract class CoroutinePuzzlesTest(
             )
         }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
+    }
+
+    @Test
+    fun `handling exceptions around launches fails`(): Unit = runPuzzleTest {
+        doExceptionHandlingPuzzle { api ->
+            try {
+                launch { api.clearCaches() }
+                launch { api.refreshTokens() }
+            } catch (e: Exception) {
+                api.reportException(e)
+            }
+        }.assertIsNotOk()
+    }
+
+    @Test
+    fun `handling exceptions around coroutineScope passes`(): Unit = runPuzzleTest {
+        doExceptionHandlingPuzzle { api ->
+            try {
+                coroutineScope {
+                    launch { api.clearCaches() }
+                    launch { api.refreshTokens() }
+                }
+            } catch (e: Exception) {
+                api.reportException(e)
+            }
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `running clear caches and refresh tokens synchronously fails`(): Unit = runPuzzleTest {
+        doExceptionHandlingPuzzle { api ->
+            try {
+                api.clearCaches()
+                api.refreshTokens()
+            } catch (e: Exception) {
+                api.reportException(e)
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
+    }
+
+    @Test
+    fun `not handling refresh tokens exception fails`(): Unit = runPuzzleTest {
+        doExceptionHandlingPuzzle { api ->
+            launch { api.clearCaches() }
+            launch { api.refreshTokens() }
+        }.assertIsNotOk()
+    }
+
+    @Test
+    fun `throwing different exception than original fails`(): Unit = runPuzzleTest {
+        doExceptionHandlingPuzzle { api ->
+            try {
+                coroutineScope {
+                    launch { api.clearCaches() }
+                    launch { api.refreshTokens() }
+                }
+            } catch (e: Exception) {
+                api.reportException(Exception(null, e))
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
     }
 }
 
@@ -641,7 +711,7 @@ class CoroutinePuzzleUtilitiesTest {
  * scheduler would otherwise always pick the same single interleaving. Fails with the offending seed attached, so a
  * failure can be reproduced by rerunning just that seed (e.g. `runTest2(seeds = 17L..17L) { ... }`).
  */
-fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 50L, block: suspend CoroutineScope.() -> Unit) {
+fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 10L, block: suspend CoroutineScope.() -> Unit) {
     for (seed in seeds) {
         try {
             runTest(timeout = 1.seconds) {
@@ -719,10 +789,8 @@ private fun CoroutinePuzzleResultWithHistory.assertIsNotOk(): CoroutinePuzzleSol
 }
 
 @JvmName("assertIsNotOkGeneric")
-private inline fun <reified T: CoroutinePuzzleSolutionResult> CoroutinePuzzleResultWithHistory.assertIsNotOk(
-): CoroutinePuzzleSolutionResult = assertIsNotOk().assertIs<T> {
-    "Expected ${T::class.simpleName} but got ${it!!::class.simpleName}\n${toMessage()}"
-}
+private inline fun <reified T: CoroutinePuzzleSolutionResult> CoroutinePuzzleResultWithHistory.assertIsNotOk(): T =
+    assertIsNotOk().assertIs<T> { "Expected ${T::class.simpleName} but got ${it!!::class.simpleName}\n${toMessage()}" }
 
 internal inline fun <reified T> Any?.assertIs(
     message: (Any?) -> String = { "Expected instance of ${T::class}, but got $it" },

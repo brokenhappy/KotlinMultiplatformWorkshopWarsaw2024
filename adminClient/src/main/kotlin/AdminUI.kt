@@ -631,6 +631,7 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
                 WorkshopStage.MappingFromLegacyApisStepTwo,
                 WorkshopStage.MappingFromLegacyApisStepThree,
                 WorkshopStage.MappingFromLegacyApisStepFour,
+                WorkshopStage.ExceptionCatchingWithCoroutines,
                 WorkshopStage.FindMinimumAgeOfUserTask,
                 WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
             }

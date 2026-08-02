@@ -1,5 +1,6 @@
 package com.kotlinworkshop.test
 
+import kmpworkshop.client.exceptionsInCoroutineHandlingScaffolding
 import kmpworkshop.common.CoroutinePuzzle
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.GetNumberAndSubmit
@@ -9,11 +10,14 @@ import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
 import kmpworkshop.common.getNumberAndSubmit
 import kmpworkshop.common.getUserDatabase
 import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
-import kmpworkshop.common.mapFromLegacyApiWithScaffolding
+import kmpworkshop.client.mapFromLegacyApiWithScaffolding
+import kmpworkshop.common.ExceptionalApi
+import kmpworkshop.common.coroutineExceptionHandlingApiService
 import kmpworkshop.common.numberFlowAndSubmit
 import kmpworkshop.common.solve
 import kmpworkshop.common.withImportantCleanup
 import kmpworkshop.server.collectLatestPuzzle
+import kmpworkshop.server.coroutineExceptionHandlingCoroutinePuzzle
 import kmpworkshop.server.mappingLegacyApiCoroutinePuzzleStepFour
 import kmpworkshop.server.mappingLegacyApiCoroutinePuzzleWithEscapingCancellation
 import kmpworkshop.server.mappingLegacyApiCoroutinePuzzleWithException
@@ -112,4 +116,10 @@ private suspend fun doSumPuzzle(
     withImportantCleanup {
         onUse(getNumberAndSubmit())
     }
+}
+
+suspend fun doCoroutineExceptionHandlingCoroutinePuzzle(
+    onUse: suspend CoroutineScope.(ExceptionalApi) -> Unit,
+): CoroutinePuzzleResultWithHistory = coroutineExceptionHandlingCoroutinePuzzle().solve {
+    exceptionsInCoroutineHandlingScaffolding { coroutineScope { onUse(it) } }
 }

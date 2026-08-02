@@ -63,6 +63,9 @@ class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
     doMappingLegacyApiStepFourCoroutinePuzzle = {
         runRealRpcTestClient(stage = WorkshopStage.MappingFromLegacyApisStepFour, mappingLegacyApiCoroutineSolution = it)
     },
+    doExceptionHandlingPuzzle = {
+        runRealRpcTestClient(stage = WorkshopStage.ExceptionCatchingWithCoroutines, exceptionHandlingSolution = it)
+    },
 ) {
     override fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit) {
         runTest(timeout = 60.seconds) { block() }
@@ -79,6 +82,7 @@ internal suspend fun runRealRpcTestClient(
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
+    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = puzzleStates))
     val eventBus = Channel<ScheduledWorkshopEvent>()
@@ -120,6 +124,7 @@ internal suspend fun runRealRpcTestClient(
             collectSolution = collectSolution,
             maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,
             mappingLegacyApiCoroutineSolution = mappingLegacyApiCoroutineSolution,
+            exceptionHandlingSolution = exceptionHandlingSolution,
         )
     } finally {
         httpClient.close()

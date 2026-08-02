@@ -96,6 +96,7 @@ fun ClientEntryPoint(
         WorkshopStage.MappingFromLegacyApisStepTwo,
         WorkshopStage.MappingFromLegacyApisStepThree,
         WorkshopStage.MappingFromLegacyApisStepFour,
+        WorkshopStage.ExceptionCatchingWithCoroutines,
         WorkshopStage.PalindromeCheckTask,
         WorkshopStage.FindMinimumAgeOfUserTask,
         WorkshopStage.FindOldestUserTask -> Text("""
