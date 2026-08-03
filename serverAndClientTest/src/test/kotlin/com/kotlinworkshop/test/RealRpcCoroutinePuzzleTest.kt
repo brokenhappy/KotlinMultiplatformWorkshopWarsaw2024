@@ -75,16 +75,15 @@ class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
 @OptIn(ExperimentalTime::class)
 internal suspend fun runRealRpcTestClient(
     stage: WorkshopStage,
-    puzzleStates: Map<String, PuzzleState> = mapOf(
-        stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
-    ),
     sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
     exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
-    val serverState = MutableStateFlow(ServerState(puzzleStates = puzzleStates))
+    val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
+        stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
+    )))
     val eventBus = Channel<ScheduledWorkshopEvent>()
     val eventLoopJob = launch {
         mainEventLoopWritingTo(
