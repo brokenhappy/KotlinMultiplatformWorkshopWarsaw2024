@@ -12,7 +12,7 @@ import kmpworkshop.common.getUserDatabase
 import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
 import kmpworkshop.client.mapFromLegacyApiWithScaffolding
 import kmpworkshop.common.ExceptionalApi
-import kmpworkshop.common.coroutineExceptionHandlingApiService
+import kmpworkshop.common.asPuzzle
 import kmpworkshop.common.numberFlowAndSubmit
 import kmpworkshop.common.solve
 import kmpworkshop.common.withImportantCleanup
@@ -70,10 +70,10 @@ suspend fun doMappingLegacyApiStepFourCoroutinePuzzle(
 }
 
 suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleResultWithHistory =
-    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false), onUse)
+    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false).asPuzzle(), onUse)
 
 suspend fun doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(onUse: suspend CoroutineScope.(UserDatabase) -> Unit): CoroutinePuzzleResultWithHistory =
-    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true), onUse)
+    doUserDatabasePuzzle(maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true).asPuzzle(), onUse)
 
 private suspend fun doUserDatabasePuzzle(
     puzzle: CoroutinePuzzle,
@@ -86,11 +86,11 @@ private suspend fun doUserDatabasePuzzle(
 
 suspend fun doCollectLatestPuzzle(
     onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(collectLatestPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(collectLatestPuzzle().asPuzzle(), onUse)
 
 suspend fun doSimpleCollectPuzzle(
     onUse: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(simpleFlowPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doFlowAndSubmitPuzzle(simpleFlowPuzzle().asPuzzle(), onUse)
 
 private suspend fun doFlowAndSubmitPuzzle(
     puzzle: CoroutinePuzzle,
@@ -103,11 +103,11 @@ private suspend fun doFlowAndSubmitPuzzle(
 
 suspend fun doSimpleSumPuzzle(
     onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doSumPuzzle(simpleSumPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doSumPuzzle(simpleSumPuzzle().asPuzzle(), onUse)
 
 suspend fun doTimedSumPuzzle(
     onUse: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-): CoroutinePuzzleResultWithHistory = doSumPuzzle(timedSumPuzzle(), onUse)
+): CoroutinePuzzleResultWithHistory = doSumPuzzle(timedSumPuzzle().asPuzzle(), onUse)
 
 private suspend fun doSumPuzzle(
     puzzle: CoroutinePuzzle,

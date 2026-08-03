@@ -1,9 +1,10 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.CoroutinePuzzle
+import kmpworkshop.common.CoroutinePuzzleProtocol
+import kmpworkshop.common.Resource
 import kmpworkshop.common.WorkshopStage
 
-fun findCoroutinePuzzleFor(stage: WorkshopStage): CoroutinePuzzle = when (stage) {
+fun findCoroutinePuzzleFor(stage: WorkshopStage): Resource<CoroutinePuzzleProtocol> = when (stage) {
     WorkshopStage.Registration,
     WorkshopStage.PalindromeCheckTask,
     WorkshopStage.FindMinimumAgeOfUserTask,

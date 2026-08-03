@@ -36,7 +36,7 @@ private object InStrictParallelismExpectation : AbstractCoroutineContextElement(
 
 fun coroutinePuzzle(
     builder: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.() -> Unit,
-): CoroutinePuzzle = coroutinePuzzleCommunicationChannel { outgoing, incoming ->
+): Resource<CoroutinePuzzleProtocol> = coroutinePuzzleCommunicationChannel { outgoing, incoming ->
     val events = Channel<InternalPuzzleEvent>(capacity = Channel.UNLIMITED)
 
     val coroutinePuzzleSubmissionFunction =

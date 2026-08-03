@@ -3,7 +3,7 @@ package kmpworkshop.server
 import kmpworkshop.common.*
 import kotlinx.coroutines.*
 
-fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): CoroutinePuzzle = coroutinePuzzle {
+fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val database = generateUserDatabase()
 
     getAllUserIds.expectCall { database.keys.toList() }
@@ -32,7 +32,7 @@ private fun Map<Int, SerializableUser>.getAndVerifyUserExists(id: Int): Serializ
     "User with id $id does not exist! Please use the ids retrieved from ${getAllUserIds.descriptor.description}"
 }
 
-fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzle {
+fun mappingLegacyApiHappyPathCoroutinePuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val database = generateUserDatabase()
     getAllUserIds.expectCall(database.keys.toList())
 
@@ -47,7 +47,7 @@ fun mappingLegacyApiHappyPathCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzl
     }
 }
 
-fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutinePuzzle {
+fun mappingLegacyApiCoroutinePuzzleWithException(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne {
         queryUserById.expectCall(null) // Throw an exception on the last call
         queryExceptionThrown.expectCall(Unit) // Expect it to be caught in the scaffolding
@@ -55,7 +55,7 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): CoroutinePuzzle = coroutineP
     }
 }
 
-fun mappingLegacyApiCoroutinePuzzleWithEscapingCancellation(): CoroutinePuzzle = coroutinePuzzle {
+fun mappingLegacyApiCoroutinePuzzleWithEscapingCancellation(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
         expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
         // We don't care yet that cancellation happens is fully awaited for in this step.
@@ -64,7 +64,7 @@ fun mappingLegacyApiCoroutinePuzzleWithEscapingCancellation(): CoroutinePuzzle =
     }
 }
 
-fun mappingLegacyApiCoroutinePuzzleStepFour(): CoroutinePuzzle = coroutinePuzzle {
+fun mappingLegacyApiCoroutinePuzzleStepFour(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
         expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
         /**

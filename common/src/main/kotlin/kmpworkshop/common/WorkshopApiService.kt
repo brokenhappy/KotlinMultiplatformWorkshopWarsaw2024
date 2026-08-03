@@ -42,7 +42,7 @@ fun WorkshopApiService.asServer(
             } finally {
                 incoming.close()
             }
-        }
+        }.asPuzzle()
 }
 
 @Serializable

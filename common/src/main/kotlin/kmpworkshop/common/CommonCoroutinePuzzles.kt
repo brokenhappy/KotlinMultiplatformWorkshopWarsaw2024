@@ -1,5 +1,6 @@
 package kmpworkshop.common
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -44,7 +45,11 @@ typealias CoroutinePuzzleBatch<T> = List<CoroutinePuzzleBatchEntry<T>>
     }
 }
 
-typealias CoroutinePuzzle = Resource<CoroutinePuzzleProtocol>
+fun interface CoroutinePuzzle {
+    suspend fun solve(
+        solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
+    ): CoroutinePuzzleResultWithHistory
+}
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.submitCall(t: T): R =

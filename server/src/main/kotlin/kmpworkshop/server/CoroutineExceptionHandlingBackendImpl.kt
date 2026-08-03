@@ -5,7 +5,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-fun coroutineExceptionHandlingCoroutinePuzzle(): CoroutinePuzzle = coroutinePuzzle {
+fun coroutineExceptionHandlingCoroutinePuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val exceptionMessage = "Oh no, refreshing tokens went all doodoo for ticket number ${(0..1000).random()}"
     val clearCachesCompleted = CompletableDeferred<Unit>()
     expectingMatchedParallelism {

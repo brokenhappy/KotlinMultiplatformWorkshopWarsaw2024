@@ -1,12 +1,13 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.CoroutinePuzzle
+import kmpworkshop.common.CoroutinePuzzleProtocol
+import kmpworkshop.common.Resource
 import kmpworkshop.common.getNumber
 import kmpworkshop.common.submitNumber
 import kotlinx.coroutines.launch
 
 
-fun simpleSumPuzzle(): CoroutinePuzzle = coroutinePuzzle {
+fun simpleSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val number1 = (0..100).random()
     getNumber.expectCall(number1)
     val number2 = (0..100).random()
@@ -17,7 +18,7 @@ fun simpleSumPuzzle(): CoroutinePuzzle = coroutinePuzzle {
     }
 }
 
-fun timedSumPuzzle(): CoroutinePuzzle = coroutinePuzzle {
+fun timedSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val randomNumbers = List(2) { (0..100).random() }
     expectingMatchedParallelism {
         randomNumbers.forEach { number -> launch { getNumber.expectCall { number } } }
