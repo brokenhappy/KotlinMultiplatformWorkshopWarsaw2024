@@ -24,9 +24,9 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
 /**
- * The whole [CoroutinePuzzlesTestBase] suite, but driven through a *real* kotlinx-rpc transport over a real (loopback)
- * socket, instead of the in-process abstractions [CoroutinePuzzleTestWithoutRpcService] and
- * [CoroutinePuzzleTestWithRpcService] (which share one coroutine hierarchy with no
+ * The whole [WorkshopCoroutinePuzzlesTestBase] suite, but driven through a *real* kotlinx-rpc transport over a real (loopback)
+ * socket, instead of the in-process abstractions [WorkshopCoroutinePuzzleTestWithoutRpcService] and
+ * [WorkshopCoroutinePuzzleTestWithRpcService] (which share one coroutine hierarchy with no
  * serialization/transport in between). It deliberately reuses the production entry points on both ends -
  * [rpcServer] (the exact ktor module [kmpworkshop.server.serve] hosts) and [connectWorkshopService] (the exact
  * client wiring [kmpworkshop.client.createWorkshopService] uses) - so the coverage tracks the real bootstrap rather
@@ -40,7 +40,7 @@ import kotlin.time.ExperimentalTime
  * `doCoroutinePuzzleSolveAttempt`'s `channelFlow`) fire before all the concurrent calls it's supposed to batch have
  * actually arrived - something the in-process fake transport can never reproduce.
  */
-class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest() {
+class WorkshopCoroutinePuzzleTestWithRealRpcTransport : WorkshopCoroutinePuzzleTest() {
     override fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit) {
         runTest(timeout = 60.seconds) { block() }
     }
