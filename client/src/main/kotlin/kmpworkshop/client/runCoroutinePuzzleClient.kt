@@ -1,5 +1,6 @@
 package kmpworkshop.client
 
+import kmpworkshop.common.CoroutinePuzzle
 import kmpworkshop.common.CoroutinePuzzleProvider
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.ExceptionalApi
@@ -8,6 +9,7 @@ import kmpworkshop.common.NumberFlowAndSubmit
 import kmpworkshop.common.UserDatabase
 import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
 import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.WorkshopStage.*
 import kmpworkshop.common.getNumberAndSubmit
 import kmpworkshop.common.getUserDatabase
 import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
@@ -24,43 +26,37 @@ suspend fun runCoroutinePuzzleClient(
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
     exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit,
 ): CoroutinePuzzleResultWithHistory = when (stage) {
-    WorkshopStage.Registration,
-    WorkshopStage.PalindromeCheckTask,
-    WorkshopStage.FindMinimumAgeOfUserTask,
-    WorkshopStage.FindOldestUserTask -> error("Should never happen!")
-    WorkshopStage.SumOfTwoIntsSlow,
-    WorkshopStage.SumOfTwoIntsFast -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            sumSolution(getNumberAndSubmit())
-        }
+    Registration,
+    PalindromeCheckTask,
+    FindMinimumAgeOfUserTask,
+    FindOldestUserTask -> error("Should never happen!")
+    SumOfTwoIntsSlow,
+    SumOfTwoIntsFast -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        sumSolution(getNumberAndSubmit())
     }
-    WorkshopStage.FindMaximumAgeCoroutines,
-    WorkshopStage.FastFindMaximumAgeCoroutines -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
-        }
+    FindMaximumAgeCoroutines,
+    FastFindMaximumAgeCoroutines -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
     }
-    WorkshopStage.MappingFromLegacyApisStepOne -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))
-        }
+    MappingFromLegacyApisStepOne -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))
     }
-    WorkshopStage.MappingFromLegacyApisStepTwo,
-    WorkshopStage.MappingFromLegacyApisStepThree,
-    WorkshopStage.MappingFromLegacyApisStepFour -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
-        }
+    MappingFromLegacyApisStepTwo,
+    MappingFromLegacyApisStepThree,
+    MappingFromLegacyApisStepFour -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
     }
-    WorkshopStage.ExceptionCatchingWithCoroutines -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
-        }
+    ExceptionCatchingWithCoroutines -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
     }
-    WorkshopStage.SimpleFlow,
-    WorkshopStage.CollectLatest -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            collectSolution(numberFlowAndSubmit())
-        }
+    SimpleFlow,
+    CollectLatest -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        collectSolution(numberFlowAndSubmit())
+    }
+}
+
+private fun CoroutinePuzzle.wrappedWithImportantCleanup(): CoroutinePuzzle = CoroutinePuzzle {
+    withImportantCleanup {
+        this@wrappedWithImportantCleanup.solve(it)
     }
 }
