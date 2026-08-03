@@ -1,5 +1,6 @@
 package com.kotlinworkshop.test
 
+import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.exceptionHandlingPuzzle
 import kmpworkshop.client.mapFromLegacyApi
 import kmpworkshop.client.maximumAgeFindingWithCoroutines
@@ -8,6 +9,7 @@ import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.showingHowItsFlowing
 import kmpworkshop.client.toMessage
 import kmpworkshop.common.*
+import kmpworkshop.common.WorkshopStage.*
 import kmpworkshop.server.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -47,11 +49,7 @@ class CoroutinePuzzleTestWithoutRpcService : CoroutinePuzzlesTest(
 @OptIn(ExperimentalTime::class)
 suspend fun runTestClient(
     stage: WorkshopStage,
-    sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
-    collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
-    maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
-    mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
-    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
+    solutions: CoroutinePuzzleWorkshopSolutions,
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
         stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
@@ -66,19 +64,10 @@ suspend fun runTestClient(
             onEvent = { launch { eventBus.send(it) } },
         )
     }
+    val workshopService = workshopService(serverState, onEvent = { launch { eventBus.send(it) } })
+        .asServer(ApiKey("1234-5678"))
     try {
-        runCoroutinePuzzleClient(
-            puzzleProvider = workshopService(
-                serverState,
-                onEvent = { launch { eventBus.send(it) } },
-            ).asServer(ApiKey("1234-5678")),
-            stage = stage,
-            sumSolution = sumSolution,
-            collectSolution = collectSolution,
-            maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,
-            mappingLegacyApiCoroutineSolution = mappingLegacyApiCoroutineSolution,
-            exceptionHandlingSolution = exceptionHandlingSolution,
-        )
+        runCoroutinePuzzleClient(puzzleProvider = workshopService, stage, solutions)
     } finally {
         job.cancel()
         eventBus.close()
@@ -86,30 +75,30 @@ suspend fun runTestClient(
 }
 
 class CoroutinePuzzleTestWithRpcService : CoroutinePuzzlesTest(
-    doSimpleSumPuzzle = { runTestClient(stage = WorkshopStage.SumOfTwoIntsSlow, sumSolution = it) },
-    doTimedSumPuzzle = { runTestClient(stage = WorkshopStage.SumOfTwoIntsFast, sumSolution = it) },
-    doSimpleCollectPuzzle = { runTestClient(stage = WorkshopStage.SimpleFlow, collectSolution = it) },
-    doCollectLatestPuzzle = { runTestClient(stage = WorkshopStage.CollectLatest, collectSolution = it) },
+    doSimpleSumPuzzle = { runTestClient(SumOfTwoIntsSlow, solutions(sumSolution = it)) },
+    doTimedSumPuzzle = { runTestClient(SumOfTwoIntsFast, solutions(sumSolution = it)) },
+    doSimpleCollectPuzzle = { runTestClient(SimpleFlow, solutions(collectSolution = it)) },
+    doCollectLatestPuzzle = { runTestClient(CollectLatest, solutions(collectSolution = it)) },
     doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runTestClient(stage = WorkshopStage.FindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
+        runTestClient(FindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
     },
     doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runTestClient(stage = WorkshopStage.FastFindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
+        runTestClient(FastFindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
     },
     doMappingLegacyApiHappyPathCoroutinePuzzle = {
-        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepOne, mappingLegacyApiCoroutineSolution = it)
+        runTestClient(MappingFromLegacyApisStepOne, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doMappingLegacyApiWithExceptionCoroutinePuzzle = {
-        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepTwo, mappingLegacyApiCoroutineSolution = it)
+        runTestClient(MappingFromLegacyApisStepTwo, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doMappingLegacyApiWithCancellationCoroutinePuzzle = {
-        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepThree, mappingLegacyApiCoroutineSolution = it)
+        runTestClient(MappingFromLegacyApisStepThree, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doMappingLegacyApiStepFourCoroutinePuzzle = {
-        runTestClient(stage = WorkshopStage.MappingFromLegacyApisStepFour, mappingLegacyApiCoroutineSolution = it)
+        runTestClient(MappingFromLegacyApisStepFour, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doExceptionHandlingPuzzle = {
-        runTestClient(stage = WorkshopStage.ExceptionCatchingWithCoroutines, exceptionHandlingSolution = it)
+        runTestClient(ExceptionCatchingWithCoroutines, solutions(exceptionHandlingSolution = it))
     },
 )
 

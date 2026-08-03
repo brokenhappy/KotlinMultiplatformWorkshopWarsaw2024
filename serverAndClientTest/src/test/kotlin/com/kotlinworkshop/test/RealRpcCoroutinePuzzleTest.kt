@@ -3,9 +3,11 @@ package com.kotlinworkshop.test
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.http.*
+import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.connectWorkshopService
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.common.*
+import kmpworkshop.common.WorkshopStage.*
 import kmpworkshop.server.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,30 +43,30 @@ import kotlin.time.ExperimentalTime
  * actually arrived - something the in-process fake transport can never reproduce.
  */
 class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
-    doSimpleSumPuzzle = { runRealRpcTestClient(stage = WorkshopStage.SumOfTwoIntsSlow, sumSolution = it) },
-    doTimedSumPuzzle = { runRealRpcTestClient(stage = WorkshopStage.SumOfTwoIntsFast, sumSolution = it) },
-    doSimpleCollectPuzzle = { runRealRpcTestClient(stage = WorkshopStage.SimpleFlow, collectSolution = it) },
-    doCollectLatestPuzzle = { runRealRpcTestClient(stage = WorkshopStage.CollectLatest, collectSolution = it) },
+    doSimpleSumPuzzle = { runRealRpcTestClient(stage = SumOfTwoIntsSlow, solutions(sumSolution = it)) },
+    doTimedSumPuzzle = { runRealRpcTestClient(stage = SumOfTwoIntsFast, solutions(sumSolution = it)) },
+    doSimpleCollectPuzzle = { runRealRpcTestClient(stage = SimpleFlow, solutions(collectSolution = it)) },
+    doCollectLatestPuzzle = { runRealRpcTestClient(stage = CollectLatest, solutions(collectSolution = it)) },
     doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.FindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
+        runRealRpcTestClient(stage = FindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
     },
     doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.FastFindMaximumAgeCoroutines, maximumAgeFindingTheSecondCoroutineSolution = it)
+        runRealRpcTestClient(stage = FastFindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
     },
     doMappingLegacyApiHappyPathCoroutinePuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.MappingFromLegacyApisStepOne, mappingLegacyApiCoroutineSolution = it)
+        runRealRpcTestClient(stage = MappingFromLegacyApisStepOne, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doMappingLegacyApiWithExceptionCoroutinePuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.MappingFromLegacyApisStepTwo, mappingLegacyApiCoroutineSolution = it)
+        runRealRpcTestClient(stage = MappingFromLegacyApisStepTwo, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doMappingLegacyApiWithCancellationCoroutinePuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.MappingFromLegacyApisStepThree, mappingLegacyApiCoroutineSolution = it)
+        runRealRpcTestClient(stage = MappingFromLegacyApisStepThree, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doMappingLegacyApiStepFourCoroutinePuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.MappingFromLegacyApisStepFour, mappingLegacyApiCoroutineSolution = it)
+        runRealRpcTestClient(stage = MappingFromLegacyApisStepFour, solutions(mappingLegacyApiCoroutineSolution = it))
     },
     doExceptionHandlingPuzzle = {
-        runRealRpcTestClient(stage = WorkshopStage.ExceptionCatchingWithCoroutines, exceptionHandlingSolution = it)
+        runRealRpcTestClient(stage = ExceptionCatchingWithCoroutines, solutions(exceptionHandlingSolution = it))
     },
 ) {
     override fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit) {
@@ -75,11 +77,7 @@ class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
 @OptIn(ExperimentalTime::class)
 internal suspend fun runRealRpcTestClient(
     stage: WorkshopStage,
-    sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
-    collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
-    maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
-    mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
-    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
+    solutions: CoroutinePuzzleWorkshopSolutions,
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
         stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
@@ -118,12 +116,8 @@ internal suspend fun runRealRpcTestClient(
 
         runCoroutinePuzzleClient(
             puzzleProvider = service.asServer(ApiKey("1234-5678")),
-            stage = stage,
-            sumSolution = sumSolution,
-            collectSolution = collectSolution,
-            maximumAgeFindingTheSecondCoroutineSolution = maximumAgeFindingTheSecondCoroutineSolution,
-            mappingLegacyApiCoroutineSolution = mappingLegacyApiCoroutineSolution,
-            exceptionHandlingSolution = exceptionHandlingSolution,
+            stage,
+            solutions,
         )
     } finally {
         httpClient.close()
@@ -132,3 +126,17 @@ internal suspend fun runRealRpcTestClient(
         eventBus.close()
     }
 }
+
+internal fun solutions(
+    sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
+    collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
+    maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
+    mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
+    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
+) = CoroutinePuzzleWorkshopSolutions(
+    sumSolution,
+    collectSolution,
+    maximumAgeFindingTheSecondCoroutineSolution,
+    mappingLegacyApiCoroutineSolution,
+    exceptionHandlingSolution,
+)

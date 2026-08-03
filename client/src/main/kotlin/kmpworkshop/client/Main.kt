@@ -28,11 +28,13 @@ suspend fun main() {
             CollectLatest -> runCoroutinePuzzleClient(
                 server,
                 stage,
-                sumSolution = { numberSummer(it) },
-                collectSolution = { showingHowItsFlowing(it) },
-                maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
-                mappingLegacyApiCoroutineSolution = { mapFromLegacyApi(it) },
-                exceptionHandlingSolution = { exceptionHandlingPuzzle(it) },
+                CoroutinePuzzleWorkshopSolutions(
+                    sumSolution = { numberSummer(it) },
+                    collectSolution = { showingHowItsFlowing(it) },
+                    maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
+                    mappingLegacyApiCoroutineSolution = { mapFromLegacyApi(it) },
+                    exceptionHandlingSolution = { exceptionHandlingPuzzle(it) },
+                )
             )
         }
     } finally {
