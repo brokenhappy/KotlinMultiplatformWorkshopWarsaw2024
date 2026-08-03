@@ -1,23 +1,9 @@
 package kmpworkshop.client
 
 import kmpworkshop.common.ApiKey
-import kmpworkshop.common.CoroutinePuzzleProvider
-import kmpworkshop.common.CoroutinePuzzleResultWithHistory
-import kmpworkshop.common.ExceptionalApi
-import kmpworkshop.common.GetNumberAndSubmit
-import kmpworkshop.common.NumberFlowAndSubmit
-import kmpworkshop.common.UserDatabase
-import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
-import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.WorkshopStage.*
 import kmpworkshop.common.asServer
 import kmpworkshop.common.clientApiKey
-import kmpworkshop.common.getNumberAndSubmit
-import kmpworkshop.common.getUserDatabase
-import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser
-import kmpworkshop.common.numberFlowAndSubmit
-import kmpworkshop.common.withImportantCleanup
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 
 suspend fun main() {
@@ -54,52 +40,3 @@ suspend fun main() {
     }
 }
 
-suspend fun runCoroutinePuzzleClient(
-    puzzleProvider: CoroutinePuzzleProvider,
-    stage: WorkshopStage,
-    sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
-    collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
-    maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit,
-    mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
-    exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit,
-): CoroutinePuzzleResultWithHistory = when (stage) {
-    Registration,
-    PalindromeCheckTask,
-    FindMinimumAgeOfUserTask,
-    FindOldestUserTask -> error("Should never happen!")
-    SumOfTwoIntsSlow,
-    SumOfTwoIntsFast -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            sumSolution(getNumberAndSubmit())
-        }
-    }
-    FindMaximumAgeCoroutines,
-    FastFindMaximumAgeCoroutines -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
-        }
-    }
-    MappingFromLegacyApisStepOne -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))
-        }
-    }
-    MappingFromLegacyApisStepTwo,
-    MappingFromLegacyApisStepThree,
-    MappingFromLegacyApisStepFour -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
-        }
-    }
-    ExceptionCatchingWithCoroutines -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
-        }
-    }
-    SimpleFlow,
-    CollectLatest -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage).solve {
-            collectSolution(numberFlowAndSubmit())
-        }
-    }
-}
