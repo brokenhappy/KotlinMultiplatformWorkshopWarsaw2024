@@ -24,7 +24,6 @@ import kotlin.coroutines.resumeWithException
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import org.junit.jupiter.api.fail as junitFail
@@ -70,7 +69,7 @@ suspend fun runTestClient(
     }
     try {
         runCoroutinePuzzleClient(
-            workshopServer = workshopService(
+            puzzleProvider = workshopService(
                 serverState,
                 onEvent = { launch { eventBus.send(it) } },
             ).asServer(ApiKey("1234-5678")),
@@ -138,7 +137,7 @@ abstract class CoroutinePuzzlesTest(
         runTestWithRandomizedDispatchOrdering(block = block)
 
     @Test
-    fun `empty solutions are wrong`(): Unit = runTest(timeout = 1.hours) {
+    fun `empty solutions are wrong`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { }.assertIsNotOk()
         doTimedSumPuzzle { }.assertIsNotOk()
         doSimpleCollectPuzzle { }.assertIsNotOk()
@@ -153,7 +152,7 @@ abstract class CoroutinePuzzlesTest(
     }
 
     @Test
-    fun `default implementations are wrong`(): Unit = runTest(timeout = 1.hours) {
+    fun `default implementations are wrong`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { numberSummer(it) }.assertIsNotOk()
         doTimedSumPuzzle { numberSummer(it) }.assertIsNotOk()
         doSimpleCollectPuzzle { showingHowItsFlowing(it) }.assertIsNotOk()
@@ -709,7 +708,8 @@ class CoroutinePuzzleUtilitiesTest {
  * Runs [block] once per seed in [seeds], each time under [withRandomizedDispatchOrder], so races between
  * concurrently-launched coroutines get shuffled differently on every run while staying in virtual time - the test
  * scheduler would otherwise always pick the same single interleaving. Fails with the offending seed attached, so a
- * failure can be reproduced by rerunning just that seed (e.g. `runTest2(seeds = 17L..17L) { ... }`).
+ * failure can be reproduced by rerunning just that seed
+ * (e.g. `doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(seeds = 17L..17L) { ... }`).
  */
 fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 10L, block: suspend CoroutineScope.() -> Unit) {
     for (seed in seeds) {
