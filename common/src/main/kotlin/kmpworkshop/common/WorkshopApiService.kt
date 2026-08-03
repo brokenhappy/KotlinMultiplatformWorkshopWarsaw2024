@@ -30,7 +30,7 @@ fun interface CoroutinePuzzleProvider {
 
 fun WorkshopApiService.asServer(
     apiKey: ApiKey,
-) = object : WorkshopServer {
+): WorkshopServer = object : WorkshopServer {
     override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
         this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
