@@ -63,6 +63,9 @@ enum class WorkshopStage(val kotlinFile: String) {
     ExceptionCatchingWithCoroutines("ExceptionCatchingWithCoroutines.kt"),
     SimpleFlow("FlowShow.kt"),
     CollectLatest("FlowShow.kt"),
+    FileExposureStepOne("FileExposureScaffolding.kt"),
+    FileExposureStepTwo("FileExposureScaffolding.kt"),
+    FileExposureStepThree("FileExposureScaffolding.kt"),
 }
 
 @Serializable

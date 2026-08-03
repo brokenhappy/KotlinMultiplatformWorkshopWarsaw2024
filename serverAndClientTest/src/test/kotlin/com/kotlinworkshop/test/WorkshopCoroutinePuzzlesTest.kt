@@ -6,6 +6,7 @@ import kmpworkshop.client.maximumAgeFindingWithCoroutines
 import kmpworkshop.client.numberSummer
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.showingHowItsFlowing
+import kmpworkshop.client.toMessage
 import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.*
 import kmpworkshop.server.*
@@ -25,6 +26,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
+import kmpworkshop.client.allowPeopleToDownloadExposedFile
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
 
 class CoroutinePuzzleTestWithoutRpcService : WorkshopCoroutinePuzzleTest() {
@@ -85,6 +87,9 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doMappingLegacyApiStepFourCoroutinePuzzle { }.assertIsNotOk()
         doMappingLegacyApiHappyPathCoroutinePuzzle { }.assertIsNotOk()
         doExceptionHandlingPuzzle { }.assertIsNotOk()
+        doFileExposureStepOne { }.assertIsNotOk()
+        doFileExposureStepTwo { }.assertIsNotOk()
+        doFileExposureStepThree { }.assertIsNotOk()
     }
 
     @Test
@@ -100,6 +105,67 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doMappingLegacyApiStepFourCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
         doMappingLegacyApiHappyPathCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
         doExceptionHandlingPuzzle { exceptionHandlingPuzzle(it) }.assertIsNotOk()
+        doFileExposureStepOne { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
+        doFileExposureStepTwo { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
+        doFileExposureStepThree { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
+    }
+
+    @Test
+    fun `first solution should not work for first file exposure puzzle`(): Unit = runPuzzleTest {
+        // Step 1: a weak -> strong transition must wait for cancellation of the previous network task.
+        // The workshop scaffold reacts from a non-suspending callback, so it cancels without joining before restart.
+        doFileExposureStepOne { allowPeopleToDownloadExposedFile(it) }
+            .assertIsNotOk()
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/FileExposure/network-restart.txt",
+            )
+    }
+
+    @Test
+    fun `second solution should work for first file exposure puzzle`(): Unit = runPuzzleTest {
+        doFileExposureStepOne { allowPeopleToDownloadExposedFile2(it) }.assertIsOk()
+    }
+
+    @Test
+    fun `file exposure solutions progress one lesson at a time`(): Unit = runPuzzleTest {
+        // Step 2: replacing a file must cancel and join that file's download work.
+        // Solution 2 observes network strength in the API scope, so replacing the file cannot cancel it.
+        doFileExposureStepOne { allowPeopleToDownloadExposedFile2(it) }.assertIsOk()
+        doFileExposureStepTwo { allowPeopleToDownloadExposedFile2(it) }
+            .assertIsNotOk()
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/FileExposure/file-replacement.txt",
+            )
+        doFileExposureStepThree { allowPeopleToDownloadExposedFile2(it) }.assertIsNotOk()
+
+        // Step 3: advertising must be joined as well. Solution 3 fixes the download lifetime, but its launch still
+        // captures the outer solution scope and lets advertising escape the current strong-network task.
+        doFileExposureStepOne { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
+        doFileExposureStepTwo { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
+        doFileExposureStepThree { allowPeopleToDownloadExposedFile3(it) }
+            .assertIsNotOk()
+            .toMessage()
+            .assertMatchesSnapshot(
+                "snapshots/FileExposure/advertising-cancellation.txt",
+            )
+
+        // Solution 4 gives the task a lexical coroutineScope receiver; both download and advertising are children.
+        doFileExposureStepOne { allowPeopleToDownloadExposedFile4(it) }.assertIsOk()
+        doFileExposureStepTwo { allowPeopleToDownloadExposedFile4(it) }.assertIsOk()
+        doFileExposureStepThree { allowPeopleToDownloadExposedFile4(it) }.assertIsOk()
+    }
+
+    @Test
+    fun `collect cannot replace a file while its work is active`(): Unit = runPuzzleTest {
+        doFileExposureStepOne { allowPeopleToDownloadExposedFileWithCollect(it) }.assertIsNotOk()
+        doFileExposureStepTwo { allowPeopleToDownloadExposedFileWithCollect(it) }.assertIsNotOk()
+    }
+
+    @Test
+    fun `advertising sequentially never reaches downloading`(): Unit = runPuzzleTest {
+        doFileExposureStepOne { allowPeopleToDownloadExposedFileWithSequentialAdvertising(it) }.assertIsNotOk()
     }
 
     @Test
@@ -424,6 +490,12 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
         runCoroutinePuzzle(MappingFromLegacyApisStepOne, solutions(mappingLegacyApiCoroutineSolution = block))
     suspend fun doExceptionHandlingPuzzle(block: suspend CoroutineScope.(ExceptionalApi) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(ExceptionCatchingWithCoroutines, solutions(exceptionHandlingSolution = block))
+    suspend fun doFileExposureStepOne(block: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(FileExposureStepOne, solutions(fileExposureSolution = block))
+    suspend fun doFileExposureStepTwo(block: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(FileExposureStepTwo, solutions(fileExposureSolution = block))
+    suspend fun doFileExposureStepThree(block: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(FileExposureStepThree, solutions(fileExposureSolution = block))
 }
 
 /**

@@ -110,10 +110,12 @@ internal fun solutions(
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
     exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
+    fileExposureSolution: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit = { error("Unexpected puzzle tested") },
 ) = CoroutinePuzzleWorkshopSolutions(
     sumSolution,
     collectSolution,
     maximumAgeFindingTheSecondCoroutineSolution,
     mappingLegacyApiCoroutineSolution,
     exceptionHandlingSolution,
+    fileExposureSolution,
 )

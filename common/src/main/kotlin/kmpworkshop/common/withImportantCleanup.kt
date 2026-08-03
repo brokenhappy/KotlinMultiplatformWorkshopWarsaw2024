@@ -36,9 +36,14 @@ suspend fun <T> withImportantCleanup(block: suspend CoroutineScope.() -> T): T =
  * }
  * ```
  */
-suspend fun <T> importantCleanup(block: suspend CoroutineScope.() -> T): T = withContext(NonCancellable) {
-    (currentCoroutineContext()[ImportantCleanupScope.Key] ?: error("importantCleanup must be called inside a withImportantCleanup block"))
-        .coroutineScope
-        .async { block() }
-        .await()
-}
+suspend fun <T> importantCleanup(block: suspend CoroutineScope.() -> T): T = runOnBiggerScope(
+    (currentCoroutineContext()[ImportantCleanupScope.Key]
+        ?: error("importantCleanup must be called inside a withImportantCleanup block"))
+        .coroutineScope,
+    block
+)
+
+suspend fun <T> runOnBiggerScope(scope: CoroutineScope, block: suspend CoroutineScope.() -> T): T =
+    withContext(NonCancellable) {
+        scope.async { block() }.await()
+    }

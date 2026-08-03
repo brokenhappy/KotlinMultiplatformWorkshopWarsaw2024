@@ -327,6 +327,40 @@ class CoroutinePuzzleTest {
     }
 
     @Test
+    fun `cancellating submission before it's sent to the server `() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+
+        coroutinePuzzle {
+            endpoint.expectCall(Unit)
+            awaitCancellation()
+        }.use { protocol ->
+            protocol.submissions.send(listOf(
+                CoroutinePuzzleBatchEntry(
+                    callId = 1,
+                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted(
+                        endpoint.descriptor,
+                        Json.encodeToJsonElement(serializer<Unit>(), Unit),
+                    ),
+                ),
+            ))
+            protocol.expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
+
+            protocol.submissions.send(listOf(
+                CoroutinePuzzleBatchEntry(
+                    callId = 1,
+                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallShouldCancel,
+                ),
+            ))
+            protocol.expectations.receive()
+                .assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Completion>()
+                .result
+                .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
+                .message
+                .assertEquals("Unexpected cancellation for call 1: its expectation was not running.")
+        }
+    }
+
+    @Test
     fun `failure teardown is not reported as an unexpected cancellation`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
 

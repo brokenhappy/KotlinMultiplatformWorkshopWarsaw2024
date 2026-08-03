@@ -8,6 +8,7 @@ import kmpworkshop.common.GetNumberAndSubmit
 import kmpworkshop.common.NumberFlowAndSubmit
 import kmpworkshop.common.UserDatabase
 import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
+import kmpworkshop.common.FileToInternetExposingApi
 import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.WorkshopStage.*
 import kmpworkshop.common.getNumberAndSubmit
@@ -23,6 +24,7 @@ data class CoroutinePuzzleWorkshopSolutions(
     val maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit,
     val mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
     val exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit,
+    val fileExposureSolution: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit,
 )
 
 suspend fun runCoroutinePuzzleClient(
@@ -56,6 +58,11 @@ suspend fun runCoroutinePuzzleClient(
     SimpleFlow,
     CollectLatest -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
         solutions.collectSolution(this, numberFlowAndSubmit())
+    }
+    FileExposureStepOne,
+    FileExposureStepTwo,
+    FileExposureStepThree -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solve {
+        fileExposureScaffolding(solutions.fileExposureSolution)
     }
 }
 

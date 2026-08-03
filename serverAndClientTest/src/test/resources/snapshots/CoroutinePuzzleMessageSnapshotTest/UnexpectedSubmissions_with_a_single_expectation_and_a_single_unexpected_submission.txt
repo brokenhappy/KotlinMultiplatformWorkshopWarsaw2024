@@ -1,2 +1,2 @@
 Currently the expected action is call foo().
-But instead you called call bar().
+But instead you were doing call bar().

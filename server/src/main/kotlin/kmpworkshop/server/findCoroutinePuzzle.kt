@@ -20,4 +20,7 @@ fun findCoroutinePuzzleFor(stage: WorkshopStage): Resource<CoroutinePuzzleProtoc
     WorkshopStage.ExceptionCatchingWithCoroutines -> coroutineExceptionHandlingCoroutinePuzzle()
     WorkshopStage.SimpleFlow -> simpleFlowPuzzle()
     WorkshopStage.CollectLatest -> collectLatestPuzzle()
+    WorkshopStage.FileExposureStepOne -> fileExposureStepOnePuzzle()
+    WorkshopStage.FileExposureStepTwo -> fileExposureStepTwoPuzzle()
+    WorkshopStage.FileExposureStepThree -> fileExposureStepThreePuzzle()
 }

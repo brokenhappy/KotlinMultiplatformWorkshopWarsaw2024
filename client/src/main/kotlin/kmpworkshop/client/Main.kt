@@ -25,7 +25,10 @@ suspend fun main() {
             MappingFromLegacyApisStepFour,
             ExceptionCatchingWithCoroutines,
             SimpleFlow,
-            CollectLatest -> runCoroutinePuzzleClient(
+            CollectLatest,
+            FileExposureStepOne,
+            FileExposureStepTwo,
+            FileExposureStepThree -> runCoroutinePuzzleClient(
                 server,
                 stage,
                 CoroutinePuzzleWorkshopSolutions(
@@ -34,6 +37,7 @@ suspend fun main() {
                     maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
                     mappingLegacyApiCoroutineSolution = { mapFromLegacyApi(it) },
                     exceptionHandlingSolution = { exceptionHandlingPuzzle(it) },
+                    fileExposureSolution = { allowPeopleToDownloadExposedFile(it) },
                 )
             )
         }
@@ -41,4 +45,3 @@ suspend fun main() {
         println("\u001B[92mTHIS IS THE \u001B[91mEND\u001B[0m\u001B[92m OF THE APP OUTPUT ########################################################################################################\u001B[0m")
     }
 }
-

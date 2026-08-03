@@ -34,8 +34,11 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
         val expectedDescriptions = expectations.map { it.description }.distinct()
         val actionOrActions = if (expectedDescriptions.size == 1) "action is" else "actions are"
         "Currently the expected $actionOrActions " + formatExpectedAlternatives(expectedDescriptions) + ".\n" +
-            "But instead you called " +
-            formatCallAttemptsWithMargins(unexpectedSubmissions.map { it.description }.distinct()) + "."
+            "But instead you were doing " +
+            formatCallAttemptsWithMargins(
+                unexpectedSubmissions.map { it.description }.distinct(),
+                concurrentActions = true,
+            ) + "."
     }
     is CoroutinePuzzleSolutionResult.CustomFailure -> message
     CoroutinePuzzleSolutionResult.FullyQuiescent -> "All coroutines got stuck waiting for each other."
@@ -43,10 +46,14 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
 }
 
 /** Describes a set of calls that happened (or were expected to happen) together, at the same time. */
-private fun formatCallAttemptsWithMargins(attempts: List<String>): String = when (attempts.size) {
+private fun formatCallAttemptsWithMargins(
+    attempts: List<String>,
+    concurrentActions: Boolean = false,
+): String = when (attempts.size) {
     0 -> "nothing"
     1 -> attempts.single()
-    else -> "all of these at the same time:\n" + attempts.joinToString("\n") { "  - $it" }
+    else -> "all of these${if (concurrentActions) " actions" else ""} at the same time:\n" +
+        attempts.joinToString("\n") { "  - $it" }
 }
 
 /** Describes a set of calls where any single one of them would have been an acceptable next step. */

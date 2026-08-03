@@ -1,0 +1,5 @@
+The WiFi signal went weak and strong again.
+Now you're supposed to wait until cancellation is complete before you can expose the file again.
+However, you already started doing the following actions:
+ - Call makeDownloadable(FakeFile)
+ - Call advertiseFile(FakeFile)
