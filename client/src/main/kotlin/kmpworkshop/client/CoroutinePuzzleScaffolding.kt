@@ -1,30 +1,9 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.CoroutinePuzzleSolutionScope
-import kmpworkshop.common.WorkshopServer
 import kmpworkshop.common.callLifetime
-import kmpworkshop.common.solve
-import kmpworkshop.common.withImportantCleanup
-import kotlinx.coroutines.CoroutineScope
-
-suspend fun <T> checkCoroutinePuzzle(
-    workshopServer: WorkshopServer,
-    puzzleId: String,
-    solution: suspend CoroutineScope.(T) -> Unit,
-    builder: context(CoroutinePuzzleSolutionScope) (resourceScope: CoroutineScope) -> T,
-): CoroutinePuzzleResultWithHistory = checkCoroutinePuzzleInternal(workshopServer, puzzleId) { solution(builder(this)) }
-
-suspend fun checkCoroutinePuzzleInternal(
-    workshopServer: WorkshopServer,
-    puzzleId: String,
-    solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit,
-): CoroutinePuzzleResultWithHistory = withImportantCleanup {
-    workshopServer.coroutinePuzzle(puzzleId).solve(solution)
-}
 
 /**
  * Endpoints whose calls are internal scaffolding, not something the user themselves called - showing them in the

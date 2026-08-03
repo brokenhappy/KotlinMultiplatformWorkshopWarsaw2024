@@ -68,38 +68,38 @@ suspend fun runCoroutinePuzzleClient(
     FindMinimumAgeOfUserTask,
     FindOldestUserTask -> error("Should never happen!")
     SumOfTwoIntsSlow,
-    SumOfTwoIntsFast -> checkCoroutinePuzzle(
-        workshopServer,
-        stage.name,
-        solution = { sumSolution(it) },
-    ) { getNumberAndSubmit() }
+    SumOfTwoIntsFast -> withImportantCleanup {
+        puzzleProvider.coroutinePuzzle(stage.name).solve {
+            sumSolution(getNumberAndSubmit())
+        }
+    }
     FindMaximumAgeCoroutines,
-    FastFindMaximumAgeCoroutines -> checkCoroutinePuzzle(
-        workshopServer,
-        stage.name,
-        solution = { maximumAgeFindingTheSecondCoroutineSolution(it) },
-    ) { getUserDatabase() }
-    MappingFromLegacyApisStepOne -> checkCoroutinePuzzle(
-        workshopServer,
-        stage.name,
-        solution = { mappingLegacyApiCoroutineSolution(it) },
-    ) { resourceScope -> getUserDatabaseWithLegacyQueryUser(resourceScope) }
+    FastFindMaximumAgeCoroutines -> withImportantCleanup {
+        puzzleProvider.coroutinePuzzle(stage.name).solve {
+            maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
+        }
+    }
+    MappingFromLegacyApisStepOne -> withImportantCleanup {
+        puzzleProvider.coroutinePuzzle(stage.name).solve {
+            mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))
+        }
+    }
     MappingFromLegacyApisStepTwo,
     MappingFromLegacyApisStepThree,
-    MappingFromLegacyApisStepFour -> checkCoroutinePuzzleInternal(
-        workshopServer,
-        stage.name,
-        solution = { mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution) },
-    )
-    ExceptionCatchingWithCoroutines -> checkCoroutinePuzzleInternal(
-        workshopServer,
-        stage.name,
-        solution = { exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution) },
-    )
+    MappingFromLegacyApisStepFour -> withImportantCleanup {
+        puzzleProvider.coroutinePuzzle(stage.name).solve {
+            mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
+        }
+    }
+    ExceptionCatchingWithCoroutines -> withImportantCleanup {
+        puzzleProvider.coroutinePuzzle(stage.name).solve {
+            exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
+        }
+    }
     SimpleFlow,
-    CollectLatest -> checkCoroutinePuzzle(
-        workshopServer,
-        stage.name,
-        solution = { collectSolution(it) },
-    ) { numberFlowAndSubmit() }
+    CollectLatest -> withImportantCleanup {
+        puzzleProvider.coroutinePuzzle(stage.name).solve {
+            collectSolution(numberFlowAndSubmit())
+        }
+    }
 }
