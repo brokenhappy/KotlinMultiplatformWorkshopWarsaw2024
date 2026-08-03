@@ -19,10 +19,12 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
         alphabeticLabel(endpointLabels.size)
     }
 
+    fun call(callId: Long): RenderedCall = requireNotNull(calls[callId]) {
+        "Event references unknown callId $callId"
+    }
+
     fun activeCall(callId: Long): RenderedCall {
-        val call = requireNotNull(calls[callId]) {
-            "Event references unknown callId $callId"
-        }
+        val call = call(callId)
 
         require(call.terminalBatch == null) {
             "Call $callId already completed in batch ${call.terminalBatch!! + 1}"
@@ -48,7 +50,9 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
                         }
 
                         SubmissionPayload.CallShouldCancel -> {
-                            val call = activeCall(callId)
+                            // Cancellation can race with a normal response: the cancellation request may only be
+                            // flushed after the response has already been added to the history.
+                            val call = call(callId)
 
                             require(call.cancelRequestedBatch == null) {
                                 "Cancellation was requested more than once for call $callId"
@@ -108,7 +112,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
 
         appendLine()
         appendLine("● start  ✓ answer  ! throw")
-        append("× cancel  c cancelled  > hung")
+        append("× cancellation requested  c cancellation completed  > still running")
     }
 }
 

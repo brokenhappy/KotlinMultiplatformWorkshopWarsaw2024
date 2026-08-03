@@ -14,6 +14,54 @@ import kotlin.test.Test
 class CoroutinePuzzleHistoryRendererTest {
 
     @Test
+    fun `renders an answer returned after cancellation was requested`() {
+        val endpoint = CoroutinePuzzleEndPointDescriptor("endpoint")
+
+        val actual = renderCoroutinePuzzleHistory(listOf(
+            CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
+        ))
+
+        assertEquals(
+            """
+                batch 123
+                A     ●×✓
+
+                A endpoint
+
+                ● start  ✓ answer  ! throw
+                × cancellation requested  c cancellation completed  > still running
+            """.trimIndent(),
+            actual,
+        )
+    }
+
+    @Test
+    fun `renders a cancellation request flushed after an answer`() {
+        val endpoint = CoroutinePuzzleEndPointDescriptor("endpoint")
+
+        val actual = renderCoroutinePuzzleHistory(listOf(
+            CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
+        ))
+
+        assertEquals(
+            """
+                batch 123
+                A     ●✓×
+
+                A endpoint
+
+                ● start  ✓ answer  ! throw
+                × cancellation requested  c cancellation completed  > still running
+            """.trimIndent(),
+            actual,
+        )
+    }
+
+    @Test
     fun `renders concurrent calls, grouped completions, cancellation, and a hung call`() {
         val fetchUser = CoroutinePuzzleEndPointDescriptor("fetchUser")
         val loadAvatar = CoroutinePuzzleEndPointDescriptor("loadAvatar")
@@ -93,7 +141,7 @@ class CoroutinePuzzleHistoryRendererTest {
             C saveAudit   D refreshToken
 
             ● start  ✓ answer  ! throw
-            × cancel  c cancelled  > hung
+            × cancellation requested  c cancellation completed  > still running
         """.trimIndent()
 
         assertEquals(expected, actual)
