@@ -11,7 +11,7 @@ interface WorkshopServer : CoroutinePuzzleProvider {
     fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
 }
 
-interface CoroutinePuzzleProvider {
+fun interface CoroutinePuzzleProvider {
     fun coroutinePuzzle(stage: WorkshopStage): CoroutinePuzzle
 }
 

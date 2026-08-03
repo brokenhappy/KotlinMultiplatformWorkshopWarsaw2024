@@ -1,7 +1,6 @@
 package kmpworkshop.client
 
 import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 

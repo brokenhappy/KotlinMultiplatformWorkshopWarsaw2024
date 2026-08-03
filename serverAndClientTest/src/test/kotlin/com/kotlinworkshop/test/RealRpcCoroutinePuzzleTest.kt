@@ -1,22 +1,20 @@
 package com.kotlinworkshop.test
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
 import io.ktor.http.*
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.connectWorkshopService
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.common.*
-import kmpworkshop.common.WorkshopStage.*
-import kmpworkshop.server.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kmpworkshop.server.mainEventLoopWritingTo
+import kmpworkshop.server.rpcServer
+import kmpworkshop.server.rpcService
+import kmpworkshop.server.workshopService
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ScheduledWorkshopEvent
@@ -26,7 +24,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
 /**
- * The whole [CoroutinePuzzlesTest] suite, but driven through a *real* kotlinx-rpc transport over a real (loopback)
+ * The whole [CoroutinePuzzlesTestBase] suite, but driven through a *real* kotlinx-rpc transport over a real (loopback)
  * socket, instead of the in-process abstractions [CoroutinePuzzleTestWithoutRpcService] and
  * [CoroutinePuzzleTestWithRpcService] (which share one coroutine hierarchy with no
  * serialization/transport in between). It deliberately reuses the production entry points on both ends -
@@ -42,36 +40,15 @@ import kotlin.time.ExperimentalTime
  * `doCoroutinePuzzleSolveAttempt`'s `channelFlow`) fire before all the concurrent calls it's supposed to batch have
  * actually arrived - something the in-process fake transport can never reproduce.
  */
-class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest(
-    doSimpleSumPuzzle = { runRealRpcTestClient(stage = SumOfTwoIntsSlow, solutions(sumSolution = it)) },
-    doTimedSumPuzzle = { runRealRpcTestClient(stage = SumOfTwoIntsFast, solutions(sumSolution = it)) },
-    doSimpleCollectPuzzle = { runRealRpcTestClient(stage = SimpleFlow, solutions(collectSolution = it)) },
-    doCollectLatestPuzzle = { runRealRpcTestClient(stage = CollectLatest, solutions(collectSolution = it)) },
-    doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runRealRpcTestClient(stage = FindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
-    },
-    doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runRealRpcTestClient(stage = FastFindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
-    },
-    doMappingLegacyApiHappyPathCoroutinePuzzle = {
-        runRealRpcTestClient(stage = MappingFromLegacyApisStepOne, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doMappingLegacyApiWithExceptionCoroutinePuzzle = {
-        runRealRpcTestClient(stage = MappingFromLegacyApisStepTwo, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doMappingLegacyApiWithCancellationCoroutinePuzzle = {
-        runRealRpcTestClient(stage = MappingFromLegacyApisStepThree, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doMappingLegacyApiStepFourCoroutinePuzzle = {
-        runRealRpcTestClient(stage = MappingFromLegacyApisStepFour, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doExceptionHandlingPuzzle = {
-        runRealRpcTestClient(stage = ExceptionCatchingWithCoroutines, solutions(exceptionHandlingSolution = it))
-    },
-) {
+class CoroutinePuzzleTestWithRealRpcTransport : CoroutinePuzzlesTest() {
     override fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit) {
         runTest(timeout = 60.seconds) { block() }
     }
+
+    override suspend fun runCoroutinePuzzle(
+        stage: WorkshopStage,
+        solutions: CoroutinePuzzleWorkshopSolutions,
+    ): CoroutinePuzzleResultWithHistory = runRealRpcTestClient(stage, solutions)
 }
 
 @OptIn(ExperimentalTime::class)

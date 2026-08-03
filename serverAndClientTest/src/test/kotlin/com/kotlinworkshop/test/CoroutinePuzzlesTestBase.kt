@@ -1,6 +1,5 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.exceptionHandlingPuzzle
 import kmpworkshop.client.mapFromLegacyApi
 import kmpworkshop.client.maximumAgeFindingWithCoroutines
@@ -28,29 +27,26 @@ import kotlin.test.assertFails
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
+import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
+import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
 import org.junit.jupiter.api.fail as junitFail
 
-typealias DoPuzzleWith<Api> = suspend (suspend CoroutineScope.(Api) -> Unit) -> CoroutinePuzzleResultWithHistory
-
-class CoroutinePuzzleTestWithoutRpcService : CoroutinePuzzlesTest(
-    doSimpleSumPuzzle = ::doSimpleSumPuzzle,
-    doTimedSumPuzzle = ::doTimedSumPuzzle,
-    doSimpleCollectPuzzle = ::doSimpleCollectPuzzle,
-    doCollectLatestPuzzle = ::doCollectLatestPuzzle,
-    doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = ::doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle,
-    doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = ::doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle,
-    doMappingLegacyApiWithExceptionCoroutinePuzzle = ::doMappingLegacyApiWithExceptionCoroutinePuzzle,
-    doMappingLegacyApiWithCancellationCoroutinePuzzle = ::doMappingLegacyApiWithCancellationCoroutinePuzzle,
-    doMappingLegacyApiStepFourCoroutinePuzzle = ::doMappingLegacyApiStepFourCoroutinePuzzle,
-    doMappingLegacyApiHappyPathCoroutinePuzzle = ::doMappingLegacyApiHappyPathCoroutinePuzzle,
-    doExceptionHandlingPuzzle = ::doCoroutineExceptionHandlingCoroutinePuzzle,
-)
+class CoroutinePuzzleTestWithoutRpcService : CoroutinePuzzlesTest() {
+    override suspend fun runCoroutinePuzzle(
+        stage: WorkshopStage,
+        solutions: Solutions,
+    ): ResultsWHistory = runCoroutinePuzzleClient(
+        puzzleProvider = { findCoroutinePuzzleFor(it).asPuzzle() },
+        stage,
+        solutions,
+    )
+}
 
 @OptIn(ExperimentalTime::class)
 suspend fun runTestClient(
     stage: WorkshopStage,
-    solutions: CoroutinePuzzleWorkshopSolutions,
-): CoroutinePuzzleResultWithHistory = coroutineScope {
+    solutions: Solutions,
+): ResultsWHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
         stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
     )))
@@ -74,56 +70,12 @@ suspend fun runTestClient(
     }
 }
 
-class CoroutinePuzzleTestWithRpcService : CoroutinePuzzlesTest(
-    doSimpleSumPuzzle = { runTestClient(SumOfTwoIntsSlow, solutions(sumSolution = it)) },
-    doTimedSumPuzzle = { runTestClient(SumOfTwoIntsFast, solutions(sumSolution = it)) },
-    doSimpleCollectPuzzle = { runTestClient(SimpleFlow, solutions(collectSolution = it)) },
-    doCollectLatestPuzzle = { runTestClient(CollectLatest, solutions(collectSolution = it)) },
-    doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runTestClient(FindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
-    },
-    doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle = {
-        runTestClient(FastFindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = it))
-    },
-    doMappingLegacyApiHappyPathCoroutinePuzzle = {
-        runTestClient(MappingFromLegacyApisStepOne, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doMappingLegacyApiWithExceptionCoroutinePuzzle = {
-        runTestClient(MappingFromLegacyApisStepTwo, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doMappingLegacyApiWithCancellationCoroutinePuzzle = {
-        runTestClient(MappingFromLegacyApisStepThree, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doMappingLegacyApiStepFourCoroutinePuzzle = {
-        runTestClient(MappingFromLegacyApisStepFour, solutions(mappingLegacyApiCoroutineSolution = it))
-    },
-    doExceptionHandlingPuzzle = {
-        runTestClient(ExceptionCatchingWithCoroutines, solutions(exceptionHandlingSolution = it))
-    },
-)
+class CoroutinePuzzleTestWithRpcService : CoroutinePuzzlesTest() {
+    override suspend fun runCoroutinePuzzle(stage: WorkshopStage, solutions: Solutions): ResultsWHistory =
+        runTestClient(stage, solutions)
+}
 
-abstract class CoroutinePuzzlesTest(
-    private val doSimpleSumPuzzle: DoPuzzleWith<GetNumberAndSubmit>,
-    private val doTimedSumPuzzle: DoPuzzleWith<GetNumberAndSubmit>,
-    private val doSimpleCollectPuzzle: DoPuzzleWith<NumberFlowAndSubmit>,
-    private val doCollectLatestPuzzle: DoPuzzleWith<NumberFlowAndSubmit>,
-    private val doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle: DoPuzzleWith<UserDatabase>,
-    private val doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle: DoPuzzleWith<UserDatabase>,
-    private val doMappingLegacyApiWithExceptionCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
-    private val doMappingLegacyApiWithCancellationCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
-    private val doMappingLegacyApiStepFourCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
-    private val doMappingLegacyApiHappyPathCoroutinePuzzle: DoPuzzleWith<UserDatabaseWithLegacyQueryUser>,
-    private val doExceptionHandlingPuzzle: DoPuzzleWith<ExceptionalApi>,
-) {
-    /**
-     * How each transport-driven test body is run. Defaults to the virtual-time, randomized-dispatch harness, which
-     * is the right choice for the in-process transports (it shuffles the single virtual-time interleaving across many
-     * seeds). Transports whose ordering is decided by something virtual time can't touch - e.g. a real socket - should
-     * override this to run once in real time instead, where the transport itself supplies the non-determinism.
-     */
-    protected open fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit): Unit =
-        runTestWithRandomizedDispatchOrdering(block = block)
-
+abstract class CoroutinePuzzlesTest: CoroutinePuzzlesTestBase() {
     @Test
     fun `empty solutions are wrong`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { }.assertIsNotOk()
@@ -692,6 +644,43 @@ class CoroutinePuzzleUtilitiesTest {
     }
 }
 
+
+abstract class CoroutinePuzzlesTestBase {
+    /**
+     * How each transport-driven test body is run. Defaults to the virtual-time, randomized-dispatch harness, which
+     * is the right choice for the in-process transports (it shuffles the single virtual-time interleaving across many
+     * seeds). Transports whose ordering is decided by something virtual time can't touch - e.g. a real socket - should
+     * override this to run once in real time instead, where the transport itself supplies the non-determinism.
+     */
+    protected open fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit): Unit =
+        runTestWithRandomizedDispatchOrdering(block = block)
+
+    protected abstract suspend fun runCoroutinePuzzle(stage: WorkshopStage, solutions: Solutions): ResultsWHistory
+
+    suspend fun doSimpleSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(SumOfTwoIntsSlow, solutions(sumSolution = block))
+    suspend fun doTimedSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(SumOfTwoIntsFast, solutions(sumSolution = block))
+    suspend fun doSimpleCollectPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(SimpleFlow, solutions(collectSolution = block))
+    suspend fun doCollectLatestPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(CollectLatest, solutions(collectSolution = block))
+    suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabase) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(FindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = block))
+    suspend fun doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabase) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(FastFindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = block))
+    suspend fun doMappingLegacyApiWithExceptionCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(MappingFromLegacyApisStepTwo, solutions(mappingLegacyApiCoroutineSolution = block))
+    suspend fun doMappingLegacyApiWithCancellationCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(MappingFromLegacyApisStepThree, solutions(mappingLegacyApiCoroutineSolution = block))
+    suspend fun doMappingLegacyApiStepFourCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(MappingFromLegacyApisStepFour, solutions(mappingLegacyApiCoroutineSolution = block))
+    suspend fun doMappingLegacyApiHappyPathCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(MappingFromLegacyApisStepOne, solutions(mappingLegacyApiCoroutineSolution = block))
+    suspend fun doExceptionHandlingPuzzle(block: suspend CoroutineScope.(ExceptionalApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ExceptionCatchingWithCoroutines, solutions(exceptionHandlingSolution = block))
+}
+
 /**
  * Runs [block] once per seed in [seeds], each time under [withRandomizedDispatchOrder], so races between
  * concurrently-launched coroutines get shuffled differently on every run while staying in virtual time - the test
@@ -767,17 +756,17 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserHappyPath(id: Int):
     }
 }
 
-private fun CoroutinePuzzleResultWithHistory.assertIsOk(): Unit = when (result) {
+private fun ResultsWHistory.assertIsOk(): Unit = when (result) {
     CoroutinePuzzleSolutionResult.Success -> { /** All OK! */ }
     else -> junitFail { toMessage() }
 }
 
-private fun CoroutinePuzzleResultWithHistory.assertIsNotOk(): CoroutinePuzzleSolutionResult = result.also {
+private fun ResultsWHistory.assertIsNotOk(): CoroutinePuzzleSolutionResult = result.also {
     assert(it !is CoroutinePuzzleSolutionResult.Success) { "Puzzle succeeded unexpectedly \n${toMessage()}" }
 }
 
 @JvmName("assertIsNotOkGeneric")
-private inline fun <reified T: CoroutinePuzzleSolutionResult> CoroutinePuzzleResultWithHistory.assertIsNotOk(): T =
+private inline fun <reified T: CoroutinePuzzleSolutionResult> ResultsWHistory.assertIsNotOk(): T =
     assertIsNotOk().assertIs<T> { "Expected ${T::class.simpleName} but got ${it!!::class.simpleName}\n${toMessage()}" }
 
 internal inline fun <reified T> Any?.assertIs(

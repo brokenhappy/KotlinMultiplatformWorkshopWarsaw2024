@@ -1,6 +1,6 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.*
+import kmpworkshop.common.withInterceptingDispatcher
 import kmpworkshop.server.InterceptingEvent.Complete
 import kmpworkshop.server.InterceptingEvent.Dispatch
 import kotlinx.coroutines.*
@@ -13,11 +13,9 @@ import org.junit.jupiter.api.Test
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 
 enum class InterceptingEvent {
     Dispatch,
