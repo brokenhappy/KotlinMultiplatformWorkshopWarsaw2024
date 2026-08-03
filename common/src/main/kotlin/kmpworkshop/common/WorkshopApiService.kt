@@ -5,13 +5,14 @@ import kotlinx.coroutines.flow.*
 import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
-import kotlin.time.ExperimentalTime
 
-interface WorkshopServer {
+interface WorkshopServer : CoroutinePuzzleProvider {
     fun currentStage(): Flow<WorkshopStage>
     fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
-    fun coroutinePuzzle(puzzleId: String): CoroutinePuzzle
+}
+
+interface CoroutinePuzzleProvider {
+    fun coroutinePuzzle(stage: WorkshopStage): CoroutinePuzzle
 }
 
 @Rpc interface WorkshopApiService {
@@ -34,10 +35,10 @@ fun WorkshopApiService.asServer(
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
         this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
 
-    override fun coroutinePuzzle(puzzleId: String): CoroutinePuzzle =
+    override fun coroutinePuzzle(stage: WorkshopStage): CoroutinePuzzle =
         coroutinePuzzleCommunicationChannel { incoming, outgoing ->
             try {
-                doCoroutinePuzzleSolveAttempt(apiKey, puzzleId, outgoing.consumeAsFlow())
+                doCoroutinePuzzleSolveAttempt(apiKey, stage.name, outgoing.consumeAsFlow())
                     .collect { incoming.send(it) }
             } finally {
                 incoming.close()

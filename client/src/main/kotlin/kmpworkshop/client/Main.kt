@@ -55,7 +55,7 @@ suspend fun main() {
 }
 
 suspend fun runCoroutinePuzzleClient(
-    workshopServer: WorkshopServer,
+    puzzleProvider: CoroutinePuzzleProvider,
     stage: WorkshopStage,
     sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
@@ -69,36 +69,36 @@ suspend fun runCoroutinePuzzleClient(
     FindOldestUserTask -> error("Should never happen!")
     SumOfTwoIntsSlow,
     SumOfTwoIntsFast -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage.name).solve {
+        puzzleProvider.coroutinePuzzle(stage).solve {
             sumSolution(getNumberAndSubmit())
         }
     }
     FindMaximumAgeCoroutines,
     FastFindMaximumAgeCoroutines -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage.name).solve {
+        puzzleProvider.coroutinePuzzle(stage).solve {
             maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
         }
     }
     MappingFromLegacyApisStepOne -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage.name).solve {
+        puzzleProvider.coroutinePuzzle(stage).solve {
             mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))
         }
     }
     MappingFromLegacyApisStepTwo,
     MappingFromLegacyApisStepThree,
     MappingFromLegacyApisStepFour -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage.name).solve {
+        puzzleProvider.coroutinePuzzle(stage).solve {
             mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
         }
     }
     ExceptionCatchingWithCoroutines -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage.name).solve {
+        puzzleProvider.coroutinePuzzle(stage).solve {
             exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
         }
     }
     SimpleFlow,
     CollectLatest -> withImportantCleanup {
-        puzzleProvider.coroutinePuzzle(stage.name).solve {
+        puzzleProvider.coroutinePuzzle(stage).solve {
             collectSolution(numberFlowAndSubmit())
         }
     }

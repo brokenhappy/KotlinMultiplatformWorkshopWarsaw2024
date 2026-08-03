@@ -118,7 +118,7 @@ internal suspend fun runRealRpcTestClient(
         }
 
         runCoroutinePuzzleClient(
-            workshopServer = service.asServer(ApiKey("1234-5678")),
+            puzzleProvider = service.asServer(ApiKey("1234-5678")),
             stage = stage,
             sumSolution = sumSolution,
             collectSolution = collectSolution,
