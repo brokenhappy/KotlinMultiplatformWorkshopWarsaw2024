@@ -8,6 +8,7 @@ plugins {
     id("org.jetbrains.kotlinx.rpc.plugin")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
+    id("org.jetbrains.compose.hot-reload")
 }
 
 group = "com.woutwerkman"
@@ -30,7 +31,11 @@ dependencies {
     implementation(compose.foundation)
     implementation(compose.material)
     implementation(compose.ui)
+    implementation(compose.desktop.currentOs)
+    implementation("org.jetbrains.compose.hot-reload:hot-reload-runtime-api:1.0.0-rc02")
     implementation(project(":common"))
+    testImplementation(kotlin("test"))
+    testImplementation(compose.desktop.uiTestJUnit4)
 }
 
 kotlin {

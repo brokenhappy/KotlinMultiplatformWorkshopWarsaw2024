@@ -20,7 +20,12 @@ suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
 ): Nothing = coroutineScope {
     val events = Channel<CommittedState>()
     launch {
-        val initial = loadInitialStateFromDatabase()
+        val initial = try {
+            loadInitialStateFromDatabase()
+        } catch (t: Exception) {
+            t.printStackTrace()
+            ServerState()
+        }
         if (initial != ServerState()) serverState.value = initial
         block(initial, events)
     }

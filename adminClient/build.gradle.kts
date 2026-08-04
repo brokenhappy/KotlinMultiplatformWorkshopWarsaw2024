@@ -1,6 +1,5 @@
 plugins {
     kotlin("jvm")
-    application
     kotlin("plugin.serialization")
     id("org.jetbrains.compose.hot-reload")
 //    id("io.ktor.plugin")
@@ -12,10 +11,6 @@ plugins {
 
 group = "com.woutwerkman"
 version = "unspecified"
-
-application {
-    mainClass.set("kmpworkshop.server.ServerKt")
-}
 
 repositories {
     mavenCentral()
@@ -46,5 +41,11 @@ kotlin {
     jvmToolchain(17)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
+    }
+}
+
+compose.desktop {
+    application {
+        mainClass = "AdminUIKt"
     }
 }

@@ -76,7 +76,11 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
 
     val client: KtorRpcClient = ktorClient.rpc {
         url {
-            protocol = URLProtocol.WSS
+            protocol = if (serverUrl == "localhost" || serverUrl == "127.0.0.1" || serverUrl == "::1") {
+                URLProtocol.WS
+            } else {
+                URLProtocol.WSS
+            }
             host = serverUrl
             port = serverWebsocketPort
             encodedPath = "rpc"

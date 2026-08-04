@@ -74,7 +74,7 @@ internal suspend fun withBackupLoop(
     }
 }
 
-internal suspend fun loadInitialStateFromDatabase() = getMostRecentDatabaseFileContent()
+internal suspend fun loadInitialStateFromDatabase(): ServerState = getMostRecentDatabaseFileContent()
     ?.let { runCatching { Json.decodeFromString<Backup>(it) } }
     ?.onFailure { it.printStackTrace() }
     ?.getOrNull()

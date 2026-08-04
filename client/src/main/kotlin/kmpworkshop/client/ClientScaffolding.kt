@@ -42,7 +42,7 @@ fun createWorkshopService(): WorkshopApiService = runBlocking {
  * its lifecycle so it can be closed between runs instead of re-implementing the client setup.
  */
 fun HttpClient.connectWorkshopService(
-    protocol: URLProtocol = URLProtocol.WSS,
+    protocol: URLProtocol = defaultWorkshopProtocol(serverUrl),
     host: String = serverUrl,
     port: Int = serverWebsocketPort,
 ): WorkshopApiService {
@@ -63,6 +63,9 @@ fun HttpClient.connectWorkshopService(
 
     return client.withService<WorkshopApiService>()
 }
+
+internal fun defaultWorkshopProtocol(host: String): URLProtocol =
+    if (host == "localhost" || host == "127.0.0.1" || host == "::1") URLProtocol.WS else URLProtocol.WSS
 
 @Composable
 fun ClientEntryPoint() {
