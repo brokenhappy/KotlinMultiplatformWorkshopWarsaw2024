@@ -433,7 +433,7 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
  * failure can be reproduced by rerunning just that seed
  * (e.g. `doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(seeds = 17L..17L) { ... }`).
  */
-fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 10L, block: suspend CoroutineScope.() -> Unit) {
+fun runTestWithRandomizedDispatchOrdering(seeds: LongRange = 0L until 100L, block: suspend CoroutineScope.() -> Unit) {
     for (seed in seeds) {
         try {
             runTest(timeout = 1.seconds) {

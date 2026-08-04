@@ -8,14 +8,11 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): Resour
 
     getAllUserIds.expectCall { database.keys.toList() }
 
-    if (mustBeConcurrent) {
-        expectingMatchedParallelism {
-            repeat(database.size) { launch { expectQueryCall(database) } }
-        }
-    } else {
-        coroutineScope {
-            repeat(database.size) { launch { expectQueryCall(database) } }
-        }
+    if (mustBeConcurrent)
+        awaitQuiescenceAndVerifyUnmatchedSubmissions(List(database.size) { queryUserById })
+
+    coroutineScope {
+        repeat(database.size) { launch { expectQueryCall(database) } }
     }
 
     val submittedValue = submitNumber.expectCall(Unit)
@@ -71,7 +68,8 @@ fun mappingLegacyApiCoroutinePuzzleStepFour(): Resource<CoroutinePuzzleProtocol>
          * Unlike the previous step, we want an explicit guarantee that the cancellation is awaited for.
          * That means that [callIsDone] and [legacyCancellationCompletion] MUST NOT run concurrently.
          */
-        expectingMatchedParallelism { legacyCancellationCompletion.expectCall(Unit) }
+        awaitQuiescenceAndVerifyUnmatchedSubmissions(legacyCancellationCompletion)
+        legacyCancellationCompletion.expectCall(Unit)
         callIsDone.expectCall(Unit)
     }
 }

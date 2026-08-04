@@ -4,6 +4,7 @@ import kmpworkshop.common.CoroutinePuzzleProtocol
 import kmpworkshop.common.Resource
 import kmpworkshop.common.getNumber
 import kmpworkshop.common.submitNumber
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 
@@ -20,9 +21,8 @@ fun simpleSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
 
 fun timedSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val randomNumbers = List(2) { (0..100).random() }
-    expectingMatchedParallelism {
-        randomNumbers.forEach { number -> launch { getNumber.expectCall { number } } }
-    }
+    awaitQuiescenceAndVerifyUnmatchedSubmissions(List(randomNumbers.size) { getNumber })
+    coroutineScope { randomNumbers.forEach { number -> launch { getNumber.expectCall(number) } } }
     val sum = randomNumbers.sum()
 
     val actual = submitNumber.expectCall(Unit)

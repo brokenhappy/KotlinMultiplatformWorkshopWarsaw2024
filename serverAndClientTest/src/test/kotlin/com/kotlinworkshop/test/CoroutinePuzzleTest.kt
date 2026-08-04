@@ -6,6 +6,8 @@ import kmpworkshop.server.*
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.serialization.serializer
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
@@ -125,12 +127,9 @@ class CoroutinePuzzleTest {
     fun `trying to call a coroutine puzzle endpoint synchronously while the expectation is parallel fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
-            expectingMatchedParallelism {
-                launch {
-                    endpoint.expectCall { it.toString() }
-                }
-                endpoint.expectCall { it.toString() }
-            }
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(endpoint, endpoint)
+            launch { endpoint.expectCall { it.toString() } }
+            endpoint.expectCall { it.toString() }
         }.solve {
             endpoint.submitCall(42)
         }
@@ -142,9 +141,8 @@ class CoroutinePuzzleTest {
     fun `trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
-            expectingMatchedParallelism {
-                endpoint.expectCall { it.toString() }
-            }
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(endpoint)
+            endpoint.expectCall { it.toString() }
         }.solve {
             launch { endpoint.submitCall(42) }
             endpoint.submitCall(42)
@@ -157,11 +155,10 @@ class CoroutinePuzzleTest {
     fun `trying to call a coroutine puzzle endpoint with double parallel while the expectation is triple parallel fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
-            expectingMatchedParallelism {
-                launch { endpoint.expectCall { it.toString() } }
-                launch { endpoint.expectCall { it.toString() } }
-                endpoint.expectCall { it.toString() }
-            }
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(endpoint, endpoint, endpoint)
+            launch { endpoint.expectCall { it.toString() } }
+            launch { endpoint.expectCall { it.toString() } }
+            endpoint.expectCall { it.toString() }
         }.solve {
             launch { endpoint.submitCall(42) }
             endpoint.submitCall(42)
@@ -174,10 +171,9 @@ class CoroutinePuzzleTest {
     fun `trying to call a coroutine puzzle endpoint with triple parallel while the expectation is double parallel fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
-            expectingMatchedParallelism {
-                launch { endpoint.expectCall { it.toString() } }
-                endpoint.expectCall { it.toString() }
-            }
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(endpoint, endpoint)
+            launch { endpoint.expectCall { it.toString() } }
+            endpoint.expectCall { it.toString() }
         }.solve {
             launch { endpoint.submitCall(42) }
             launch { endpoint.submitCall(42) }
@@ -191,11 +187,10 @@ class CoroutinePuzzleTest {
     fun `trying to call a coroutine puzzle endpoint with matching parallelism succeeds`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Int, String>("foo")
         coroutinePuzzle {
-            expectingMatchedParallelism {
-                launch { endpoint.expectCall { it.toString() } }
-                launch { endpoint.expectCall { it.toString() } }
-                endpoint.expectCall { it.toString() }
-            }
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(endpoint, endpoint, endpoint)
+            endpoint.expectCall { it.toString() }
+            endpoint.expectCall { it.toString() }
+            endpoint.expectCall { it.toString() }
         }.solve {
             launch { endpoint.submitCall(42) }
             launch { endpoint.submitCall(42) }
@@ -231,6 +226,74 @@ class CoroutinePuzzleTest {
         }.solve {
             endpoint.submitCall(Unit)
         }.assertIsNotOk()
+    }
+
+    @Test
+    fun `expectation can await quiescence and inspect unmatched submissions`() = runTestWithRandomizedDispatchOrdering {
+        val alreadyExpected = coroutinePuzzleEndPoint<Unit, Unit>("already expected")
+        val discovered = coroutinePuzzleEndPoint<Unit, Unit>("discovered")
+
+        coroutinePuzzle {
+            launch { alreadyExpected.expectCall(Unit) }
+
+            assertEquals(
+                listOf(discovered),
+                awaitQuiescenceAndGetUnmatchedSubmissions(),
+            )
+            discovered.expectCall(Unit)
+        }.solve {
+            launch { alreadyExpected.submitCall(Unit) }
+            discovered.submitCall(Unit)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `cancellation after an expectation answered is an explicit failure`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+
+        coroutinePuzzle {
+            endpoint.expectCall(Unit)
+            awaitCancellation()
+        }.use { protocol ->
+            protocol.submissions.send(listOf(
+                CoroutinePuzzleBatchEntry(
+                    callId = 1,
+                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted(
+                        endpoint.descriptor,
+                        Json.encodeToJsonElement(serializer<Unit>(), Unit),
+                    ),
+                ),
+            ))
+            protocol.expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
+
+            protocol.submissions.send(listOf(
+                CoroutinePuzzleBatchEntry(
+                    callId = 1,
+                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallShouldCancel,
+                ),
+            ))
+            protocol.expectations.receive()
+                .assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Completion>()
+                .result
+                .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
+                .message
+                .assertEquals("Unexpected cancellation for call 1: its expectation was not running.")
+        }
+    }
+
+    @Test
+    fun `failure teardown is not reported as an unexpected cancellation`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+
+        coroutinePuzzle {
+            fail("intended failure")
+        }.solve {
+            endpoint.submitCall(Unit)
+        }
+            .result
+            .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals("intended failure")
     }
 
     @Test
