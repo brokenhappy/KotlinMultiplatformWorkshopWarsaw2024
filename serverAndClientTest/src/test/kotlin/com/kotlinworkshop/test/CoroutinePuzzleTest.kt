@@ -3,6 +3,7 @@ package com.kotlinworkshop.test
 import kmpworkshop.client.toMessage
 import kmpworkshop.common.*
 import kmpworkshop.server.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -258,6 +259,38 @@ class CoroutinePuzzleTest {
             endpoint.submitCall(Unit)
         }.assertIsOk()
     }
+
+    @Test
+    fun `puzzle can finish after lifetime-triggered cancellation without a final quiescence check`() =
+        runTestWithRandomizedDispatchOrdering {
+            val outerEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("outer")
+            val nestedEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("nested")
+            val cancelSolution = CompletableDeferred<Unit>()
+
+            coroutinePuzzle {
+                launch {
+                    callLifetime.expectCall {
+                        cancelSolution.await()
+                    }
+                }
+                outerEndpoint.expectCanceledCall {
+                    nestedEndpoint.expectCanceledCall {
+                        cancelSolution.complete(Unit)
+                        awaitCancellation()
+                    }
+                    awaitCancellation()
+                }
+            }.solve {
+                launch {
+                    launch { outerEndpoint.submitCall(Unit) }
+                    launch { nestedEndpoint.submitCall(Unit) }
+                    awaitCancellation()
+                }.sideEffect {
+                    callLifetime.submitCall(Unit)
+                    it.cancel()
+                }
+            }.assertIsOk()
+        }
 
     @Test
     fun `cancellation after an expectation answered is an explicit failure`() = runTestWithRandomizedDispatchOrdering {
