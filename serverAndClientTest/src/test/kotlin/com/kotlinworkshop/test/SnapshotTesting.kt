@@ -27,7 +27,7 @@ fun String.assertMatchesSnapshot(snapshotPath: String) {
     val path = snapshotFile.toString()
     throw AssertionFailedError(
         "Snapshot mismatch for $snapshotPath (snapshot file: $path). " +
-            "If the new output is correct, accept it to update the snapshot on disk.",
+            "If the new output is correct, accept it to update the snapshot on disk.\nActual:\n$this",
         FileInfo(path, expectedBytes),
         this,
     )

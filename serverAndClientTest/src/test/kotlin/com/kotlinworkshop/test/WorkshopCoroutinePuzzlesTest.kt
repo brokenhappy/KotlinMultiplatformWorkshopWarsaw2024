@@ -13,8 +13,11 @@ import kmpworkshop.server.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Test
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ScheduledWorkshopEvent
@@ -115,11 +118,11 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         // Step 1: a weak -> strong transition must wait for cancellation of the previous network task.
         // The workshop scaffold reacts from a non-suspending callback, so it cancels without joining before restart.
         doFileExposureStepOne { allowPeopleToDownloadExposedFile(it) }
-            .assertIsNotOk()
-            .toMessage()
-            .assertMatchesSnapshot(
-                "snapshots/FileExposure/network-restart.txt",
-            )
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.networkRestartStartedTooEarly(
+                listOf(makeFileDownloadable, advertiseExposedFile),
+            ))
     }
 
     @Test
@@ -133,23 +136,19 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         // Solution 2 observes network strength in the API scope, so replacing the file cannot cancel it.
         doFileExposureStepOne { allowPeopleToDownloadExposedFile2(it) }.assertIsOk()
         doFileExposureStepTwo { allowPeopleToDownloadExposedFile2(it) }
-            .assertIsNotOk()
-            .toMessage()
-            .assertMatchesSnapshot(
-                "snapshots/FileExposure/file-replacement.txt",
-            )
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.FullyQuiescent>()
         doFileExposureStepThree { allowPeopleToDownloadExposedFile2(it) }.assertIsNotOk()
 
         // Step 3: advertising must be joined as well. Solution 3 fixes the download lifetime, but its launch still
         // captures the outer solution scope and lets advertising escape the current strong-network task.
         doFileExposureStepOne { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
         doFileExposureStepTwo { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
-        doFileExposureStepThree { allowPeopleToDownloadExposedFile3(it) }
-            .assertIsNotOk()
-            .toMessage()
-            .assertMatchesSnapshot(
-                "snapshots/FileExposure/advertising-cancellation.txt",
-            )
+        val advertisingFailure = doFileExposureStepThree { allowPeopleToDownloadExposedFile3(it) }
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+        advertisingFailure.expectations.assertEquals(emptyList<CoroutinePuzzleEndPointDescriptor>())
+        advertisingFailure.unexpectedSubmissions.assertEquals(
+            listOf(emitNetworkStrength.descriptor, closeExposedFile.descriptor),
+        )
 
         // Solution 4 gives the task a lexical coroutineScope receiver; both download and advertising are children.
         doFileExposureStepOne { allowPeopleToDownloadExposedFile4(it) }.assertIsOk()
@@ -166,6 +165,67 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun `advertising sequentially never reaches downloading`(): Unit = runPuzzleTest {
         doFileExposureStepOne { allowPeopleToDownloadExposedFileWithSequentialAdvertising(it) }.assertIsNotOk()
+    }
+
+    @Test
+    fun `exposing a file on weak WiFi gives specific guidance`(): Unit = runPuzzleTest {
+        doFileExposureStepOne { api ->
+            api.currentFileToExpose().collectLatest { file ->
+                file.open()
+                api.makeDownloadable(file)
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.weakWifiExposureStarted())
+    }
+
+    @Test
+    fun `using the previous file for replacement work gives specific guidance`(): Unit = runPuzzleTest {
+        var firstFile: FakeFile? = null
+        doFileExposureStepTwo { api ->
+            api.currentFileToExpose().collectLatest { file ->
+                file.open()
+                try {
+                    val downloadFile = firstFile ?: file.also { firstFile = it }
+                    api.runOnStrongNetwork4 {
+                        launch { api.advertiseFile(file) }
+                        try {
+                            api.makeDownloadable(downloadFile)
+                        } catch (_: ExceptionAcrossRpc) {
+                            awaitCancellation()
+                        }
+                    }
+                } finally {
+                    file.close()
+                }
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the replacement file"))
+    }
+
+    @Test
+    fun `opening the previous file after replacement gives specific guidance`(): Unit = runPuzzleTest {
+        var firstFile: FakeFile? = null
+        val solved = doFileExposureStepTwo { api ->
+            api.currentFileToExpose().collectLatest { file ->
+                val fileToOpen = firstFile ?: file.also { firstFile = it }
+                fileToOpen.open()
+                try {
+                    api.runOnStrongNetwork4 {
+                        launch { api.advertiseFile(file) }
+                        api.makeDownloadable(file)
+                    }
+                } finally {
+                    file.close()
+                }
+            }
+        }
+        val expected = solved.returnedValues(emitFileToExpose).last()
+        val actual = solved.arguments(openExposedFile).last()
+        solved.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongEndpointArgument(expected, actual))
     }
 
     @Test
@@ -201,6 +261,32 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
+    fun `submitting the wrong flow value gives specific guidance`(): Unit = runPuzzleTest {
+        var emitted = 0
+        doSimpleCollectPuzzle { api ->
+            api.numbers().collect {
+                emitted = it
+                api.submit(it + 1)
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongFlowValue(emitted + 1, emitted))
+    }
+
+    @Test
+    fun `submitting the wrong collectLatest value gives specific guidance`(): Unit = runPuzzleTest {
+        var submitted = 0
+        doCollectLatestPuzzle { api ->
+            api.numbers().collectLatest {
+                submitted = it + 1
+                api.submit(submitted)
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongFlowValue(submitted, submitted - 1))
+    }
+
+    @Test
     fun simpleSumCorrectSolution(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
@@ -233,6 +319,18 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
+    fun `incorrect sum gives specific guidance`(): Unit = runPuzzleTest {
+        val numbers = mutableListOf<Int>()
+        doSimpleSumPuzzle { api ->
+            numbers += api.getNumber()
+            numbers += api.getNumber()
+            api.submit(numbers.sum() + 1)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.incorrectSum(numbers, numbers.sum() + 1))
+    }
+
+    @Test
     fun `submitting in parallel is ok`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
@@ -254,7 +352,9 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doTimedSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
-            .assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent())
     }
 
     @Test
@@ -292,6 +392,31 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
                     .maxOf { it.age }
             )
         }.assertIsOk()
+    }
+
+    @Test
+    fun `incorrect oldest age gives specific guidance`(): Unit = runPuzzleTest {
+        var oldest = 0
+        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
+            oldest = database.getAllIds().maxOf { database.queryUser(it).age }
+            database.submit(oldest - 1)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongOldestAge(oldest - 1, oldest))
+    }
+
+    @Test
+    fun `querying an unknown user gives specific guidance`(): Unit = runPuzzleTest {
+        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { database ->
+            database.getAllIds()
+            try {
+                database.queryUser(Int.MIN_VALUE)
+            } catch (_: ExceptionAcrossRpc) {
+                awaitCancellation()
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.unknownUser(Int.MIN_VALUE))
     }
 
     @Test
@@ -379,7 +504,9 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
                     .awaitAll()
                     .maxOf { it.age },
             )
-        }.assertIsNotOk()
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.cancellationMustFinishFirst())
     }
 
     @Test
@@ -391,7 +518,9 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
                     .maxOf { database.queryUser(it).age }
             )
         }
-            .assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.userQueriesMustBeConcurrent())
     }
 
     @Test
@@ -429,7 +558,9 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             } catch (e: Exception) {
                 api.reportException(e)
             }
-        }.assertIsNotOk<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.exceptionCallsMustBeConcurrent())
     }
 
     @Test
@@ -442,6 +573,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
 
     @Test
     fun `throwing different exception than original fails`(): Unit = runPuzzleTest {
+        var originalMessage: String? = null
         doExceptionHandlingPuzzle { api ->
             try {
                 coroutineScope {
@@ -449,9 +581,12 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
                     launch { api.refreshTokens() }
                 }
             } catch (e: Exception) {
+                originalMessage = e.message
                 api.reportException(Exception(null, e))
             }
         }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongReportedException(requireNotNull(originalMessage), null))
     }
 }
 
@@ -567,3 +702,29 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserHappyPath(id: Int):
         queryUserWithCallback(id, onSuccess = { continuation.resume(it) })
     }
 }
+
+private inline fun <reified T> ResultsWHistory.returnedValues(
+    endpoint: CoroutinePuzzleEndPoint<*, T>,
+): List<T> {
+    val callIds = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
+        .flatMap { it.entries }
+        .mapNotNull { entry ->
+            (entry.payload as? CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted)
+                ?.takeIf { it.endPoint == endpoint.descriptor }
+                ?.let { entry.callId }
+        }
+        .toSet()
+    return history.filterIsInstance<CoroutinePuzzleHistoryBatch.Expectation>()
+        .flatMap { it.entries }
+        .filter { it.callId in callIds }
+        .mapNotNull { it.payload as? CoroutinePuzzleBatchEntry.ExpectationPayload.CallAnswered }
+        .map { Json.decodeFromJsonElement(serializer<T>(), it.result) }
+}
+
+private inline fun <reified T> ResultsWHistory.arguments(
+    endpoint: CoroutinePuzzleEndPoint<T, *>,
+): List<T> = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
+    .flatMap { it.entries }
+    .mapNotNull { it.payload as? CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted }
+    .filter { it.endPoint == endpoint.descriptor }
+    .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }

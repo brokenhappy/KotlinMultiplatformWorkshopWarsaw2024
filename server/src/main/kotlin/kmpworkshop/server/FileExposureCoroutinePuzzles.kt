@@ -30,7 +30,7 @@ private suspend fun evaluateNetworkRestart(): Unit = coroutineScope {
     emitNetworkStrength.expectCall(NetworkStrength.WifiWeak)
     awaitQuiescenceAndVerifyUnmatchedSubmissions(emitNetworkStrength) {
         if (advertiseExposedFile in it || makeFileDownloadable in it) {
-            "The WiFi is weak, but you're already trying to expose the file!"
+            CoroutinePuzzleErrorMessages.weakWifiExposureStarted()
         } else {
             null
         }
@@ -38,31 +38,26 @@ private suspend fun evaluateNetworkRestart(): Unit = coroutineScope {
     emitNetworkStrength.expectCall(NetworkStrength.WifiStrong)
     launch {
         advertiseExposedFile.expectCanceledCall {
-            verify(it == file) { "The advertised file must be opened" }
+            verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the opened file") }
             awaitCancellation() // We don't care when it cancels. That's a problem for later.
         }
     }
     makeFileDownloadable.expectCanceledCall {
-        verify(it == file) { "The exposed file must be opened" }
+        verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the opened file") }
         runOnBiggerScope(this@coroutineScope) {
             emitNetworkStrength.expectCall(NetworkStrength.WifiWeak)
             emitNetworkStrength.expectCall(NetworkStrength.WifiStrong)
             // We won't emit again, so we'll just accept the call and let it get canceled with the rest.
             this@coroutineScope.launch { emitNetworkStrength.expectCanceledCall { awaitCancellation() } }
             awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList()) {
-                """
-                    The WiFi signal went weak and strong again.
-                    Now you're supposed to wait until cancellation is complete before you can expose the file again.
-                    However, you already started doing the following actions:
-                    ${it.joinToString("\n                    ") { " - ${it.descriptor.description}" }}
-                """.trimIndent()
+                CoroutinePuzzleErrorMessages.networkRestartStartedTooEarly(it)
             }
         }
         awaitCancellation()
     }
     makeFileDownloadable.expectCanceledCall {
         advertiseExposedFile.expectCall {
-            verify(it == file) { "The advertised file must be opened" }
+            verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the opened file") }
             Unit // Advertising cancellation is deliberately not part of this stage.
         }
         awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
@@ -86,12 +81,12 @@ private suspend fun evaluateFileReplacement(cancelAdvertising: Boolean): Unit = 
         val scopeToLaunchOn = if (cancelAdvertising) this else this@evaluatorScope
         scopeToLaunchOn.launch {
             advertiseExposedFile.expectCanceledCall {
-                verify(it == first) { "The advertised file must be the first opened file" }
+                verify(it == first) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the first opened file") }
                 awaitCancellation()
             }
         }
         makeFileDownloadable.expectCanceledCall {
-            verify(it == first) { "The downloadable file must be the first opened file" }
+            verify(it == first) { CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the first opened file") }
             runOnBiggerScope(this@evaluatorScope) {
                 emitFileToExpose.expectCall(second)
             }
@@ -108,9 +103,9 @@ private suspend fun evaluateFileReplacement(cancelAdvertising: Boolean): Unit = 
     launch { emitNetworkStrength.expectCanceledCall { awaitCancellation() } }
 
     makeFileDownloadable.expectCanceledCall {
-        verify(it == second) { "The downloadable file must be the replacement file" }
+        verify(it == second) { CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the replacement file") }
         advertiseExposedFile.expectCall {
-            verify(it == second) { "The advertised file must be the replacement file" }
+            verify(it == second) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the replacement file") }
             Unit
         }
         awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
@@ -123,5 +118,5 @@ private suspend fun evaluateFileReplacement(cancelAdvertising: Boolean): Unit = 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend inline fun <reified T> CoroutinePuzzleEndPoint<T, Unit>.expectArgument(expected: T) {
     val actual = expectCall(Unit)
-    verify(actual == expected) { "Expected $expected, but received $actual" }
+    verify(actual == expected) { CoroutinePuzzleErrorMessages.wrongEndpointArgument(expected, actual) }
 }

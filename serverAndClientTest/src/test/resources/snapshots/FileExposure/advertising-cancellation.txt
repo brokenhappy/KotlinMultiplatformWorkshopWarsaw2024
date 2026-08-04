@@ -1,4 +1,0 @@
-Currently the expected actions are nothing.
-But instead you were doing all of these actions at the same time:
-  - Waiting for new network strength change
-  - Call FakeFile.close().

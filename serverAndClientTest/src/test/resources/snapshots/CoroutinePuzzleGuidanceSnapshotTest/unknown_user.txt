@@ -1,0 +1,1 @@
+User id 1234 does not exist. Only query ids returned by getAllUserIds().

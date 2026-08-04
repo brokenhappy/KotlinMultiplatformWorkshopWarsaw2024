@@ -9,14 +9,16 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): Resour
     getAllUserIds.expectCall { database.keys.toList() }
 
     if (mustBeConcurrent)
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(List(database.size) { queryUserById })
+        awaitQuiescenceAndVerifyUnmatchedSubmissions(List(database.size) { queryUserById }) {
+            CoroutinePuzzleErrorMessages.userQueriesMustBeConcurrent()
+        }
 
     coroutineScope {
         repeat(database.size) { launch { expectQueryCall(database) } }
     }
 
     val submittedValue = submitNumber.expectCall(Unit)
-    verify(submittedValue == 47) { "You submitted $submittedValue, but the oldest user is 47." }
+    verify(submittedValue == 47) { CoroutinePuzzleErrorMessages.wrongOldestAge(submittedValue, 47) }
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -26,7 +28,7 @@ private suspend fun expectQueryCall(database: Map<Int, SerializableUser>) {
 
 context(_: CoroutinePuzzleBuilderScope)
 private fun Map<Int, SerializableUser>.getAndVerifyUserExists(id: Int): SerializableUser = this[id].verifyNotNull {
-    "User with id $id does not exist! Please use the ids retrieved from ${getAllUserIds.descriptor.description}"
+    CoroutinePuzzleErrorMessages.unknownUser(id)
 }
 
 fun mappingLegacyApiHappyPathCoroutinePuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
@@ -40,7 +42,7 @@ fun mappingLegacyApiHappyPathCoroutinePuzzle(): Resource<CoroutinePuzzleProtocol
     }
     val submittedValue = submitNumber.expectCall(Unit)
     verify(submittedValue == database.values.maxOf { it.age }) {
-        "You submitted $submittedValue, but the oldest user is ${database.values.maxOf { it.age }}."
+        CoroutinePuzzleErrorMessages.wrongOldestAge(submittedValue, database.values.maxOf { it.age })
     }
 }
 
@@ -68,7 +70,9 @@ fun mappingLegacyApiCoroutinePuzzleStepFour(): Resource<CoroutinePuzzleProtocol>
          * Unlike the previous step, we want an explicit guarantee that the cancellation is awaited for.
          * That means that [callIsDone] and [legacyCancellationCompletion] MUST NOT run concurrently.
          */
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(legacyCancellationCompletion)
+        awaitQuiescenceAndVerifyUnmatchedSubmissions(legacyCancellationCompletion) {
+            CoroutinePuzzleErrorMessages.cancellationMustFinishFirst()
+        }
         legacyCancellationCompletion.expectCall(Unit)
         callIsDone.expectCall(Unit)
     }

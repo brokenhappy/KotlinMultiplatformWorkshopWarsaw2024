@@ -31,8 +31,9 @@ fun collectLatestPuzzle() = coroutinePuzzle {
         emitNumber.expectCall(null) // Close the flow
     }
     // Last call should successfully finish
-    verify(submitNumber.expectCall(Unit) == numbers.last()) {
-        "The value that you submit must be a value collected from the flow!"
+    val actual = submitNumber.expectCall(Unit)
+    verify(actual == numbers.last()) {
+        CoroutinePuzzleErrorMessages.wrongFlowValue(actual, numbers.last())
     }
 }
 
@@ -40,8 +41,9 @@ fun simpleFlowPuzzle() = coroutinePuzzle {
     repeat(3) {
         val number = (0..100).random()
         emitNumber.expectCall(number) // Emit into flow
-        verify(submitNumber.expectCall(Unit) == number) {
-            "The value that you submit must be a value collected from the flow!"
+        val actual = submitNumber.expectCall(Unit)
+        verify(actual == number) {
+            CoroutinePuzzleErrorMessages.wrongFlowValue(actual, number)
         }
     }
     emitNumber.expectCall(null) // Close flow

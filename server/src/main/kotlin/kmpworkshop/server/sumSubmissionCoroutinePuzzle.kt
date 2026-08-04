@@ -15,16 +15,18 @@ fun simpleSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     getNumber.expectCall(number2)
     val actual = submitNumber.expectCall(Unit)
     verify(actual == number1 + number2) {
-        "The value that you submit must the sum of the numbers you got ($number1 + $number2), but got $actual"
+        CoroutinePuzzleErrorMessages.incorrectSum(listOf(number1, number2), actual)
     }
 }
 
 fun timedSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val randomNumbers = List(2) { (0..100).random() }
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(List(randomNumbers.size) { getNumber })
+    awaitQuiescenceAndVerifyUnmatchedSubmissions(List(randomNumbers.size) { getNumber }) {
+        CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()
+    }
     coroutineScope { randomNumbers.forEach { number -> launch { getNumber.expectCall(number) } } }
     val sum = randomNumbers.sum()
 
     val actual = submitNumber.expectCall(Unit)
-    verify(actual == sum) { "The value that you submit must the sum of the numbers you got ($sum), but got $actual" }
+    verify(actual == sum) { CoroutinePuzzleErrorMessages.incorrectSum(randomNumbers, actual) }
 }

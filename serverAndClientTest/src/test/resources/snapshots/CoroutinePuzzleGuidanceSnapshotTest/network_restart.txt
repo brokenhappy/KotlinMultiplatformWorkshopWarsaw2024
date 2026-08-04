@@ -1,0 +1,4 @@
+The WiFi became weak and then strong again, but work for the previous strong-network period is still being cancelled.
+Wait for that work to finish cancellation before starting the replacement work. Already started:
+  - Call makeDownloadable(FakeFile)
+  - Call advertiseFile(FakeFile)
