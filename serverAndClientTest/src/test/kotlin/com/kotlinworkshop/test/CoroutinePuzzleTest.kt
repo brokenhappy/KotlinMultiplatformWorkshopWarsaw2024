@@ -248,6 +248,18 @@ class CoroutinePuzzleTest {
     }
 
     @Test
+    fun `puzzle can finish immediately after a final quiescence check`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
+
+        coroutinePuzzle {
+            endpoint.expectCall(Unit)
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
+        }.solve {
+            endpoint.submitCall(Unit)
+        }.assertIsOk()
+    }
+
+    @Test
     fun `cancellation after an expectation answered is an explicit failure`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("foo")
 

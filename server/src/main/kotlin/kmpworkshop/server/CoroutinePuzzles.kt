@@ -111,7 +111,7 @@ fun coroutinePuzzle(
 
                                         override suspend fun awaitQuiescenceAndGetUnmatchedSubmissions(): List<CoroutinePuzzleEndPoint<*, *>> =
                                             (coroutinePuzzleSubmissionFunction.batched(
-                                                InternalCoroutineExpectationMessage.AwaitQuiescence,
+                                                InternalCoroutineExpectationMessage.AwaitQuiescence(finishExpectations = false),
                                             ) as InternalCoroutineExpectationResult.QuiescenceReached).unmatchedSubmissions
                                     }
                                 ) {
@@ -121,7 +121,9 @@ fun coroutinePuzzle(
                                 exceptionFromExpectation = t
                             } finally {
                                 try {
-                                    coroutinePuzzleSubmissionFunction.batched(null /* null is completion signal */)
+                                    coroutinePuzzleSubmissionFunction.batched(
+                                        InternalCoroutineExpectationMessage.AwaitQuiescence(finishExpectations = true),
+                                    )
                                 } catch (e: Exception) {
                                     exceptionFromExpectation?.addSuppressed(e) ?: throw e
                                 }
@@ -155,22 +157,44 @@ private suspend fun puzzleStateActor(
     val accumulatedExpectations = mutableListOf<CoroutinePuzzleEndPointWaitingState>()
     val accumulatedSubmissions = mutableListOf<CoroutinePuzzleBatchEntry<SubmissionPayload.CallSubmitted>>()
     val quiescenceWaiters = mutableListOf<QuiescenceWaitingState>()
+    var finishExpectationsWhenQuiescent = false
     val (firstExpectationAndResults, firstSubmission) = events.receiveFirstTwoEvents()
     var submissionsAndCancellations: List<CoroutinePuzzleBatchEntry<SubmissionPayload>>? = firstSubmission
-    var expectationAndResults: List<SuspendedBatchCall<InternalCoroutineExpectationMessage?, InternalCoroutineExpectationResult?>> = firstExpectationAndResults
+    var expectationAndResults: List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>> = firstExpectationAndResults
 
     while (true) {
-        val expectationsAreDone = expectationAndResults.singleOrNull().let { it != null && it.query == null }
-        when {
-            expectationsAreDone && submissionsAndCancellations == null -> return CoroutinePuzzleSolutionResult.Success
-            expectationsAreDone -> return MoreSubmissionsThanExpectationsFailure(
-                overshotSubmissions = submissionsAndCancellations!!.map { (it.payload as SubmissionPayload.CallSubmitted).endPoint },
-            )
-            submissionsAndCancellations == null -> return MoreExpectationsThanSubmissionsFailure(
-                expectedFollowups = expectationAndResults.map { it.query }
-                    .filterIsInstance<InternalCoroutineExpectationMessage.Expectation>()
-                    .map { it.endPoint }
-                    .plus(accumulatedExpectations.map { it.query.endPoint }),
+        if (submissionsAndCancellations == null) {
+            val expectedFollowups = expectationAndResults.map { it.query }
+                .filterIsInstance<InternalCoroutineExpectationMessage.Expectation>()
+                .map { it.endPoint }
+                .plus(accumulatedExpectations.map { it.query.endPoint })
+            val incomingQuiescenceWaiters = expectationAndResults
+                .filter { it.query is InternalCoroutineExpectationMessage.AwaitQuiescence }
+                .map { it.asQuiescenceWaitingState() }
+            finishExpectationsWhenQuiescent = finishExpectationsWhenQuiescent || incomingQuiescenceWaiters.any {
+                it.query.finishExpectations
+            }
+            val ordinaryQuiescenceWaiters = incomingQuiescenceWaiters.filterNot { it.query.finishExpectations }
+            if (expectedFollowups.isEmpty() && ordinaryQuiescenceWaiters.isNotEmpty()) {
+                val unmatchedSubmissions = accumulatedSubmissions.map {
+                    CoroutinePuzzleEndPoint<Any?, Any?>(it.payload.endPoint)
+                }
+                ordinaryQuiescenceWaiters.resumeAllQuiescentTrackedScope {
+                    it.continuation.resume(InternalCoroutineExpectationResult.QuiescenceReached(unmatchedSubmissions))
+                }
+                expectationAndResults = (events.receive() as InternalPuzzleEvent.ExpectationBatch).expectations
+                continue
+            }
+            if (finishExpectationsWhenQuiescent && expectedFollowups.isEmpty()) {
+                if (accumulatedSubmissions.isNotEmpty()) {
+                    return MoreSubmissionsThanExpectationsFailure(
+                        overshotSubmissions = accumulatedSubmissions.map { it.payload.endPoint },
+                    )
+                }
+                return CoroutinePuzzleSolutionResult.Success
+            }
+            return MoreExpectationsThanSubmissionsFailure(
+                expectedFollowups = expectedFollowups,
             )
         }
 
@@ -182,11 +206,15 @@ private suspend fun puzzleStateActor(
             return CoroutinePuzzleSolutionResult.FullyQuiescent
         }
 
-        quiescenceWaiters += expectationAndResults
-            .filter { it.query === InternalCoroutineExpectationMessage.AwaitQuiescence }
+        val newQuiescenceWaiters = expectationAndResults
+            .filter { it.query is InternalCoroutineExpectationMessage.AwaitQuiescence }
             .map { it.asQuiescenceWaitingState() }
+        finishExpectationsWhenQuiescent = finishExpectationsWhenQuiescent || newQuiescenceWaiters.any {
+            it.query.finishExpectations
+        }
+        quiescenceWaiters += newQuiescenceWaiters.filterNot { it.query.finishExpectations }
         expectationAndResults = expectationAndResults
-            .filter { it.query !== InternalCoroutineExpectationMessage.AwaitQuiescence }
+            .filter { it.query !is InternalCoroutineExpectationMessage.AwaitQuiescence }
 
         val (newExpectations, results) = expectationAndResults.partitionExpectationsAndResults()
         expectationAndResults = expectationAndResults.filter { it.query !is InternalCoroutineExpectationMessage.Expectation }
@@ -205,6 +233,19 @@ private suspend fun puzzleStateActor(
             }.onEach { accumulatedSubmissions.remove(it.second) }
 
             if (matches.isEmpty() && cancellations.isEmpty()) {
+                if (finishExpectationsWhenQuiescent) {
+                    if (accumulatedExpectations.isNotEmpty()) {
+                        return MoreExpectationsThanSubmissionsFailure(
+                            expectedFollowups = accumulatedExpectations.map { it.query.endPoint },
+                        )
+                    }
+                    if (accumulatedSubmissions.isNotEmpty()) {
+                        return MoreSubmissionsThanExpectationsFailure(
+                            overshotSubmissions = accumulatedSubmissions.map { it.payload.endPoint },
+                        )
+                    }
+                    return CoroutinePuzzleSolutionResult.Success
+                }
                 if (quiescenceWaiters.isEmpty()) {
                     failInternal(CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
                         unexpectedSubmissions = accumulatedSubmissions.map { it.payload.endPoint },
@@ -270,10 +311,10 @@ private typealias CoroutinePuzzleEndPointWaitingState = SuspendedBatchCall<Inter
 private typealias QuiescenceWaitingState = SuspendedBatchCall<InternalCoroutineExpectationMessage.AwaitQuiescence, InternalCoroutineExpectationResult.QuiescenceReached>
 
 @Suppress("UNCHECKED_CAST")
-private fun SuspendedBatchCall<InternalCoroutineExpectationMessage?, InternalCoroutineExpectationResult?>.asQuiescenceWaitingState(): QuiescenceWaitingState =
+private fun SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>.asQuiescenceWaitingState(): QuiescenceWaitingState =
     this as QuiescenceWaitingState
 
-private fun List<SuspendedBatchCall<InternalCoroutineExpectationMessage?, InternalCoroutineExpectationResult?>>.partitionExpectationsAndResults(
+private fun List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>>.partitionExpectationsAndResults(
 ): Pair<
     List<SuspendedBatchCall<InternalCoroutineExpectationMessage.Expectation, InternalCoroutineExpectationResult.MatchedSubmission>>,
     List<SuspendedBatchCall<InternalCoroutineExpectationMessage.BatchEntry, Nothing?>>,
@@ -286,7 +327,7 @@ private fun List<SuspendedBatchCall<InternalCoroutineExpectationMessage?, Intern
 }
 
 private suspend fun ReceiveChannel<InternalPuzzleEvent>.receiveFirstTwoEvents(
-): Pair<List<SuspendedBatchCall<InternalCoroutineExpectationMessage?, InternalCoroutineExpectationResult?>>, List<CoroutinePuzzleBatchEntry<SubmissionPayload>>?> {
+): Pair<List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>>, List<CoroutinePuzzleBatchEntry<SubmissionPayload>>?> {
     val lhs = receive()
     val rhs = receive()
     return when (lhs) {
@@ -301,7 +342,7 @@ private suspend fun ReceiveChannel<InternalPuzzleEvent>.receiveFirstTwoEvents(
 private sealed class InternalCoroutineExpectationMessage {
     data class Expectation(val endPoint: CoroutinePuzzleEndPointDescriptor): InternalCoroutineExpectationMessage()
     data class BatchEntry(val reply: CoroutinePuzzleBatchEntry<ExpectationPayload>): InternalCoroutineExpectationMessage()
-    data object AwaitQuiescence : InternalCoroutineExpectationMessage()
+    data class AwaitQuiescence(val finishExpectations: Boolean) : InternalCoroutineExpectationMessage()
 }
 
 private sealed class InternalCoroutineExpectationResult {
@@ -317,8 +358,7 @@ private sealed class InternalPuzzleEvent {
         val submissions: List<CoroutinePuzzleBatchEntry<SubmissionPayload>>?,
     ): InternalPuzzleEvent()
     data class ExpectationBatch(
-        /** Null query means submissions are done */
-        val expectations: List<SuspendedBatchCall<InternalCoroutineExpectationMessage?, InternalCoroutineExpectationResult?>>,
+        val expectations: List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>>,
     ): InternalPuzzleEvent()
 }
 
