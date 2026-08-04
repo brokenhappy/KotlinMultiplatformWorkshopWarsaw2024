@@ -28,7 +28,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.0")
+    testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
+
+tasks.test { useJUnitPlatform() }
 
 kotlin {
     jvmToolchain(17)

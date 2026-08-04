@@ -1,6 +1,7 @@
 package kmpworkshop.common
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -46,9 +47,28 @@ typealias CoroutinePuzzleBatch<T> = List<CoroutinePuzzleBatchEntry<T>>
 }
 
 fun interface CoroutinePuzzle {
-    suspend fun solve(
+    fun solveAsFlow(
         solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
-    ): CoroutinePuzzleResultWithHistory
+    ): Flow<CoroutinePuzzleSolveState>
+}
+
+suspend fun CoroutinePuzzle.solve(
+    solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
+): CoroutinePuzzleResultWithHistory {
+    val history = mutableListOf<CoroutinePuzzleHistoryBatch>()
+    var result: CoroutinePuzzleSolutionResult? = null
+    solveAsFlow(solution).collect { state ->
+        when (state) {
+            is CoroutinePuzzleSolveState.Running -> history += state.batch
+            is CoroutinePuzzleSolveState.Completed -> result = state.result
+        }
+    }
+    return CoroutinePuzzleResultWithHistory(result!!, history.toList())
+}
+
+sealed class CoroutinePuzzleSolveState {
+    data class Running(val batch: CoroutinePuzzleHistoryBatch) : CoroutinePuzzleSolveState()
+    data class Completed(val result: CoroutinePuzzleSolutionResult) : CoroutinePuzzleSolveState()
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)

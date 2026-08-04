@@ -5,10 +5,12 @@ package kmpworkshop.common
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted
+import kmpworkshop.common.solve
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.ConcurrentHashMap
@@ -33,45 +35,47 @@ suspend fun Resource<CoroutinePuzzleProtocol>.solve(
 ): CoroutinePuzzleResultWithHistory = asPuzzle().solve(solution)
 
 fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuzzle { solution ->
-    this@asPuzzle.use { (expectations, submissions) ->
-        val pending = ConcurrentHashMap<Long, GuardedContinuation<JsonElement>>()
-        val history = mutableListOf<CoroutinePuzzleHistoryBatch>()
-        val submissionFunction = AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, JsonElement>(
-            fallbackOutOfBatchScope = {
-                val addition =
-                    (it.payload as? CallSubmitted)?.let { " when you tried to call ${it.endPoint}" } ?: ""
-                error("""
-                You broke structured concurrency$addition.
+    channelFlow {
+        this@asPuzzle.use { (expectations, submissions) ->
+            val pending = ConcurrentHashMap<Long, GuardedContinuation<JsonElement>>()
+            val submissionFunction = AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, JsonElement>(
+                fallbackOutOfBatchScope = {
+                    val addition =
+                        (it.payload as? CallSubmitted)?.let { " when you tried to call ${it.endPoint}" } ?: ""
+                    error("""
+                    You broke structured concurrency$addition.
+    
+                    This is most likely because you used GlobalScope. Or created your own CoroutineScope.
+                    If you're stuck, feel free to ask the workshop host :).
+                """.trimIndent())
+                },
+                batchResumer = { batch ->
+                    send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Submission(batch.map { it.query })))
+                    batch.forEach { pending[it.query.callId] = it.continuation }
+                    submissions.send(batch.map { it.query })
+                }
+            )
 
-                This is most likely because you used GlobalScope. Or created your own CoroutineScope.
-                If you're stuck, feel free to ask the workshop host :).
-            """.trimIndent())
-            },
-            batchResumer = { batch ->
-                history.add(CoroutinePuzzleHistoryBatch.Submission(batch.map { it.query }))
-                batch.forEach { pending[it.query.callId] = it.continuation }
-                submissions.send(batch.map { it.query })
-            }
-        )
 
-
-        coroutineScope {
-            withLaunched(taskThatMustOutliveUsage = {
-                try {
-                    submissionFunction.autoBatchedOnQuiescence {
-                        withImportantCleanup {
-                            context(submissionFunction.asSolutionScope()) {
-                                solution()
+            coroutineScope {
+                withLaunched(taskThatMustOutliveUsage = {
+                    try {
+                        submissionFunction.autoBatchedOnQuiescence {
+                            withImportantCleanup {
+                                context(submissionFunction.asSolutionScope()) {
+                                    solution()
+                                }
                             }
                         }
+                    } finally {
+                        submissions.close()
                     }
-                } finally {
-                    submissions.close()
+                }) {
+                    val result = messageReceivingActor(expectations, pending, onBatchReceived = {
+                        send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Expectation(it)))
+                    })
+                    send(CoroutinePuzzleSolveState.Completed(result))
                 }
-            }) {
-                messageReceivingActor(expectations, pending, onBatchReceived = {
-                    history.add(CoroutinePuzzleHistoryBatch.Expectation(it))
-                }).withHistory(history)
             }
         }
     }
@@ -104,7 +108,7 @@ private fun AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, 
 private suspend fun messageReceivingActor(
     batchOrCompletions: ReceiveChannel<CoroutinePuzzleExpectationBatchOrCompletion>,
     pending: ConcurrentHashMap<Long, GuardedContinuation<JsonElement>>,
-    onBatchReceived: (List<CoroutinePuzzleBatchEntry<ExpectationPayload>>) -> Unit,
+    onBatchReceived: suspend (List<CoroutinePuzzleBatchEntry<ExpectationPayload>>) -> Unit,
 ): CoroutinePuzzleSolutionResult {
     for (batchOrCompletion in batchOrCompletions) {
         when (batchOrCompletion) {
@@ -153,5 +157,3 @@ fun coroutinePuzzleCommunicationChannel(
         expectations.close()
     }
 }
-
-
