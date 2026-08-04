@@ -47,11 +47,11 @@ fun WorkshopApiService.asServer(
 }
 
 @Serializable
-enum class WorkshopStage(val kotlinFile: String) {
-    Registration("Registration.kt"),
-    PalindromeCheckTask("PalindromeCheck.kt"),
-    FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
-    FindOldestUserTask("OldestUserFinding.kt"),
+enum class WorkshopStage(val kotlinFile: String, val isCoroutinePuzzle: Boolean = true) {
+    Registration("Registration.kt", isCoroutinePuzzle = false),
+    PalindromeCheckTask("PalindromeCheck.kt", isCoroutinePuzzle = false),
+    FindMinimumAgeOfUserTask("MinimumAgeFinding.kt", isCoroutinePuzzle = false),
+    FindOldestUserTask("OldestUserFinding.kt", isCoroutinePuzzle = false),
     SumOfTwoIntsSlow("NumSumFun.kt"),
     SumOfTwoIntsFast("NumSumFun.kt"),
     FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),

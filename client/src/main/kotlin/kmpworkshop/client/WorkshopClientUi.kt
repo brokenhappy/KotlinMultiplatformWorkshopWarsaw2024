@@ -52,7 +52,7 @@ private val codeStages = setOf(
     WorkshopStage.FindOldestUserTask,
 )
 
-private val workshopSolutions = CoroutinePuzzleWorkshopSolutions(
+public val workshopSolutions = CoroutinePuzzleWorkshopSolutions(
     sumSolution = { numberSummer(it) },
     collectSolution = { showingHowItsFlowing(it) },
     maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },

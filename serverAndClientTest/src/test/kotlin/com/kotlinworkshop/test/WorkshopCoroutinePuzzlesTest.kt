@@ -30,6 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
 import kmpworkshop.client.allowPeopleToDownloadExposedFile
+import kmpworkshop.client.workshopSolutions
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
 
 class CoroutinePuzzleTestWithoutRpcService : WorkshopCoroutinePuzzleTest() {
@@ -97,20 +98,10 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
 
     @Test
     fun `default implementations are wrong`(): Unit = runPuzzleTest {
-        doSimpleSumPuzzle { numberSummer(it) }.assertIsNotOk()
-        doTimedSumPuzzle { numberSummer(it) }.assertIsNotOk()
-        doSimpleCollectPuzzle { showingHowItsFlowing(it) }.assertIsNotOk()
-        doCollectLatestPuzzle { showingHowItsFlowing(it) }.assertIsNotOk()
-        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { maximumAgeFindingWithCoroutines(it) }.assertIsNotOk()
-        doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { maximumAgeFindingWithCoroutines(it) }.assertIsNotOk()
-        doMappingLegacyApiWithExceptionCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
-        doMappingLegacyApiWithCancellationCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
-        doMappingLegacyApiStepFourCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
-        doMappingLegacyApiHappyPathCoroutinePuzzle { mapFromLegacyApi(it) }.assertIsNotOk()
-        doExceptionHandlingPuzzle { exceptionHandlingPuzzle(it) }.assertIsNotOk()
-        doFileExposureStepOne { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
-        doFileExposureStepTwo { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
-        doFileExposureStepThree { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
+        WorkshopStage
+            .entries
+            .filter { it.isCoroutinePuzzle }
+            .forEach { stage -> runCoroutinePuzzle(stage, workshopSolutions).assertIsNotOk() }
     }
 
     @Test
