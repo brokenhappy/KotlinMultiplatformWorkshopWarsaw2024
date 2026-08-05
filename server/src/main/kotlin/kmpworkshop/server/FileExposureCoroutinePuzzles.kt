@@ -1,6 +1,8 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
+import kmpworkshop.api.FakeFileId
+import kmpworkshop.api.NetworkStrength
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope

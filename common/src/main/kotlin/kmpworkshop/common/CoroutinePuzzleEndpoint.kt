@@ -1,5 +1,7 @@
 package kmpworkshop.common
 
+import kmpworkshop.api.FakeFileId
+import kmpworkshop.api.NetworkStrength
 
 val emitNumber = coroutinePuzzleEndPoint<Unit, Int?>("Call emit(): Int")
 val getAllUserIds = coroutinePuzzleEndPoint<Unit, List<Int>>("Call getAllUserIds(): List<Int>")

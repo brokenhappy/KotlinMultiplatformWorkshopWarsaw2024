@@ -1,6 +1,6 @@
-package kmpworkshop.client
+package kmpworkshop.solutions
 
-import kmpworkshop.common.GetNumberAndSubmit
+import kmpworkshop.api.GetNumberAndSubmit
 
 suspend fun numberSummer(api: GetNumberAndSubmit) {
     val number = api.getNumber()

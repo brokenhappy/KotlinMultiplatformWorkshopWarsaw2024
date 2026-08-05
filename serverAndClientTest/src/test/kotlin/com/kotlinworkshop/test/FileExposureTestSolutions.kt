@@ -1,8 +1,8 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.common.FileToInternetExposingApi
-import kmpworkshop.common.NetworkStrengthObserver
-import kmpworkshop.common.isStrong
+import kmpworkshop.api.FileToInternetExposingApi
+import kmpworkshop.api.NetworkStrengthObserver
+import kmpworkshop.api.isStrong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow

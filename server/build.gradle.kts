@@ -26,6 +26,7 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":workshopApi"))
     implementation(project(":common"))
     implementation(project(":serverAndAdminCommon"))
     implementation("io.ktor:ktor-server-netty-jvm:3.3.0")

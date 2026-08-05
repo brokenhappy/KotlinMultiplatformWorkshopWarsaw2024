@@ -1,6 +1,6 @@
-package kmpworkshop.client
+package kmpworkshop.solutions
 
-import kmpworkshop.common.ExceptionalApi
+import kmpworkshop.api.ExceptionalApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 

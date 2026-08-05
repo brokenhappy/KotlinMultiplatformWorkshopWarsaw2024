@@ -1,5 +1,6 @@
 package kmpworkshop.client
 
+import kmpworkshop.api.*
 import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kotlinx.coroutines.CoroutineScope

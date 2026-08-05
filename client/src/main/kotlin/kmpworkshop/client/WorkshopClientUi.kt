@@ -34,6 +34,7 @@ import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.FindMinimumAgeOfUserTask
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.FindOldestUserTask
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.PalindromeCheckTask
+import kmpworkshop.solutions.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -353,7 +354,7 @@ private fun WorkshopStage.displayName(): String = when (this) {
 }
 
 private fun openStageFile(stage: WorkshopStage): String? {
-    val file = File("client/src/main/kotlin/kmpworkshop/client", stage.kotlinFile).absoluteFile
+    val file = File("workshopSolutions/src/main/kotlin/kmpworkshop/solutions", stage.kotlinFile).absoluteFile
     if (!file.isFile) return "Could not find ${file.path}. Open it manually in IntelliJ IDEA."
     val os = System.getProperty("os.name").lowercase()
     val commands = when {

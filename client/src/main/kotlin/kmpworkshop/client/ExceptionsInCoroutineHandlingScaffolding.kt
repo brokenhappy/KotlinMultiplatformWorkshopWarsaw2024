@@ -1,7 +1,7 @@
 package kmpworkshop.client
 
+import kmpworkshop.api.ExceptionalApi
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
-import kmpworkshop.common.ExceptionalApi
 import kmpworkshop.common.coroutineExceptionHandlingApiService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope

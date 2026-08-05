@@ -34,6 +34,8 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation("org.jetbrains.compose.hot-reload:hot-reload-runtime-api:1.0.0-rc02")
     implementation(project(":common"))
+    implementation(project(":workshopApi"))
+    implementation(project(":workshopSolutions"))
     testImplementation(kotlin("test"))
     testImplementation(compose.desktop.uiTestJUnit4)
 }

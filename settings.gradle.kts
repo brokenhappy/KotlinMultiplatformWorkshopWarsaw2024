@@ -26,6 +26,8 @@ plugins {
 rootProject.name = "KotlinMultiplatformWorkshopWarsaw2024"
 
 include("common")
+include("workshopApi")
+include("workshopSolutions")
 include("server")
 include("client")
 include("adminClient")

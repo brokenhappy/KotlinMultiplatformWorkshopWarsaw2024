@@ -1,6 +1,6 @@
-package kmpworkshop.client
+package kmpworkshop.solutions
 
-import kmpworkshop.common.UserDatabase
+import kmpworkshop.api.UserDatabase
 
 suspend fun maximumAgeFindingWithCoroutines(database: UserDatabase) {
     database.submit(database.queryUser(database.getAllIds().max()).age)

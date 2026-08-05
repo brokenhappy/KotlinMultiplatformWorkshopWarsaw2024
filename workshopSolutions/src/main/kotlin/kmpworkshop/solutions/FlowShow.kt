@@ -1,6 +1,6 @@
-package kmpworkshop.client
+package kmpworkshop.solutions
 
-import kmpworkshop.common.NumberFlowAndSubmit
+import kmpworkshop.api.NumberFlowAndSubmit
 import kotlinx.coroutines.flow.first
 
 suspend fun showingHowItsFlowing(api: NumberFlowAndSubmit) {

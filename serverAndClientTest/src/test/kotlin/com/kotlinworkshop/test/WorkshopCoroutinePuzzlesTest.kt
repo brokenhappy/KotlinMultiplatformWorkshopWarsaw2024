@@ -1,8 +1,9 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.client.allowPeopleToDownloadExposedFile
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.workshopSolutions
+import kmpworkshop.api.*
+import kmpworkshop.solutions.allowPeopleToDownloadExposedFile
 import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*

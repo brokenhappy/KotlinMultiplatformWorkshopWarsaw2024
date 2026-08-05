@@ -93,16 +93,16 @@ sealed interface WorkshopStage {
         SumOfTwoIntsFast("NumSumFun.kt"),
         FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
         FastFindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
-        MappingFromLegacyApisStepOne("MappingFromLegacyApisStepOne.kt"),
-        MappingFromLegacyApisStepTwo("MappingFromLegacyApisStepOne.kt"),
-        MappingFromLegacyApisStepThree("MappingFromLegacyApisStepOne.kt"),
-        MappingFromLegacyApisStepFour("MappingFromLegacyApisStepOne.kt"),
+        MappingFromLegacyApisStepOne("MappingFromLegacyApis.kt"),
+        MappingFromLegacyApisStepTwo("MappingFromLegacyApis.kt"),
+        MappingFromLegacyApisStepThree("MappingFromLegacyApis.kt"),
+        MappingFromLegacyApisStepFour("MappingFromLegacyApis.kt"),
         ExceptionCatchingWithCoroutines("ExceptionCatchingWithCoroutines.kt"),
         SimpleFlow("FlowShow.kt"),
         CollectLatest("FlowShow.kt"),
-        FileExposureStepOne("FileExposureScaffolding.kt"),
-        FileExposureStepTwo("FileExposureScaffolding.kt"),
-        FileExposureStepThree("FileExposureScaffolding.kt"),
+        FileExposureStepOne("FileExposure.kt"),
+        FileExposureStepTwo("FileExposure.kt"),
+        FileExposureStepThree("FileExposure.kt"),
     }
 }
 

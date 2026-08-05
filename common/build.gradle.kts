@@ -20,6 +20,7 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":workshopApi"))
     implementation("io.ktor:ktor-client-core:3.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.9.1")
     implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")

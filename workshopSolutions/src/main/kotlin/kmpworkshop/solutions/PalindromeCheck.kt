@@ -1,4 +1,4 @@
-package kmpworkshop.client
+package kmpworkshop.solutions
 
 /**
  * Returns true if [input] is a palindrome. Meaning that it would be the same word if it were reversed.

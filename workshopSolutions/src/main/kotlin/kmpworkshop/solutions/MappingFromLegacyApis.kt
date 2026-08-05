@@ -1,6 +1,6 @@
-package kmpworkshop.client
+package kmpworkshop.solutions
 
-import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
+import kmpworkshop.api.UserDatabaseWithLegacyQueryUser
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 

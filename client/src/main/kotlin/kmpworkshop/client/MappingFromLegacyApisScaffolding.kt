@@ -1,8 +1,8 @@
 package kmpworkshop.client
 
+import kmpworkshop.api.UserDatabaseWithLegacyQueryUser
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
 import kmpworkshop.common.QueryFetchFailedForSomeReasonException
-import kmpworkshop.common.UserDatabaseWithLegacyQueryUser
 import kmpworkshop.common.callIsDone
 import kmpworkshop.common.callLifetime
 import kmpworkshop.common.getUserDatabaseWithLegacyQueryUser

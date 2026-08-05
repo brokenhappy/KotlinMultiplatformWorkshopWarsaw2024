@@ -6,6 +6,7 @@ import io.ktor.http.*
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.connectWorkshopService
 import kmpworkshop.client.runCoroutinePuzzleClient
+import kmpworkshop.api.*
 import kmpworkshop.common.*
 import kmpworkshop.server.rpcServer
 import kmpworkshop.server.rpcService
