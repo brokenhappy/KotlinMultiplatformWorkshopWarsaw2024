@@ -42,7 +42,7 @@ import org.jetbrains.compose.reload.isHotReloadActive
 import java.awt.Desktop
 import java.io.File
 
-public val workshopSolutions = CoroutinePuzzleWorkshopSolutions(
+public val workshopSolutions: CoroutinePuzzleWorkshopSolutions = CoroutinePuzzleWorkshopSolutions(
     sumSolution = { numberSummer(it) },
     collectSolution = { showingHowItsFlowing(it) },
     maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
@@ -51,8 +51,18 @@ public val workshopSolutions = CoroutinePuzzleWorkshopSolutions(
     fileExposureSolution = { allowPeopleToDownloadExposedFile(it) },
 )
 
+public val kotlinBasicsPuzzleSolutions: KotlinBasicsPuzzleSolutions = KotlinBasicsPuzzleSolutions(
+    palindromeCheckSolution = ::doPalindromeCheckOn,
+    minimumAgeSolution = ::serializableFindMinimumAgeOf,
+    oldestUserSolution = ::serializableFindOldestUserAmong,
+)
+
 @Composable
-fun WorkshopClient(server: WorkshopServer, solutions: CoroutinePuzzleWorkshopSolutions = workshopSolutions) {
+fun WorkshopClient(
+    server: WorkshopServer,
+    solutions: CoroutinePuzzleWorkshopSolutions = workshopSolutions,
+    kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions = kotlinBasicsPuzzleSolutions,
+) {
     val stage by remember(server) { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
     val runGate = remember { WorkshopRunGate(stage) }
     runGate.enterStage(stage)
@@ -80,7 +90,7 @@ fun WorkshopClient(server: WorkshopServer, solutions: CoroutinePuzzleWorkshopSol
         (stage as? WorkshopStage.KotlinBasicsPuzzleStage)?.let { stage ->
             status = "Running test…"
             status = try {
-                kotlinBasicsResult = runKotlinBasicsPuzzle(server, stage)
+                kotlinBasicsResult = runKotlinBasicsPuzzle(server, stage, kotlinBasicsSolutions)
                 when (val puzzleResult = kotlinBasicsResult) {
                     KotlinBasicsPuzzleResult.Success -> "Test finished. Edit the solution and hot reload to run it again."
                     is KotlinBasicsPuzzleResult.Failed -> "Test failed for input ${puzzleResult.input}: got ${puzzleResult.actual}, expected ${puzzleResult.expected}."
@@ -321,10 +331,14 @@ private fun kotlinBasicsResultColor(result: KotlinBasicsPuzzleResult?): Color = 
     null -> Color.Unspecified
 }
 
-private suspend fun runKotlinBasicsPuzzle(server: WorkshopServer, stage: WorkshopStage.KotlinBasicsPuzzleStage) = when (stage) {
-    PalindromeCheckTask -> server.kotlinBasicsPuzzle(stage).solve(solution = ::doPalindromeCheckOn)
-    FindMinimumAgeOfUserTask -> server.kotlinBasicsPuzzle(stage).solve(solution = ::serializableFindMinimumAgeOf)
-    FindOldestUserTask -> server.kotlinBasicsPuzzle(stage).solve(solution = ::serializableFindOldestUserAmong)
+private suspend fun runKotlinBasicsPuzzle(
+    server: WorkshopServer,
+    stage: WorkshopStage.KotlinBasicsPuzzleStage,
+    solutions: KotlinBasicsPuzzleSolutions,
+) = when (stage) {
+    PalindromeCheckTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.palindromeCheckSolution)
+    FindMinimumAgeOfUserTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.minimumAgeSolution)
+    FindOldestUserTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.oldestUserSolution)
 }
 
 private fun WorkshopStage.displayName(): String = when (this) {
