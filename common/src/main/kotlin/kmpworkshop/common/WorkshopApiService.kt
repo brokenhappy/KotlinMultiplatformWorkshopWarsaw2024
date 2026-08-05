@@ -1,6 +1,7 @@
 package kmpworkshop.common
 
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kotlinx.coroutines.flow.*
 import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
@@ -12,7 +13,7 @@ interface WorkshopServer : CoroutinePuzzleProvider {
 }
 
 fun interface CoroutinePuzzleProvider {
-    fun coroutinePuzzle(stage: WorkshopStage): CoroutinePuzzle
+    fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle
 }
 
 @Rpc interface WorkshopApiService {
@@ -35,7 +36,7 @@ fun WorkshopApiService.asServer(
     override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
         this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
 
-    override fun coroutinePuzzle(stage: WorkshopStage): CoroutinePuzzle =
+    override fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle =
         coroutinePuzzleCommunicationChannel { incoming, outgoing ->
             try {
                 doCoroutinePuzzleSolveAttempt(apiKey, stage.name, outgoing.consumeAsFlow())
@@ -47,25 +48,33 @@ fun WorkshopApiService.asServer(
 }
 
 @Serializable
-enum class WorkshopStage(val kotlinFile: String, val isCoroutinePuzzle: Boolean = true) {
-    Registration("Registration.kt", isCoroutinePuzzle = false),
-    PalindromeCheckTask("PalindromeCheck.kt", isCoroutinePuzzle = false),
-    FindMinimumAgeOfUserTask("MinimumAgeFinding.kt", isCoroutinePuzzle = false),
-    FindOldestUserTask("OldestUserFinding.kt", isCoroutinePuzzle = false),
-    SumOfTwoIntsSlow("NumSumFun.kt"),
-    SumOfTwoIntsFast("NumSumFun.kt"),
-    FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
-    FastFindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
-    MappingFromLegacyApisStepOne("MappingFromLegacyApisStepOne.kt"),
-    MappingFromLegacyApisStepTwo("MappingFromLegacyApisStepOne.kt"),
-    MappingFromLegacyApisStepThree("MappingFromLegacyApisStepOne.kt"),
-    MappingFromLegacyApisStepFour("MappingFromLegacyApisStepOne.kt"),
-    ExceptionCatchingWithCoroutines("ExceptionCatchingWithCoroutines.kt"),
-    SimpleFlow("FlowShow.kt"),
-    CollectLatest("FlowShow.kt"),
-    FileExposureStepOne("FileExposureScaffolding.kt"),
-    FileExposureStepTwo("FileExposureScaffolding.kt"),
-    FileExposureStepThree("FileExposureScaffolding.kt"),
+sealed interface WorkshopStage {
+    val kotlinFile: String
+
+    data object Registration : WorkshopStage {
+        override val kotlinFile: String = "Registration.kt"
+    }
+    enum class CodeStage(override val kotlinFile: String): WorkshopStage {
+        PalindromeCheckTask("PalindromeCheck.kt"),
+        FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
+        FindOldestUserTask("OldestUserFinding.kt"),
+    }
+    enum class CoroutinePuzzleStage(override val kotlinFile: String): WorkshopStage {
+        SumOfTwoIntsSlow("NumSumFun.kt"),
+        SumOfTwoIntsFast("NumSumFun.kt"),
+        FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
+        FastFindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
+        MappingFromLegacyApisStepOne("MappingFromLegacyApisStepOne.kt"),
+        MappingFromLegacyApisStepTwo("MappingFromLegacyApisStepOne.kt"),
+        MappingFromLegacyApisStepThree("MappingFromLegacyApisStepOne.kt"),
+        MappingFromLegacyApisStepFour("MappingFromLegacyApisStepOne.kt"),
+        ExceptionCatchingWithCoroutines("ExceptionCatchingWithCoroutines.kt"),
+        SimpleFlow("FlowShow.kt"),
+        CollectLatest("FlowShow.kt"),
+        FileExposureStepOne("FileExposureScaffolding.kt"),
+        FileExposureStepTwo("FileExposureScaffolding.kt"),
+        FileExposureStepThree("FileExposureScaffolding.kt"),
+    }
 }
 
 @Serializable

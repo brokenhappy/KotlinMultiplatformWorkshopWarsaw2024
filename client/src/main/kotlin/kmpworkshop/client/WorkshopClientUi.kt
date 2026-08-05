@@ -39,19 +39,6 @@ import org.jetbrains.compose.reload.isHotReloadActive
 import java.awt.Desktop
 import java.io.File
 
-private val coroutineStages = WorkshopStage.entries - setOf(
-    WorkshopStage.Registration,
-    WorkshopStage.PalindromeCheckTask,
-    WorkshopStage.FindMinimumAgeOfUserTask,
-    WorkshopStage.FindOldestUserTask,
-)
-
-private val codeStages = setOf(
-    WorkshopStage.PalindromeCheckTask,
-    WorkshopStage.FindMinimumAgeOfUserTask,
-    WorkshopStage.FindOldestUserTask,
-)
-
 public val workshopSolutions = CoroutinePuzzleWorkshopSolutions(
     sumSolution = { numberSummer(it) },
     collectSolution = { showingHowItsFlowing(it) },
@@ -62,12 +49,12 @@ public val workshopSolutions = CoroutinePuzzleWorkshopSolutions(
 )
 
 @Composable
-fun WorkshopClient(server: WorkshopServer) {
+fun WorkshopClient(server: WorkshopServer, solutions: CoroutinePuzzleWorkshopSolutions = workshopSolutions) {
     val stage by remember(server) { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
     val runGate = remember { WorkshopRunGate(stage) }
     runGate.enterStage(stage)
     var gateVersion by remember { mutableStateOf(0L) }
-    var history by remember(stage) { mutableStateOf(emptyList<CoroutinePuzzleHistoryBatch>()) }
+    val history = remember(stage) { mutableStateListOf<CoroutinePuzzleHistoryBatch>() }
     var result by remember(stage) { mutableStateOf<CoroutinePuzzleSolutionResult?>(null) }
     var status by remember(stage) { mutableStateOf<String?>(null) }
     var openError by remember(stage) { mutableStateOf<String?>(null) }
@@ -82,10 +69,10 @@ fun WorkshopClient(server: WorkshopServer) {
     LaunchedEffect(stage, gateVersion) {
         activeRun?.cancel()
         activeRun = null
-        history = emptyList()
+        history.clear()
         result = null
         status = null
-        if (stage in codeStages) {
+        (stage as? WorkshopStage.CodeStage)?.let { stage ->
             status = "Running test…"
             status = try {
                 runCodePuzzle(stage)
@@ -101,12 +88,12 @@ fun WorkshopClient(server: WorkshopServer) {
     DisposableEffect(Unit) { onDispose { activeRun?.cancel() } }
 
     Surface(Modifier.fillMaxSize()) {
-        when {
-            stage == WorkshopStage.Registration -> RegistrationWaiting()
-            stage in codeStages -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
+        when (val stage = stage) {
+            WorkshopStage.Registration -> RegistrationWaiting()
+            is WorkshopStage.CodeStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
                 Text(status ?: "Preparing test…")
             }
-            stage in coroutineStages -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
+            is WorkshopStage.CoroutinePuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
                 val canRun = runGate.canRun
                 Button(
                     enabled = canRun,
@@ -115,10 +102,10 @@ fun WorkshopClient(server: WorkshopServer) {
                         status = "Running test…"
                         activeRun = scope.launch {
                             try {
-                                runCoroutinePuzzleClientAsFlow(server, stage, workshopSolutions).collect {
+                                runCoroutinePuzzleClientAsFlow(server, stage, solutions).collect {
                                     status = when (it) {
                                         is CoroutinePuzzleSolveState.Running -> {
-                                            history = history + it.batch
+                                            history.add(it.batch)
                                             "Running test…"
                                         }
                                         is CoroutinePuzzleSolveState.Completed -> {
@@ -318,11 +305,10 @@ private fun resultColor(result: CoroutinePuzzleSolutionResult?): Color = when (r
     else -> Color(0xFFC62828)
 }
 
-private suspend fun runCodePuzzle(stage: WorkshopStage) = when (stage) {
-    WorkshopStage.PalindromeCheckTask -> checkCodePuzzle(stage.name, solution = ::doPalindromeCheckOn)
-    WorkshopStage.FindMinimumAgeOfUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindMinimumAgeOf)
-    WorkshopStage.FindOldestUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindOldestUserAmong)
-    else -> error("Not a code puzzle: $stage")
+private suspend fun runCodePuzzle(stage: WorkshopStage.CodeStage) = when (stage) {
+    PalindromeCheckTask -> checkCodePuzzle(stage.name, solution = ::doPalindromeCheckOn)
+    FindMinimumAgeOfUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindMinimumAgeOf)
+    FindOldestUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindOldestUserAmong)
 }
 
 private fun openStageFile(stage: WorkshopStage): String? {

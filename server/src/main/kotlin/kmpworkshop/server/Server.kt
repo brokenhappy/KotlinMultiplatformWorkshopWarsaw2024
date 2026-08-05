@@ -78,7 +78,7 @@ fun workshopService(
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
-        val puzzle = WorkshopStage
+        val puzzle = CodeStage
             .entries
             .firstOrNull { it.name == puzzleName }
             ?.let { findPuzzleFor(it) }
@@ -127,7 +127,7 @@ fun workshopService(
         fun customFailure(string: String): CoroutinePuzzleExpectationBatchOrCompletion.Completion =
             CoroutinePuzzleExpectationBatchOrCompletion.Completion(CoroutinePuzzleSolutionResult.CustomFailure(string))
 
-        val puzzle = WorkshopStage
+        val puzzle = CoroutinePuzzleStage
             .entries
             .firstOrNull { it.name == puzzleId }
             ?.let { findCoroutinePuzzleFor(it) }
@@ -183,23 +183,8 @@ private data class Puzzle<T, R>(
     val rSerializer: KSerializer<R>,
 )
 
-private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
-    Registration,
-    SumOfTwoIntsSlow,
-    SumOfTwoIntsFast,
-    CollectLatest,
-    FileExposureStepOne,
-    FileExposureStepTwo,
-    FileExposureStepThree,
-    SimpleFlow,
-    FindMaximumAgeCoroutines,
-    FastFindMaximumAgeCoroutines,
-    MappingFromLegacyApisStepOne,
-    MappingFromLegacyApisStepTwo,
-    MappingFromLegacyApisStepThree,
-    MappingFromLegacyApisStepFour,
-    ExceptionCatchingWithCoroutines,
-    PalindromeCheckTask -> puzzle(
+private fun findPuzzleFor(stage: CodeStage): Puzzle<*, *>? = when (stage) {
+    CodeStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,
         "radar" to true,
@@ -207,7 +192,7 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
         "abba" to true,
         "ABBA" to true,
     )
-    FindMinimumAgeOfUserTask -> puzzle(
+    CodeStage.FindMinimumAgeOfUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to 18,
         listOf(SerializableUser("John", 0)) to 0,
         listOf(
@@ -223,7 +208,7 @@ private fun findPuzzleFor(stage: WorkshopStage): Puzzle<*, *>? = when (stage) {
             SerializableUser("Jane", 10),
         ) to 10,
     )
-    FindOldestUserTask -> puzzle(
+    CodeStage.FindOldestUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to SerializableUser("John", 18),
         listOf(SerializableUser("John", 0)) to SerializableUser("John", 0),
         listOf(

@@ -1,19 +1,18 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.client.exceptionHandlingPuzzle
-import kmpworkshop.client.mapFromLegacyApi
-import kmpworkshop.client.maximumAgeFindingWithCoroutines
-import kmpworkshop.client.numberSummer
+import kmpworkshop.client.allowPeopleToDownloadExposedFile
 import kmpworkshop.client.runCoroutinePuzzleClient
-import kmpworkshop.client.showingHowItsFlowing
-import kmpworkshop.client.toMessage
+import kmpworkshop.client.workshopSolutions
 import kmpworkshop.common.*
-import kmpworkshop.common.WorkshopStage.*
-import kmpworkshop.server.*
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
+import kmpworkshop.server.CoroutinePuzzleErrorMessages
+import kmpworkshop.server.findCoroutinePuzzleFor
+import kmpworkshop.server.mainEventLoopWritingTo
+import kmpworkshop.server.workshopService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -29,13 +28,11 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
-import kmpworkshop.client.allowPeopleToDownloadExposedFile
-import kmpworkshop.client.workshopSolutions
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
 
 class CoroutinePuzzleTestWithoutRpcService : WorkshopCoroutinePuzzleTest() {
     override suspend fun runCoroutinePuzzle(
-        stage: WorkshopStage,
+        stage: CoroutinePuzzleStage,
         solutions: Solutions,
     ): ResultsWHistory = runCoroutinePuzzleClient(
         puzzleProvider = { findCoroutinePuzzleFor(it).asPuzzle() },
@@ -46,7 +43,7 @@ class CoroutinePuzzleTestWithoutRpcService : WorkshopCoroutinePuzzleTest() {
 
 @OptIn(ExperimentalTime::class)
 suspend fun runTestClient(
-    stage: WorkshopStage,
+    stage: CoroutinePuzzleStage,
     solutions: Solutions,
 ): ResultsWHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
@@ -73,35 +70,27 @@ suspend fun runTestClient(
 }
 
 class WorkshopCoroutinePuzzleTestWithRpcService : WorkshopCoroutinePuzzleTest() {
-    override suspend fun runCoroutinePuzzle(stage: WorkshopStage, solutions: Solutions): ResultsWHistory =
+    override suspend fun runCoroutinePuzzle(stage: CoroutinePuzzleStage, solutions: Solutions): ResultsWHistory =
         runTestClient(stage, solutions)
 }
 
 abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun `empty solutions are wrong`(): Unit = runPuzzleTest {
-        doSimpleSumPuzzle { }.assertIsNotOk()
-        doTimedSumPuzzle { }.assertIsNotOk()
-        doSimpleCollectPuzzle { }.assertIsNotOk()
-        doCollectLatestPuzzle { }.assertIsNotOk()
-        doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
-        doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle { }.assertIsNotOk()
-        doMappingLegacyApiWithExceptionCoroutinePuzzle { }.assertIsNotOk()
-        doMappingLegacyApiWithCancellationCoroutinePuzzle { }.assertIsNotOk()
-        doMappingLegacyApiStepFourCoroutinePuzzle { }.assertIsNotOk()
-        doMappingLegacyApiHappyPathCoroutinePuzzle { }.assertIsNotOk()
-        doExceptionHandlingPuzzle { }.assertIsNotOk()
-        doFileExposureStepOne { }.assertIsNotOk()
-        doFileExposureStepTwo { }.assertIsNotOk()
-        doFileExposureStepThree { }.assertIsNotOk()
+        val emptySolutions = Solutions(
+            sumSolution = {},
+            collectSolution = {},
+            maximumAgeFindingTheSecondCoroutineSolution = {},
+            mappingLegacyApiCoroutineSolution = {},
+            exceptionHandlingSolution = {},
+            fileExposureSolution = {}
+        )
+        CoroutinePuzzleStage.entries.forEach { stage -> runCoroutinePuzzle(stage, emptySolutions).assertIsNotOk() }
     }
 
     @Test
     fun `default implementations are wrong`(): Unit = runPuzzleTest {
-        WorkshopStage
-            .entries
-            .filter { it.isCoroutinePuzzle }
-            .forEach { stage -> runCoroutinePuzzle(stage, workshopSolutions).assertIsNotOk() }
+        CoroutinePuzzleStage.entries.forEach { stage -> runCoroutinePuzzle(stage, workshopSolutions).assertIsNotOk() }
     }
 
     @Test
@@ -592,7 +581,7 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
     protected open fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit): Unit =
         runTestWithRandomizedDispatchOrdering(block = block)
 
-    protected abstract suspend fun runCoroutinePuzzle(stage: WorkshopStage, solutions: Solutions): ResultsWHistory
+    protected abstract suspend fun runCoroutinePuzzle(stage: CoroutinePuzzleStage, solutions: Solutions): ResultsWHistory
 
     suspend fun doSimpleSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SumOfTwoIntsSlow, solutions(sumSolution = block))

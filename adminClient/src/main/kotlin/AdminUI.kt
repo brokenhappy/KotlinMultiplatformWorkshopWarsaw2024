@@ -67,6 +67,9 @@ fun main(): Unit = application {
 
 private val adminPassword = System.getenv("ADMIN_PASSWORD")
 
+private val workshopStages: List<WorkshopStage> = listOf(WorkshopStage.Registration) +
+    WorkshopStage.CodeStage.entries + WorkshopStage.CoroutinePuzzleStage.entries
+
 suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
     val ktorClient = HttpClient {
         installKrpc {
@@ -624,23 +627,8 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
             StageTopBar(state.currentStage, onEvent)
             when (val stage = state.currentStage) {
                 WorkshopStage.Registration -> Registration(state, onEvent)
-                WorkshopStage.SumOfTwoIntsSlow,
-                WorkshopStage.SumOfTwoIntsFast,
-                WorkshopStage.SimpleFlow,
-                WorkshopStage.CollectLatest,
-                WorkshopStage.FileExposureStepOne,
-                WorkshopStage.FileExposureStepTwo,
-                WorkshopStage.FileExposureStepThree,
-                WorkshopStage.PalindromeCheckTask,
-                WorkshopStage.FindMaximumAgeCoroutines,
-                WorkshopStage.FastFindMaximumAgeCoroutines,
-                WorkshopStage.MappingFromLegacyApisStepOne,
-                WorkshopStage.MappingFromLegacyApisStepTwo,
-                WorkshopStage.MappingFromLegacyApisStepThree,
-                WorkshopStage.MappingFromLegacyApisStepFour,
-                WorkshopStage.ExceptionCatchingWithCoroutines,
-                WorkshopStage.FindMinimumAgeOfUserTask,
-                WorkshopStage.FindOldestUserTask -> Puzzle(state, stage.name, onEvent)
+                is WorkshopStage.CodeStage -> Puzzle(state, stage.name, onEvent)
+                is WorkshopStage.CoroutinePuzzleStage -> Puzzle(state, stage.name, onEvent)
             }
         }
     }
@@ -733,7 +721,7 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                 ) {
-                    WorkshopStage.entries.forEach {
+                    workshopStages.forEach {
                         DropdownMenuItem(onClick = { expanded = false; onEvent.schedule(StageChangeEvent(it)) }) {
                             Text(it.kotlinFile)
                         }
@@ -769,7 +757,7 @@ private fun MoveStageButton(
 }
 
 private fun WorkshopStage.moving(offset: Int): WorkshopStage? =
-    WorkshopStage.entries.getOrNull(ordinal + offset)
+    workshopStages.getOrNull(workshopStages.indexOf(this) + offset)
 
 private enum class RegistrationViewMode {
     ParticipantRegistration, TableSetup,

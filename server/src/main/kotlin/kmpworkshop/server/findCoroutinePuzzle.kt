@@ -2,25 +2,22 @@ package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleProtocol
 import kmpworkshop.common.Resource
-import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 
-fun findCoroutinePuzzleFor(stage: WorkshopStage): Resource<CoroutinePuzzleProtocol> = when (stage) {
-    WorkshopStage.Registration,
-    WorkshopStage.PalindromeCheckTask,
-    WorkshopStage.FindMinimumAgeOfUserTask,
-    WorkshopStage.FindOldestUserTask,
-    WorkshopStage.SumOfTwoIntsSlow -> simpleSumPuzzle()
-    WorkshopStage.SumOfTwoIntsFast -> timedSumPuzzle()
-    WorkshopStage.FindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false)
-    WorkshopStage.FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true)
-    WorkshopStage.MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()
-    WorkshopStage.MappingFromLegacyApisStepTwo -> mappingLegacyApiCoroutinePuzzleWithException()
-    WorkshopStage.MappingFromLegacyApisStepThree -> mappingLegacyApiCoroutinePuzzleWithEscapingCancellation()
-    WorkshopStage.MappingFromLegacyApisStepFour -> mappingLegacyApiCoroutinePuzzleStepFour()
-    WorkshopStage.ExceptionCatchingWithCoroutines -> coroutineExceptionHandlingCoroutinePuzzle()
-    WorkshopStage.SimpleFlow -> simpleFlowPuzzle()
-    WorkshopStage.CollectLatest -> collectLatestPuzzle()
-    WorkshopStage.FileExposureStepOne -> fileExposureStepOnePuzzle()
-    WorkshopStage.FileExposureStepTwo -> fileExposureStepTwoPuzzle()
-    WorkshopStage.FileExposureStepThree -> fileExposureStepThreePuzzle()
+fun findCoroutinePuzzleFor(stage: CoroutinePuzzleStage): Resource<CoroutinePuzzleProtocol> = when (stage) {
+    SumOfTwoIntsSlow -> simpleSumPuzzle()
+    SumOfTwoIntsFast -> timedSumPuzzle()
+    FindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false)
+    FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true)
+    MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()
+    MappingFromLegacyApisStepTwo -> mappingLegacyApiCoroutinePuzzleWithException()
+    MappingFromLegacyApisStepThree -> mappingLegacyApiCoroutinePuzzleWithEscapingCancellation()
+    MappingFromLegacyApisStepFour -> mappingLegacyApiCoroutinePuzzleStepFour()
+    ExceptionCatchingWithCoroutines -> coroutineExceptionHandlingCoroutinePuzzle()
+    SimpleFlow -> simpleFlowPuzzle()
+    CollectLatest -> collectLatestPuzzle()
+    FileExposureStepOne -> fileExposureStepOnePuzzle()
+    FileExposureStepTwo -> fileExposureStepTwoPuzzle()
+    FileExposureStepThree -> fileExposureStepThreePuzzle()
 }

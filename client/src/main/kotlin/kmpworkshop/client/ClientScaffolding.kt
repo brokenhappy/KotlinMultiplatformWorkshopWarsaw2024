@@ -76,8 +76,6 @@ fun ClientEntryPoint() {
 }
 
 @Composable
-fun ClientEntryPoint(
-    server: WorkshopServer,
-) {
+fun ClientEntryPoint(server: WorkshopServer) {
     WorkshopClient(server)
 }

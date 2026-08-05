@@ -54,10 +54,12 @@ fun interface CoroutinePuzzle {
 
 suspend fun CoroutinePuzzle.solve(
     solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
-): CoroutinePuzzleResultWithHistory {
+): CoroutinePuzzleResultWithHistory = solveAsFlow(solution).toResultWithHistory()
+
+suspend fun Flow<CoroutinePuzzleSolveState>.toResultWithHistory(): CoroutinePuzzleResultWithHistory {
     val history = mutableListOf<CoroutinePuzzleHistoryBatch>()
     var result: CoroutinePuzzleSolutionResult? = null
-    solveAsFlow(solution).collect { state ->
+    collect { state ->
         when (state) {
             is CoroutinePuzzleSolveState.Running -> history += state.batch
             is CoroutinePuzzleSolveState.Completed -> result = state.result

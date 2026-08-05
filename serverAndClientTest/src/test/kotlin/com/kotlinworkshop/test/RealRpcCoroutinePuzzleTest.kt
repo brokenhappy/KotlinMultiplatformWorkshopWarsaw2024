@@ -46,14 +46,14 @@ class WorkshopCoroutinePuzzleTestWithRealRpcTransport : WorkshopCoroutinePuzzleT
     }
 
     override suspend fun runCoroutinePuzzle(
-        stage: WorkshopStage,
+        stage: WorkshopStage.CoroutinePuzzleStage,
         solutions: CoroutinePuzzleWorkshopSolutions,
     ): CoroutinePuzzleResultWithHistory = runRealRpcTestClient(stage, solutions)
 }
 
 @OptIn(ExperimentalTime::class)
 internal suspend fun runRealRpcTestClient(
-    stage: WorkshopStage,
+    stage: WorkshopStage.CoroutinePuzzleStage,
     solutions: CoroutinePuzzleWorkshopSolutions,
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
