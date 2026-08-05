@@ -46,7 +46,7 @@ fun mappingLegacyApiHappyPathCoroutinePuzzle(): Resource<CoroutinePuzzleProtocol
 
 fun mappingLegacyApiCoroutinePuzzleWithException(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne {
-        queryUserById.expectCall(null) // Throw an exception on the last call
+        queryUserById.expectThrowingCall("Could not fetch this user")
         queryExceptionThrown.expectCall(Unit) // Expect it to be caught in the scaffolding
         callIsDone.expectCall(Unit)
     }

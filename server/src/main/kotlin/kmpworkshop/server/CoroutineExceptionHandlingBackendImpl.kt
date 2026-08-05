@@ -11,7 +11,7 @@ fun coroutineExceptionHandlingCoroutinePuzzle(): Resource<CoroutinePuzzleProtoco
     awaitQuiescenceAndVerifyUnmatchedSubmissions(clearCachesEndpoint, refreshTokensEndpoint)
     coroutineScope {
         launch { clearCachesEndpoint.expectCanceledCall { awaitCancellation() } }
-        launch { refreshTokensEndpoint.expectCall(exceptionMessage) }
+        launch { refreshTokensEndpoint.expectThrowingCall(exceptionMessage) }
     }
     reportExceptionEndpoint.expectCall {
         verify(exceptionMessage == it) {

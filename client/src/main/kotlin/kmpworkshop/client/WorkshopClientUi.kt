@@ -237,7 +237,7 @@ private data class Marker(val text: String, val title: String? = null, val detai
 private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): Marker = when {
     batch == call.endBatch -> when (call.completion) {
         TimelineCompletion.RETURNED -> Marker("✓", "Returned", "Result: ${displayValue(call.returnValue)}")
-        TimelineCompletion.THREW -> Marker("!", "Threw", "The puzzle completed this call by throwing an exception.")
+        TimelineCompletion.THREW -> Marker("!", "Threw", "Exception: ${call.exceptionMessage}")
         TimelineCompletion.CANCELLED -> Marker("⊘", "Cancellation completed", "The puzzle confirmed that this call was cancelled.")
         null -> Marker("")
     }

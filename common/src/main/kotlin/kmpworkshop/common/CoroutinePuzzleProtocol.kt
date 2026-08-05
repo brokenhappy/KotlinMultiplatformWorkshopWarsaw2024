@@ -81,7 +81,7 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
     }
 }
 
-class ExceptionAcrossRpc: Exception(null, null, false, false)
+class ExceptionAcrossRpc(message: String): Exception(message, null, false, false)
 class CancellationAcrossRpc: CancellationException(null)
 
 private fun CoroutinePuzzleSolutionResult.withHistory(history: List<CoroutinePuzzleHistoryBatch>): CoroutinePuzzleResultWithHistory =
@@ -129,7 +129,7 @@ private suspend fun messageReceivingActor(
 private fun ExpectationPayload.toResult(): Result<JsonElement> = when (this) {
     ExpectationPayload.CallCancellationCompleted -> Result.failure(CancellationAcrossRpc())
     is ExpectationPayload.CallAnswered -> Result.success(result)
-    ExpectationPayload.CallThrew -> Result.failure(ExceptionAcrossRpc())
+    is ExpectationPayload.CallThrew -> Result.failure(ExceptionAcrossRpc(message))
 }
 
 @Serializable sealed class CoroutinePuzzleExpectationBatchOrCompletion {

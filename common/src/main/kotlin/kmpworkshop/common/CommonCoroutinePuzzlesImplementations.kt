@@ -61,7 +61,7 @@ data class User(val name: String, val age: Int)
 context(solutionScope: CoroutinePuzzleSolutionScope)
 fun getUserDatabase(): UserDatabase = object : UserDatabase {
     override suspend fun getAllIds(): List<Int> = getAllUserIds.submitCall(Unit)
-    override suspend fun queryUser(id: Int): User = queryUserById.submitCall(id)!!.let { User(it.name, it.age) }
+    override suspend fun queryUser(id: Int): User = queryUserById.submitCall(id).let { User(it.name, it.age) }
     override suspend fun submit(number: Int) {
         submitNumber.submitCall(number)
     }
@@ -77,10 +77,11 @@ fun getUserDatabaseWithLegacyQueryUser(
         val isDone = CompletableDeferred<Unit>()
         return topLevelScope.launch {
             try {
-                queryUserById
-                    .submitCall(id)
-                    ?.let { onSuccess(User(it.name, it.age)) }
-                    ?: onError(QueryFetchFailedForSomeReasonException())
+                try {
+                    queryUserById.submitCall(id).let { onSuccess(User(it.name, it.age)) }
+                } catch (failure: ExceptionAcrossRpc) {
+                    onError(QueryFetchFailedForSomeReasonException(failure.message))
+                }
             } finally {
                 isDone.complete(Unit)
             }
@@ -106,4 +107,4 @@ fun getUserDatabaseWithLegacyQueryUser(
     }
 }
 
-class QueryFetchFailedForSomeReasonException : Exception()
+class QueryFetchFailedForSomeReasonException(message: String? = null) : Exception(message)

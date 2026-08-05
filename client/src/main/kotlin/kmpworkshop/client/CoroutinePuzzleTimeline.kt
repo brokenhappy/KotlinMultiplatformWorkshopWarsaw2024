@@ -18,6 +18,7 @@ data class CoroutineTimelineCall(
     val endBatch: Int? = null,
     val completion: TimelineCompletion? = null,
     val returnValue: JsonElement? = null,
+    val exceptionMessage: String? = null,
 )
 
 fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<CoroutineTimelineCall> {
@@ -43,7 +44,11 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
                             completion = TimelineCompletion.RETURNED,
                             returnValue = payload.result,
                         )
-                        ExpectationPayload.CallThrew -> call.copy(endBatch = batchIndex, completion = TimelineCompletion.THREW)
+                        is ExpectationPayload.CallThrew -> call.copy(
+                            endBatch = batchIndex,
+                            completion = TimelineCompletion.THREW,
+                            exceptionMessage = payload.message,
+                        )
                         ExpectationPayload.CallCancellationCompleted -> call.copy(endBatch = batchIndex, completion = TimelineCompletion.CANCELLED)
                     }
                 }

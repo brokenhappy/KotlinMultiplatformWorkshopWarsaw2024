@@ -1,7 +1,7 @@
 package kmpworkshop.common
 
 val clearCachesEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("clearCaches()")
-val refreshTokensEndpoint = coroutinePuzzleEndPoint<Unit, String?>("refreshTokens()")
+val refreshTokensEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("refreshTokens()")
 val reportExceptionEndpoint = coroutinePuzzleEndPoint<String?, Unit>("reportException(e: Exception)")
 
 interface ExceptionalApi {
@@ -17,11 +17,10 @@ fun coroutineExceptionHandlingApiService(): ExceptionalApi = object : Exceptiona
     }
 
     override suspend fun refreshTokens() {
-        refreshTokensEndpoint.submitCall(Unit)?.let { throw Exception(it) }
+        refreshTokensEndpoint.submitCall(Unit)
     }
 
     override suspend fun reportException(e: Exception) {
         reportExceptionEndpoint.submitCall(e.message)
     }
 }
-

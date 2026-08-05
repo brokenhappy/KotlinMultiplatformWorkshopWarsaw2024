@@ -3,7 +3,7 @@ package kmpworkshop.common
 
 val emitNumber = coroutinePuzzleEndPoint<Unit, Int?>("Call emit(): Int")
 val getAllUserIds = coroutinePuzzleEndPoint<Unit, List<Int>>("Call getAllUserIds(): List<Int>")
-val queryUserById = coroutinePuzzleEndPoint<Int, SerializableUser?>("Call queryUserById(id: Int): User")
+val queryUserById = coroutinePuzzleEndPoint<Int, SerializableUser>("Call queryUserById(id: Int): User")
 val queryExceptionThrown = coroutinePuzzleEndPoint<Unit, Unit>("Throw the exception given by queryUserWithCallback!")
 val callLifetime = coroutinePuzzleEndPoint<Unit, Unit>("Call lifetime check (Done in scaffolding)")
 val callIsDone = coroutinePuzzleEndPoint<Unit, Unit>("Finish the execution of your function")

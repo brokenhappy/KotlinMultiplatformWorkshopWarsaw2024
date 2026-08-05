@@ -167,7 +167,7 @@ class CoroutinePuzzleHistoryRendererTest {
 
     private fun threw(callId: Long) = CoroutinePuzzleBatchEntry<ExpectationPayload>(
         callId = callId,
-        payload = ExpectationPayload.CallThrew,
+        payload = ExpectationPayload.CallThrew("Boom"),
     )
 
     private fun cancellationCompleted(callId: Long) = CoroutinePuzzleBatchEntry<ExpectationPayload>(

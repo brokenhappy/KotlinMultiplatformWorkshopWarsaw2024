@@ -41,7 +41,7 @@ typealias CoroutinePuzzleBatch<T> = List<CoroutinePuzzleBatchEntry<T>>
     }
     @Serializable sealed class ExpectationPayload {
         @Serializable data class CallAnswered(val result: JsonElement) : ExpectationPayload()
-        @Serializable data object CallThrew : ExpectationPayload()
+        @Serializable data class CallThrew(val message: String) : ExpectationPayload()
         @Serializable data object CallCancellationCompleted : ExpectationPayload()
     }
 }

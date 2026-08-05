@@ -27,7 +27,7 @@ class CoroutinePuzzleTimelineTest {
             )),
             CoroutinePuzzleHistoryBatch.Expectation(listOf(
                 entry(1, ExpectationPayload.CallAnswered(JsonObject(emptyMap()))),
-                entry(2, ExpectationPayload.CallThrew),
+                entry(2, ExpectationPayload.CallThrew("Database unavailable")),
             )),
             CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, SubmissionPayload.CallShouldCancel))),
         )
@@ -37,6 +37,7 @@ class CoroutinePuzzleTimelineTest {
         assertEquals(JsonPrimitive(7), calls[0].argument)
         assertTrue(calls[0].returnValue!!.isUnitValue())
         assertEquals(TimelineCompletion.THREW, calls[1].completion)
+        assertEquals("Database unavailable", calls[1].exceptionMessage)
         assertEquals(2, calls[1].cancellationRequestedBatch)
         assertNull(calls[2].endBatch)
     }

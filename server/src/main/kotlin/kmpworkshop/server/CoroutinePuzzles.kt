@@ -95,7 +95,7 @@ fun coroutinePuzzle(
                                                 } catch (t: Throwable) {
                                                     exception = t
                                                     if (task.isCancelled) ExpectationPayload.CallCancellationCompleted
-                                                    else ExpectationPayload.CallThrew
+                                                    else ExpectationPayload.CallThrew(t.message ?: "Unknown exception")
                                                 }
                                                 try {
                                                     coroutinePuzzleSubmissionFunction.batched(
@@ -383,6 +383,18 @@ context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */T, /* @Exact */R>.expectCall(
     noinline valueProducer: suspend (T) -> R,
 ): T = builder.expectCallTo(this, serializer(), serializer(), valueProducer)
+
+context(_: CoroutinePuzzleBuilderScope)
+suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.expectThrowingCall(message: String) {
+    try {
+        expectCall { throw ExpectedCallException(message) }
+    } catch (failure: ExpectedCallException) {
+        if (failure.message != message) throw failure
+    }
+}
+
+@PublishedApi
+internal class ExpectedCallException(message: String) : Exception(message)
 
 context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */T, /* @Exact */R>.expectCanceledCall(

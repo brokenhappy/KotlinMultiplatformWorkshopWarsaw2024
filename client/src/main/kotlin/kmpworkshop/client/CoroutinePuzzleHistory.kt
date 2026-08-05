@@ -68,14 +68,8 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
                     val call = activeCall(callId)
 
                     when (payload) {
-                        is ExpectationPayload.CallAnswered -> {
-                            call.finish(batchIndex, '✓')
-                        }
-
-                        ExpectationPayload.CallThrew -> {
-                            call.finish(batchIndex, '!')
-                        }
-
+                        is ExpectationPayload.CallAnswered -> call.finish(batchIndex, '✓')
+                        is ExpectationPayload.CallThrew -> call.finish(batchIndex, '!')
                         ExpectationPayload.CallCancellationCompleted -> {
                             require(call.cancelRequestedBatch != null) {
                                 "Cancellation completed without being requested for call $callId"
