@@ -8,21 +8,17 @@ import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
-import kmpworkshop.server.findCoroutinePuzzleFor
+import kmpworkshop.server.CoroutinePuzzleType
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Test
 import testWorkshopService
-import workshop.adminaccess.PuzzleState
-import workshop.adminaccess.ServerState
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertFails
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
@@ -33,7 +29,7 @@ class CoroutinePuzzleTestWithoutRpcService : WorkshopCoroutinePuzzleTest() {
         stage: CoroutinePuzzleStage,
         solutions: Solutions,
     ): ResultsWHistory = runCoroutinePuzzleClient(
-        puzzleProvider = { findCoroutinePuzzleFor(it).asPuzzle() },
+        puzzleProvider = { CoroutinePuzzleType.findPuzzleFor(it).asPuzzle() },
         stage,
         solutions,
     )

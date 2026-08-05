@@ -344,13 +344,13 @@ private fun kotlinBasicsResultColor(result: KotlinBasicsPuzzleResult?): Color = 
 
 @TestOnly
 public suspend fun runKotlinBasicsPuzzle(
-    server: KotlinBasicsPuzzleProvider,
+    puzzleProvider: KotlinBasicsPuzzleProvider,
     stage: WorkshopStage.KotlinBasicsPuzzleStage,
     solutions: KotlinBasicsPuzzleSolutions,
 ): KotlinBasicsPuzzleResult = when (stage) {
-    PalindromeCheckTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.palindromeCheckSolution)
-    FindMinimumAgeOfUserTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.minimumAgeSolution)
-    FindOldestUserTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.oldestUserSolution)
+    PalindromeCheckTask -> puzzleProvider.kotlinBasicsPuzzle(stage).solve(solutions.palindromeCheckSolution)
+    FindMinimumAgeOfUserTask -> puzzleProvider.kotlinBasicsPuzzle(stage).solve(solutions.minimumAgeSolution)
+    FindOldestUserTask -> puzzleProvider.kotlinBasicsPuzzle(stage).solve(solutions.oldestUserSolution)
 }
 
 private fun WorkshopStage.displayName(): String = when (this) {

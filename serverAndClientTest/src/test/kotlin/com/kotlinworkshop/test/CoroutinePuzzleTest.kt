@@ -299,8 +299,8 @@ class CoroutinePuzzleTest {
         coroutinePuzzle {
             endpoint.expectCall(Unit)
             awaitCancellation()
-        }.use { protocol ->
-            protocol.submissions.send(listOf(
+        }.use { (expectations, submissions) ->
+            submissions.send(listOf(
                 CoroutinePuzzleBatchEntry(
                     callId = 1,
                     payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted(
@@ -309,15 +309,15 @@ class CoroutinePuzzleTest {
                     ),
                 ),
             ))
-            protocol.expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
+            expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
 
-            protocol.submissions.send(listOf(
+            submissions.send(listOf(
                 CoroutinePuzzleBatchEntry(
                     callId = 1,
                     payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallShouldCancel,
                 ),
             ))
-            protocol.expectations.receive()
+            expectations.receive()
                 .assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Completion>()
                 .result
                 .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
@@ -333,8 +333,8 @@ class CoroutinePuzzleTest {
         coroutinePuzzle {
             endpoint.expectCall(Unit)
             awaitCancellation()
-        }.use { protocol ->
-            protocol.submissions.send(listOf(
+        }.use { (expectations, submissions) ->
+            submissions.send(listOf(
                 CoroutinePuzzleBatchEntry(
                     callId = 1,
                     payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted(
@@ -343,15 +343,15 @@ class CoroutinePuzzleTest {
                     ),
                 ),
             ))
-            protocol.expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
+            expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
 
-            protocol.submissions.send(listOf(
+            submissions.send(listOf(
                 CoroutinePuzzleBatchEntry(
                     callId = 1,
                     payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallShouldCancel,
                 ),
             ))
-            protocol.expectations.receive()
+            expectations.receive()
                 .assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Completion>()
                 .result
                 .assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()

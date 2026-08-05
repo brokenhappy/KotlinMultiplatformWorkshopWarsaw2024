@@ -3,9 +3,8 @@ package kmpworkshop.common
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
 import kotlinx.rpc.annotations.Rpc
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -33,7 +32,7 @@ fun interface KotlinBasicsPuzzleProvider {
 
     fun doKotlinBasicsPuzzleSolveAttempt(
         key: ApiKey,
-        puzzleName: String,
+        puzzleId: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus>
 }
@@ -43,36 +42,14 @@ fun WorkshopApiService.asServer(
 ): WorkshopServer = object : WorkshopServer {
     override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
 
-    override fun kotlinBasicsPuzzle(stage: KotlinBasicsPuzzleStage): KotlinBasicsPuzzle = KotlinBasicsPuzzle { solution ->
-        val answers = MutableSharedFlow<JsonElement>()
-
-        this@asServer
-            .doKotlinBasicsPuzzleSolveAttempt(apiKey, stage.name, answers)
-            .mapNotNull { status ->
-                when (status) {
-                    is SolvingStatus.Next ->
-                        try {
-                            answers.emit(solution(status.questionJson))
-                            null
-                        } catch (_: SerializationException) {
-                            KotlinBasicsPuzzleResult.CustomFailure(
-                                accidentalChangesMadeMessage,
-                            )
-                        }
-                    is SolvingStatus.Done -> status.result
-                }
-            }
-            .first()
-    }
+    override fun kotlinBasicsPuzzle(stage: KotlinBasicsPuzzleStage): KotlinBasicsPuzzle =
+        mapFlowsToCommunicationProtocol { answers ->
+            doKotlinBasicsPuzzleSolveAttempt(apiKey, stage.name, answers)
+        }.asKotlinBasicsPuzzle()
 
     override fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle =
-        coroutinePuzzleCommunicationChannel { incoming, outgoing ->
-            try {
-                doCoroutinePuzzleSolveAttempt(apiKey, stage.name, outgoing.consumeAsFlow())
-                    .collect { incoming.send(it) }
-            } finally {
-                incoming.close()
-            }
+        mapFlowsToCommunicationProtocol { submissions ->
+            doCoroutinePuzzleSolveAttempt(apiKey, stage.name, submissions)
         }.asPuzzle()
 }
 

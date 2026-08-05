@@ -4,18 +4,14 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kmpworkshop.common.WorkshopStage.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.serializer
 import workshop.adminaccess.*
 import kotlin.random.Random
 import kotlin.time.Clock
@@ -75,97 +71,68 @@ fun workshopService(
 
     override fun doKotlinBasicsPuzzleSolveAttempt(
         key: ApiKey,
-        puzzleName: String,
+        puzzleId: String,
         answers: Flow<JsonElement>,
-    ): Flow<SolvingStatus> = flow {
-        val puzzle = KotlinBasicsPuzzleStage
-            .entries
-            .firstOrNull { it.name == puzzleName }
-            ?.let { findPuzzleFor(it) }
-            ?: run {
-                println("Someone tried to request puzzle name: $puzzleName")
-                emit(SolvingStatus.Done(KotlinBasicsPuzzleResult.CustomFailure(accidentalChangesMadeMessage)))
-                return@flow
-            }
-
-        var puzzleIndex = 0
-        var lastInput: JsonElement? = null
-        try {
-            answers.onStart<JsonElement?> { emit(null) }.collect { answer ->
-                if (answer != null) {
-                    val expected = puzzle.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex)
-                    if (answer != expected) {
-                        emit(SolvingStatus.Done(KotlinBasicsPuzzleResult.Failed(lastInput!!, answer, expected)))
-                        return@collect
-                    }
-                    puzzleIndex++
-                }
-                if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
-                    emit(
-                        SolvingStatus.Done(
-                            when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleName))) {
-                                PuzzleCompletionResult.Done -> KotlinBasicsPuzzleResult.Success
-                                PuzzleCompletionResult.AlreadySolved -> KotlinBasicsPuzzleResult
-                                    .CustomFailure(alreadySolvedMessage)
-                                PuzzleCompletionResult.PuzzleNotOpenedYet -> KotlinBasicsPuzzleResult
-                                    .CustomFailure(puzzleNotOpenedYetMessage)
-                            },
-                        )
-                    )
-                } else {
-                    val element = puzzle.getPuzzleInputAsJsonElementAtIndex(puzzleIndex)
-                    emit(SolvingStatus.Next(element))
-                    lastInput = element
-                }
-            }
-        } catch (_: SerializationException) {
-            emit(SolvingStatus.Done(KotlinBasicsPuzzleResult.CustomFailure(accidentalChangesMadeMessage)),)
-        }
-    }
+    ): Flow<SolvingStatus> =
+        context(KotlinBasicsPuzzleType) { doPuzzleAttempt(key, puzzleId, answers, onEvent) }
 
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
         messages: Flow<List<CoroutinePuzzleBatchEntry<CoroutinePuzzleBatchEntry.SubmissionPayload>>>
-    ): Flow<CoroutinePuzzleExpectationBatchOrCompletion> = channelFlow {
-        fun customFailure(string: String): CoroutinePuzzleExpectationBatchOrCompletion.Completion =
-            CoroutinePuzzleExpectationBatchOrCompletion.Completion(CoroutinePuzzleSolutionResult.CustomFailure(string))
+    ): Flow<CoroutinePuzzleExpectationBatchOrCompletion> =
+        context(CoroutinePuzzleType) { doPuzzleAttempt(key, puzzleId, messages, onEvent) }
+}
 
-        val puzzle = CoroutinePuzzleStage
-            .entries
-            .firstOrNull { it.name == puzzleId }
-            ?.let { findCoroutinePuzzleFor(it) }
-            ?: run {
-                println("Someone tried to request coroutine puzzle id: $puzzleId")
-                send(customFailure(accidentalChangesMadeMessage))
-                return@channelFlow
-            }
+/** Shit, I couldn't help myself from introducing a type class, just inline this and the type if it needs a lot of maintanence */
+context(type: PuzzleType<Stage, Outgoing, Incoming>)
+private fun <Stage: Enum<Stage>, Outgoing, Incoming> doPuzzleAttempt(
+    key: ApiKey,
+    puzzleId: String,
+    answers: Flow<Incoming>,
+    onEvent: OnEvent,
+): Flow<Outgoing> {
+    val puzzle = type
+        .enumEntries()
+        .firstOrNull { it.name == puzzleId }
+        ?.let { type.findPuzzleFor(it) }
+        ?: return flow {
+            println("Someone tried to request puzzle name: $puzzleId")
+            emit(type.customError(accidentalChangesMadeMessage))
+        }
 
-        puzzle.use { (incoming, outgoing) ->
+    return channelFlow {
+        puzzle.use { (outgoing, incoming) ->
             launch {
                 try {
-                    messages.collect { outgoing.send(it) }
+                    answers.collect { incoming.send(it) }
                 } finally {
-                    outgoing.close()
+                    incoming.close()
                 }
             }
-            for (message in incoming) {
+            for (message in outgoing) {
                 send(
-                    if (
-                        message is CoroutinePuzzleExpectationBatchOrCompletion.Completion &&
-                        message.result is CoroutinePuzzleSolutionResult.Success
-                    ) {
-                        when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
-                            PuzzleCompletionResult.AlreadySolved -> customFailure(alreadySolvedMessage)
-                            PuzzleCompletionResult.Done -> message
-                            PuzzleCompletionResult.PuzzleNotOpenedYet -> customFailure(puzzleNotOpenedYetMessage)
-                        }
-                    } else message
+                    if (!message.isSuccessfulCompletion()) message
+                    else when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
+                        PuzzleCompletionResult.Done -> message
+                        PuzzleCompletionResult.AlreadySolved -> type.customError(alreadySolvedMessage)
+                        PuzzleCompletionResult.PuzzleNotOpenedYet -> type.customError(puzzleNotOpenedYetMessage)
+                    }
                 )
             }
         }
     }
 }
+
+interface PuzzleType<Stage : Enum<Stage>, Outgoing, Incoming> {
+    fun customError(message: String): Outgoing
+    fun enumEntries(): List<Stage>
+    fun isSuccessfulCompletion(outgoing: Outgoing): Boolean
+    fun findPuzzleFor(stage: Stage): Resource<CommunicationProtocol<Outgoing, Incoming>>
+}
+
+context(type: PuzzleType<*, Outgoing, *>)
+fun <Outgoing> Outgoing.isSuccessfulCompletion(): Boolean = type.isSuccessfulCompletion(this)
 
 private val alreadySolvedMessage = """
     Yaay! You solved it again! Perhaps you could look around and see if some of your peers would like your help? :))
@@ -175,61 +142,3 @@ private val puzzleNotOpenedYetMessage = """
     Hold on there pal! Don't get ahead of yourself, the puzzle is not yet open for solving!
     I'm sure there's people around you that you can help :))
 """.trimIndent()
-
-private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
-    Json.encodeToJsonElement(tSerializer, inAndOutputs[puzzleIndex].first)
-
-private fun <T, R> Puzzle<T, R>.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
-    Json.encodeToJsonElement(rSerializer, inAndOutputs[puzzleIndex].second)
-
-private inline fun <reified T, reified R> puzzle(vararg inAndOutputs: Pair<T, R>): Puzzle<T, R> =
-    Puzzle(inAndOutputs.asList(), serializer(), serializer())
-
-private data class Puzzle<T, R>(
-    val inAndOutputs: List<Pair<T, R>>,
-    val tSerializer: KSerializer<T>,
-    val rSerializer: KSerializer<R>,
-)
-
-private fun findPuzzleFor(stage: KotlinBasicsPuzzleStage): Puzzle<*, *>? = when (stage) {
-    KotlinBasicsPuzzleStage.PalindromeCheckTask -> puzzle(
-        "racecar" to true,
-        "Racecar" to false,
-        "radar" to true,
-        "foo" to false,
-        "abba" to true,
-        "ABBA" to true,
-    )
-    KotlinBasicsPuzzleStage.FindMinimumAgeOfUserTask -> puzzle(
-        listOf(SerializableUser("John", 18)) to 18,
-        listOf(SerializableUser("John", 0)) to 0,
-        listOf(
-            SerializableUser("John", 0),
-            SerializableUser("Jane", 10),
-        ) to 0,
-        listOf(
-            SerializableUser("John", 10),
-            SerializableUser("Jane", 100),
-        ) to 10,
-        listOf(
-            SerializableUser("John", 100),
-            SerializableUser("Jane", 10),
-        ) to 10,
-    )
-    KotlinBasicsPuzzleStage.FindOldestUserTask -> puzzle(
-        listOf(SerializableUser("John", 18)) to SerializableUser("John", 18),
-        listOf(SerializableUser("John", 0)) to SerializableUser("John", 0),
-        listOf(
-            SerializableUser("John", 0),
-            SerializableUser("Jane", 10),
-        ) to SerializableUser("Jane", 10),
-        listOf(
-            SerializableUser("John", 10),
-            SerializableUser("Jane", 100),
-        ) to SerializableUser("Jane", 100),
-        listOf(
-            SerializableUser("John", 100),
-            SerializableUser("Jane", 10),
-        ) to SerializableUser("John", 100),
-    )
-}

@@ -5,9 +5,7 @@ package kmpworkshop.common
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted
-import kmpworkshop.common.solve
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.channelFlow
@@ -20,10 +18,8 @@ import kotlin.concurrent.atomics.incrementAndFetch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.ExperimentalTime
 
-data class CoroutinePuzzleProtocol(
-    val expectations: ReceiveChannel<CoroutinePuzzleExpectationBatchOrCompletion>,
-    val submissions: SendChannel<CoroutinePuzzleBatch<SubmissionPayload>>,
-)
+typealias CoroutinePuzzleProtocol =
+    CommunicationProtocol<CoroutinePuzzleExpectationBatchOrCompletion, CoroutinePuzzleBatch<SubmissionPayload>>
 
 sealed class CoroutinePuzzleHistoryBatch {
     data class Submission(val entries: List<CoroutinePuzzleBatchEntry<SubmissionPayload>>) : CoroutinePuzzleHistoryBatch()
@@ -43,11 +39,11 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
                     val addition =
                         (it.payload as? CallSubmitted)?.let { " when you tried to call ${it.endPoint}" } ?: ""
                     error("""
-                    You broke structured concurrency$addition.
-    
-                    This is most likely because you used GlobalScope. Or created your own CoroutineScope.
-                    If you're stuck, feel free to ask the workshop host :).
-                """.trimIndent())
+                        You broke structured concurrency$addition.
+        
+                        This is most likely because you used GlobalScope. Or created your own CoroutineScope.
+                        If you're stuck, feel free to ask the workshop host :).
+                    """.trimIndent())
                 },
                 batchResumer = { batch ->
                     send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Submission(batch.map { it.query })))
@@ -83,9 +79,6 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
 
 class ExceptionAcrossRpc(message: String): Exception(message, null, false, false)
 class CancellationAcrossRpc: CancellationException(null)
-
-private fun CoroutinePuzzleSolutionResult.withHistory(history: List<CoroutinePuzzleHistoryBatch>): CoroutinePuzzleResultWithHistory =
-    CoroutinePuzzleResultWithHistory(this, history)
 
 private fun AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, JsonElement>.asSolutionScope(): CoroutinePuzzleSolutionScope =
     object : CoroutinePuzzleSolutionScope {
@@ -146,14 +139,4 @@ fun coroutinePuzzleCommunicationChannel(
         fromExpectation: SendChannel<CoroutinePuzzleExpectationBatchOrCompletion>,
         fromSubmission: ReceiveChannel<CoroutinePuzzleBatch<SubmissionPayload>>,
     ) -> Unit,
-): Resource<CoroutinePuzzleProtocol> = resource { cc ->
-    val expectations = Channel<CoroutinePuzzleExpectationBatchOrCompletion>(64)
-    val submissions = Channel<CoroutinePuzzleBatch<SubmissionPayload>>(64)
-    try {
-        launch { underlyingComms(expectations, submissions) }
-        cc(CoroutinePuzzleProtocol(expectations, submissions))
-    } finally {
-        submissions.close()
-        expectations.close()
-    }
-}
+): Resource<CoroutinePuzzleProtocol> = communicationProtocol(underlyingComms)
