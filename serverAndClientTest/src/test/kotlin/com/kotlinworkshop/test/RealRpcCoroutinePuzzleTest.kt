@@ -7,17 +7,17 @@ import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.connectWorkshopService
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.common.*
-import kmpworkshop.server.mainEventLoopWritingTo
 import kmpworkshop.server.rpcServer
 import kmpworkshop.server.rpcService
-import kmpworkshop.server.workshopService
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.rpc.krpc.ktor.client.installKrpc
+import testWorkshopService
 import workshop.adminaccess.PuzzleState
-import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -56,51 +56,35 @@ internal suspend fun runRealRpcTestClient(
     stage: WorkshopStage.CoroutinePuzzleStage,
     solutions: CoroutinePuzzleWorkshopSolutions,
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
-    val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
-        stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
-    )))
-    val eventBus = Channel<ScheduledWorkshopEvent>()
-    val eventLoopJob = launch {
-        mainEventLoopWritingTo(
-            serverState,
-            eventBus = eventBus,
-            onCommittedState = {},
-            onSoundEvent = {},
-            onEvent = { launch { eventBus.send(it) } },
+    testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
+        val server = rpcServer(
+            port = 0,
+            services = listOf(rpcService { service }),
         )
-    }
+        server.startSuspend(wait = false)
 
-    val server = rpcServer(
-        port = 0,
-        services = listOf(
-            rpcService { workshopService(serverState, onEvent = { launch { eventBus.send(it) } }) },
-        ),
-    )
-    server.startSuspend(wait = false)
-
-    // Matches production's client wiring (see kmpworkshop.client.createWorkshopService); we own the HttpClient here
-    // only so it can be closed between the many repeated runs below.
-    val httpClient = HttpClient(CIO) {
-        installKrpc {
-            waitForServices = true
+        // Matches production's client wiring (see kmpworkshop.client.createWorkshopService); we own the HttpClient here
+        // only so it can be closed between the many repeated runs below.
+        val httpClient = HttpClient(CIO) {
+            installKrpc {
+                waitForServices = true
+            }
         }
-    }
-    try {
-        val boundPort = server.engine.resolvedConnectors().first().port
-        val service = withContext(Dispatchers.IO) {
-            httpClient.connectWorkshopService(protocol = URLProtocol.WS, host = "localhost", port = boundPort)
-        }
+        try {
+            val boundPort = server.engine.resolvedConnectors().first().port
+            val service = withContext(Dispatchers.IO) {
+                httpClient.connectWorkshopService(protocol = URLProtocol.WS, host = "localhost", port = boundPort)
+            }
 
-        runCoroutinePuzzleClient(
-            puzzleProvider = service.asServer(ApiKey("1234-5678")),
-            stage,
-            solutions,
-        )
-    } finally {
-        httpClient.close()
-        server.stopSuspend(gracePeriodMillis = 0, timeoutMillis = 1000)
-        eventLoopJob.cancel()
-        eventBus.close()
+            runCoroutinePuzzleClient(
+                puzzleProvider = service.asServer(ApiKey("1234-5678")),
+                stage,
+                solutions,
+            )
+        } finally {
+            httpClient.close()
+            server.stopSuspend(gracePeriodMillis = 0, timeoutMillis = 1000)
+        }
     }
 }
 

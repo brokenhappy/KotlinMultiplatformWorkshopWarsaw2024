@@ -8,18 +8,15 @@ import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
 import kmpworkshop.server.findCoroutinePuzzleFor
-import kmpworkshop.server.mainEventLoopWritingTo
-import kmpworkshop.server.workshopService
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Test
+import testWorkshopService
 import workshop.adminaccess.PuzzleState
-import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -46,26 +43,8 @@ suspend fun runTestClient(
     stage: CoroutinePuzzleStage,
     solutions: Solutions,
 ): ResultsWHistory = coroutineScope {
-    val serverState = MutableStateFlow(ServerState(puzzleStates = mapOf(
-        stage.name to PuzzleState.Opened(Clock.System.now(), submissions = emptyMap()),
-    )))
-    val eventBus = Channel<ScheduledWorkshopEvent>()
-    val job = launch {
-        mainEventLoopWritingTo(
-            serverState,
-            eventBus = eventBus,
-            onCommittedState = {},
-            onSoundEvent = {},
-            onEvent = { launch { eventBus.send(it) } },
-        )
-    }
-    val workshopService = workshopService(serverState, onEvent = { launch { eventBus.send(it) } })
-        .asServer(ApiKey("1234-5678"))
-    try {
-        runCoroutinePuzzleClient(puzzleProvider = workshopService, stage, solutions)
-    } finally {
-        job.cancel()
-        eventBus.close()
+    testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
+        runCoroutinePuzzleClient(puzzleProvider = service.asServer(ApiKey("1234-5678")), stage, solutions)
     }
 }
 

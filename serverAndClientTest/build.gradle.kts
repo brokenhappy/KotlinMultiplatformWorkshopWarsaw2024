@@ -31,6 +31,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server:0.9.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
+    testImplementation(project(":testEnvironment"))
 }
 
 tasks.test {

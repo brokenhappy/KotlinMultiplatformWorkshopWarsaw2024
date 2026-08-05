@@ -12,54 +12,72 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.application
 import kmpworkshop.client.ClientEntryPoint
 import kmpworkshop.common.*
-import kmpworkshop.server.*
+import kmpworkshop.server.mainEventLoopWritingTo
+import kmpworkshop.server.workshopService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import workshop.adminaccess.OnEvent
 import workshop.adminaccess.Participant
 import workshop.adminaccess.ScheduledWorkshopEvent
 import workshop.adminaccess.ServerState
-import workshop.adminaccess.play
 
-suspend fun main(): Unit = coroutineScope {
-    val serverState = MutableStateFlow(ServerState(
-        participants = listOf(
-            Participant("John", ApiKey("JohnKey")),
-            Participant("Jane", ApiKey("JaneKey")),
-            Participant("Alice", ApiKey("AliceKey")),
-            Participant("Jobber", ApiKey("JobberKey")),
-        ),
-//        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
-        currentStage = WorkshopStage.Registration,
-    ))
+data class WorkshopServiceAndEventLoop(
+    val workshopService: WorkshopApiService,
+    val onEvent: OnEvent,
+    val state: Flow<ServerState>
+)
 
-    val eventBus = Channel<ScheduledWorkshopEvent>()
-    launch(Dispatchers.Default) {
+fun testWorkshopService(initialState: ServerState): Resource<WorkshopServiceAndEventLoop> = resource { consume ->
+    val serverState = MutableStateFlow(initialState)
+    val eventBus = Channel<ScheduledWorkshopEvent>(Channel.UNLIMITED)
+    val eventLoop = launch(Dispatchers.Default) {
         mainEventLoopWritingTo(
             serverState,
             eventBus,
-            onCommittedState = {},
-            onSoundEvent = { launch { it.play() } },
-            onEvent = { launch { eventBus.send(it) } }
+            onCommittedState = { },
+            onSoundEvent = { },
+            onEvent = eventBus::trySend,
         )
     }
+    try {
+        consume(WorkshopServiceAndEventLoop(
+            workshopService(serverState, onEvent = eventBus::trySend),
+            onEvent = eventBus::trySend,
+            serverState,
+        ))
+    } finally {
+        eventLoop.cancel()
+        eventBus.close()
+    }
+}
 
-
-    application {
-        val state by serverState.collectAsState(initial = ServerState())
-        val server = remember {
-            workshopService(serverState, onEvent = { launch { eventBus.send(it) } })
-        }
-        WorkshopWindow(
-            onCloseRequest = ::exitApplication,
-            title = "Test environment",
-            state = state,
-            onEvent = { launch { eventBus.send(it) } },
-            adminUi = { state, onEvent -> CanvasScreen(state, server, onEvent) }
+suspend fun main(): Unit = coroutineScope {
+    testWorkshopService(
+        initialState = ServerState(
+            participants = listOf(
+                Participant("John", ApiKey("JohnKey")),
+                Participant("Jane", ApiKey("JaneKey")),
+                Participant("Alice", ApiKey("AliceKey")),
+                Participant("Jobber", ApiKey("JobberKey")),
+            ),
+    //        participants = (0..49).map { Participant("Participant $it", ApiKey("$it")) },
+            currentStage = WorkshopStage.Registration,
         )
+    ).use { (service, onEvent, serverState) ->
+        application {
+            val state by serverState.collectAsState(initial = ServerState())
+            WorkshopWindow(
+                onCloseRequest = ::exitApplication,
+                title = "Test environment",
+                state = state,
+                onEvent = onEvent,
+                adminUi = { state, onEvent -> CanvasScreen(state, service, onEvent) }
+            )
+        }
     }
 }
 
