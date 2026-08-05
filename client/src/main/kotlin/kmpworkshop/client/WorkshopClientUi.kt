@@ -1,11 +1,12 @@
 @file:OptIn(
-    org.jetbrains.compose.reload.DelicateHotReloadApi::class,
-    androidx.compose.foundation.ExperimentalFoundationApi::class,
-    androidx.compose.ui.ExperimentalComposeUiApi::class,
+    DelicateHotReloadApi::class,
+    ExperimentalFoundationApi::class,
+    ExperimentalComposeUiApi::class,
 )
 
 package kmpworkshop.client
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.HorizontalScrollbar
 import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.VerticalScrollbar
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -38,7 +40,10 @@ import kmpworkshop.solutions.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
+import org.jetbrains.annotations.TestOnly
 import org.jetbrains.compose.reload.AfterHotReloadEffect
+import org.jetbrains.compose.reload.DelicateHotReloadApi
 import org.jetbrains.compose.reload.isHotReloadActive
 import java.awt.Desktop
 import java.io.File
@@ -265,7 +270,7 @@ private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): M
     else -> Marker("")
 }
 
-private fun displayValue(value: kotlinx.serialization.json.JsonElement?): String = when {
+private fun displayValue(value: JsonElement?): String = when {
     value == null -> "null"
     value.isUnitValue() -> "Unit"
     else -> value.toString()
@@ -337,11 +342,12 @@ private fun kotlinBasicsResultColor(result: KotlinBasicsPuzzleResult?): Color = 
     null -> Color.Unspecified
 }
 
-private suspend fun runKotlinBasicsPuzzle(
-    server: WorkshopServer,
+@TestOnly
+public suspend fun runKotlinBasicsPuzzle(
+    server: KotlinBasicsPuzzleProvider,
     stage: WorkshopStage.KotlinBasicsPuzzleStage,
     solutions: KotlinBasicsPuzzleSolutions,
-) = when (stage) {
+): KotlinBasicsPuzzleResult = when (stage) {
     PalindromeCheckTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.palindromeCheckSolution)
     FindMinimumAgeOfUserTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.minimumAgeSolution)
     FindOldestUserTask -> server.kotlinBasicsPuzzle(stage).solve(solutions.oldestUserSolution)
@@ -358,7 +364,16 @@ private fun openStageFile(stage: WorkshopStage): String? {
     if (!file.isFile) return "Could not find ${file.path}. Open it manually in IntelliJ IDEA."
     val os = System.getProperty("os.name").lowercase()
     val commands = when {
-        os.contains("mac") -> listOf(listOf("open", "-a", "IntelliJ IDEA", file.path))
+        os.contains("mac") -> listOf(
+            // Bundle identifiers keep working when Toolbox adds a version to the application name.
+            listOf("open", "-b", "com.jetbrains.intellij", file.path),
+            listOf("open", "-b", "com.jetbrains.intellij.ce", file.path),
+            listOf("open", "-b", "com.jetbrains.intellij-EAP", file.path),
+            listOf("open", "-b", "com.jetbrains.intellij.ce-EAP", file.path),
+            listOf("open", "-a", "IntelliJ IDEA", file.path),
+            listOf("open", "-a", "IntelliJ IDEA CE", file.path),
+            listOf("idea", file.path),
+        )
         os.contains("win") -> listOf(listOf("idea64.exe", file.path), listOf("idea.exe", file.path))
         else -> listOf(listOf("idea", file.path), listOf("intellij-idea", file.path))
     }
