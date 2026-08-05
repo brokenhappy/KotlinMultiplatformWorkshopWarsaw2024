@@ -73,18 +73,18 @@ fun workshopService(
 
     override fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
 
-    override fun doPuzzleSolveAttempt(
+    override fun doKotlinBasicsPuzzleSolveAttempt(
         key: ApiKey,
         puzzleName: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> = flow {
-        val puzzle = CodeStage
+        val puzzle = KotlinBasicsPuzzleStage
             .entries
             .firstOrNull { it.name == puzzleName }
             ?.let { findPuzzleFor(it) }
             ?: run {
                 println("Someone tried to request puzzle name: $puzzleName")
-                emit(SolvingStatus.IncorrectInput)
+                emit(SolvingStatus.Done(KotlinBasicsPuzzleResult.CustomFailure(accidentalChangesMadeMessage)))
                 return@flow
             }
 
@@ -95,18 +95,22 @@ fun workshopService(
                 if (answer != null) {
                     val expected = puzzle.getPuzzleOutputAsJsonElementAtIndex(puzzleIndex)
                     if (answer != expected) {
-                        emit(SolvingStatus.Failed(lastInput!!, answer, expected))
+                        emit(SolvingStatus.Done(KotlinBasicsPuzzleResult.Failed(lastInput!!, answer, expected)))
                         return@collect
                     }
                     puzzleIndex++
                 }
                 if (puzzleIndex > puzzle.inAndOutputs.lastIndex) {
                     emit(
-                        when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleName))) {
-                            PuzzleCompletionResult.AlreadySolved -> SolvingStatus.AlreadySolved
-                            PuzzleCompletionResult.Done -> SolvingStatus.Done
-                            PuzzleCompletionResult.PuzzleNotOpenedYet -> SolvingStatus.PuzzleNotOpenedYet
-                        }
+                        SolvingStatus.Done(
+                            when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleName))) {
+                                PuzzleCompletionResult.Done -> KotlinBasicsPuzzleResult.Success
+                                PuzzleCompletionResult.AlreadySolved -> KotlinBasicsPuzzleResult
+                                    .CustomFailure(alreadySolvedMessage)
+                                PuzzleCompletionResult.PuzzleNotOpenedYet -> KotlinBasicsPuzzleResult
+                                    .CustomFailure(puzzleNotOpenedYetMessage)
+                            },
+                        )
                     )
                 } else {
                     val element = puzzle.getPuzzleInputAsJsonElementAtIndex(puzzleIndex)
@@ -115,7 +119,7 @@ fun workshopService(
                 }
             }
         } catch (_: SerializationException) {
-            emit(SolvingStatus.IncorrectInput)
+            emit(SolvingStatus.Done(KotlinBasicsPuzzleResult.CustomFailure(accidentalChangesMadeMessage)),)
         }
     }
 
@@ -152,14 +156,9 @@ fun workshopService(
                         message.result is CoroutinePuzzleSolutionResult.Success
                     ) {
                         when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
-                            PuzzleCompletionResult.AlreadySolved -> customFailure("""
-                                Yaay! You solved it again! Perhaps you could look around and see if some of your peers would like your help? :))
-                            """.trimIndent())
+                            PuzzleCompletionResult.AlreadySolved -> customFailure(alreadySolvedMessage)
                             PuzzleCompletionResult.Done -> message
-                            PuzzleCompletionResult.PuzzleNotOpenedYet -> customFailure("""
-                                Hold on there pal! Don't get ahead of yourself, the puzzle is not yet open for solving!
-                                I'm sure there's people around you that you can help :))
-                            """.trimIndent())
+                            PuzzleCompletionResult.PuzzleNotOpenedYet -> customFailure(puzzleNotOpenedYetMessage)
                         }
                     } else message
                 )
@@ -167,6 +166,15 @@ fun workshopService(
         }
     }
 }
+
+private val alreadySolvedMessage = """
+    Yaay! You solved it again! Perhaps you could look around and see if some of your peers would like your help? :))
+""".trimIndent()
+
+private val puzzleNotOpenedYetMessage = """
+    Hold on there pal! Don't get ahead of yourself, the puzzle is not yet open for solving!
+    I'm sure there's people around you that you can help :))
+""".trimIndent()
 
 private fun <T, R> Puzzle<T, R>.getPuzzleInputAsJsonElementAtIndex(puzzleIndex: Int): JsonElement =
     Json.encodeToJsonElement(tSerializer, inAndOutputs[puzzleIndex].first)
@@ -183,8 +191,8 @@ private data class Puzzle<T, R>(
     val rSerializer: KSerializer<R>,
 )
 
-private fun findPuzzleFor(stage: CodeStage): Puzzle<*, *>? = when (stage) {
-    CodeStage.PalindromeCheckTask -> puzzle(
+private fun findPuzzleFor(stage: KotlinBasicsPuzzleStage): Puzzle<*, *>? = when (stage) {
+    KotlinBasicsPuzzleStage.PalindromeCheckTask -> puzzle(
         "racecar" to true,
         "Racecar" to false,
         "radar" to true,
@@ -192,7 +200,7 @@ private fun findPuzzleFor(stage: CodeStage): Puzzle<*, *>? = when (stage) {
         "abba" to true,
         "ABBA" to true,
     )
-    CodeStage.FindMinimumAgeOfUserTask -> puzzle(
+    KotlinBasicsPuzzleStage.FindMinimumAgeOfUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to 18,
         listOf(SerializableUser("John", 0)) to 0,
         listOf(
@@ -208,7 +216,7 @@ private fun findPuzzleFor(stage: CodeStage): Puzzle<*, *>? = when (stage) {
             SerializableUser("Jane", 10),
         ) to 10,
     )
-    CodeStage.FindOldestUserTask -> puzzle(
+    KotlinBasicsPuzzleStage.FindOldestUserTask -> puzzle(
         listOf(SerializableUser("John", 18)) to SerializableUser("John", 18),
         listOf(SerializableUser("John", 0)) to SerializableUser("John", 0),
         listOf(

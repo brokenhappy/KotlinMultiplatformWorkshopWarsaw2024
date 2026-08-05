@@ -31,6 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import kmpworkshop.common.*
+import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.FindMinimumAgeOfUserTask
+import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.FindOldestUserTask
+import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.PalindromeCheckTask
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -56,6 +59,7 @@ fun WorkshopClient(server: WorkshopServer, solutions: CoroutinePuzzleWorkshopSol
     var gateVersion by remember { mutableStateOf(0L) }
     val history = remember(stage) { mutableStateListOf<CoroutinePuzzleHistoryBatch>() }
     var result by remember(stage) { mutableStateOf<CoroutinePuzzleSolutionResult?>(null) }
+    var kotlinBasicsResult by remember(stage) { mutableStateOf<KotlinBasicsPuzzleResult?>(null) }
     var status by remember(stage) { mutableStateOf<String?>(null) }
     var openError by remember(stage) { mutableStateOf<String?>(null) }
     var activeRun by remember { mutableStateOf<Job?>(null) }
@@ -71,12 +75,18 @@ fun WorkshopClient(server: WorkshopServer, solutions: CoroutinePuzzleWorkshopSol
         activeRun = null
         history.clear()
         result = null
+        kotlinBasicsResult = null
         status = null
-        (stage as? WorkshopStage.CodeStage)?.let { stage ->
+        (stage as? WorkshopStage.KotlinBasicsPuzzleStage)?.let { stage ->
             status = "Running test…"
             status = try {
-                runCodePuzzle(stage)
-                "Test finished. Edit the solution and hot reload to run it again."
+                kotlinBasicsResult = runKotlinBasicsPuzzle(server, stage)
+                when (val puzzleResult = kotlinBasicsResult) {
+                    KotlinBasicsPuzzleResult.Success -> "Test finished. Edit the solution and hot reload to run it again."
+                    is KotlinBasicsPuzzleResult.Failed -> "Test failed for input ${puzzleResult.input}: got ${puzzleResult.actual}, expected ${puzzleResult.expected}."
+                    is KotlinBasicsPuzzleResult.CustomFailure -> "Test failed: ${puzzleResult.message}"
+                    null -> "Test finished."
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -90,8 +100,8 @@ fun WorkshopClient(server: WorkshopServer, solutions: CoroutinePuzzleWorkshopSol
     Surface(Modifier.fillMaxSize()) {
         when (val stage = stage) {
             WorkshopStage.Registration -> RegistrationWaiting()
-            is WorkshopStage.CodeStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
-                Text(status ?: "Preparing test…")
+            is WorkshopStage.KotlinBasicsPuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
+                Text(status ?: "Preparing test…", color = kotlinBasicsResultColor(kotlinBasicsResult))
             }
             is WorkshopStage.CoroutinePuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
                 val canRun = runGate.canRun
@@ -147,7 +157,7 @@ private fun StagePage(stage: WorkshopStage, openError: String?, onOpen: () -> Un
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(stage.name.humanize(), style = MaterialTheme.typography.h5, fontWeight = FontWeight.SemiBold)
+                Text(stage.displayName().humanize(), style = MaterialTheme.typography.h5, fontWeight = FontWeight.SemiBold)
                 Text("Edit the solution, then run one attempt to see exactly how its coroutines behaved.", color = Color(0xFF5F6368))
             }
             OutlinedButton(onClick = onOpen) { Text("Open solution") }
@@ -305,10 +315,22 @@ private fun resultColor(result: CoroutinePuzzleSolutionResult?): Color = when (r
     else -> Color(0xFFC62828)
 }
 
-private suspend fun runCodePuzzle(stage: WorkshopStage.CodeStage) = when (stage) {
-    PalindromeCheckTask -> checkCodePuzzle(stage.name, solution = ::doPalindromeCheckOn)
-    FindMinimumAgeOfUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindMinimumAgeOf)
-    FindOldestUserTask -> checkCodePuzzle(stage.name, solution = ::serializableFindOldestUserAmong)
+private fun kotlinBasicsResultColor(result: KotlinBasicsPuzzleResult?): Color = when (result) {
+    KotlinBasicsPuzzleResult.Success -> Color(0xFF2E7D32)
+    is KotlinBasicsPuzzleResult.Failed, is KotlinBasicsPuzzleResult.CustomFailure -> Color(0xFFC62828)
+    null -> Color.Unspecified
+}
+
+private suspend fun runKotlinBasicsPuzzle(server: WorkshopServer, stage: WorkshopStage.KotlinBasicsPuzzleStage) = when (stage) {
+    PalindromeCheckTask -> server.kotlinBasicsPuzzle(stage).solve(solution = ::doPalindromeCheckOn)
+    FindMinimumAgeOfUserTask -> server.kotlinBasicsPuzzle(stage).solve(solution = ::serializableFindMinimumAgeOf)
+    FindOldestUserTask -> server.kotlinBasicsPuzzle(stage).solve(solution = ::serializableFindOldestUserAmong)
+}
+
+private fun WorkshopStage.displayName(): String = when (this) {
+    WorkshopStage.Registration -> "Registration"
+    is WorkshopStage.KotlinBasicsPuzzleStage -> name
+    is WorkshopStage.CoroutinePuzzleStage -> name
 }
 
 private fun openStageFile(stage: WorkshopStage): String? {

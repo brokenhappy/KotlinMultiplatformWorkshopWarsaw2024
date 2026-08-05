@@ -68,7 +68,7 @@ fun main(): Unit = application {
 private val adminPassword = System.getenv("ADMIN_PASSWORD")
 
 private val workshopStages: List<WorkshopStage> = listOf(WorkshopStage.Registration) +
-    WorkshopStage.CodeStage.entries + WorkshopStage.CoroutinePuzzleStage.entries
+    WorkshopStage.KotlinBasicsPuzzleStage.entries + WorkshopStage.CoroutinePuzzleStage.entries
 
 suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
     val ktorClient = HttpClient {
@@ -627,7 +627,7 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
             StageTopBar(state.currentStage, onEvent)
             when (val stage = state.currentStage) {
                 WorkshopStage.Registration -> Registration(state, onEvent)
-                is WorkshopStage.CodeStage -> Puzzle(state, stage.name, onEvent)
+                is WorkshopStage.KotlinBasicsPuzzleStage -> Puzzle(state, stage.name, onEvent)
                 is WorkshopStage.CoroutinePuzzleStage -> Puzzle(state, stage.name, onEvent)
             }
         }

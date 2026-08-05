@@ -2,18 +2,23 @@ package kmpworkshop.common
 
 import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
+import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
 import kotlinx.coroutines.flow.*
 import kotlinx.rpc.annotations.Rpc
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-interface WorkshopServer : CoroutinePuzzleProvider {
+interface WorkshopServer : CoroutinePuzzleProvider, KotlinBasicsPuzzleProvider {
     fun currentStage(): Flow<WorkshopStage>
-    fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
 }
 
 fun interface CoroutinePuzzleProvider {
     fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle
+}
+
+fun interface KotlinBasicsPuzzleProvider {
+    fun kotlinBasicsPuzzle(stage: KotlinBasicsPuzzleStage): KotlinBasicsPuzzle
 }
 
 @Rpc interface WorkshopApiService {
@@ -26,15 +31,39 @@ fun interface CoroutinePuzzleProvider {
         messages: Flow<List<CoroutinePuzzleBatchEntry<SubmissionPayload>>>
     ): Flow<CoroutinePuzzleExpectationBatchOrCompletion>
 
-    fun doPuzzleSolveAttempt(key: ApiKey, puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus>
+    fun doKotlinBasicsPuzzleSolveAttempt(
+        key: ApiKey,
+        puzzleName: String,
+        answers: Flow<JsonElement>,
+    ): Flow<SolvingStatus>
 }
 
 fun WorkshopApiService.asServer(
     apiKey: ApiKey,
 ): WorkshopServer = object : WorkshopServer {
     override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
-    override fun doPuzzleSolveAttempt(puzzleName: String, answers: Flow<JsonElement>): Flow<SolvingStatus> =
-        this@asServer.doPuzzleSolveAttempt(apiKey, puzzleName, answers)
+
+    override fun kotlinBasicsPuzzle(stage: KotlinBasicsPuzzleStage): KotlinBasicsPuzzle = KotlinBasicsPuzzle { solution ->
+        val answers = MutableSharedFlow<JsonElement>()
+
+        this@asServer
+            .doKotlinBasicsPuzzleSolveAttempt(apiKey, stage.name, answers)
+            .mapNotNull { status ->
+                when (status) {
+                    is SolvingStatus.Next ->
+                        try {
+                            answers.emit(solution(status.questionJson))
+                            null
+                        } catch (_: SerializationException) {
+                            KotlinBasicsPuzzleResult.CustomFailure(
+                                accidentalChangesMadeMessage,
+                            )
+                        }
+                    is SolvingStatus.Done -> status.result
+                }
+            }
+            .first()
+    }
 
     override fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle =
         coroutinePuzzleCommunicationChannel { incoming, outgoing ->
@@ -54,7 +83,7 @@ sealed interface WorkshopStage {
     data object Registration : WorkshopStage {
         override val kotlinFile: String = "Registration.kt"
     }
-    enum class CodeStage(override val kotlinFile: String): WorkshopStage {
+    enum class KotlinBasicsPuzzleStage(override val kotlinFile: String): WorkshopStage {
         PalindromeCheckTask("PalindromeCheck.kt"),
         FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
         FindOldestUserTask("OldestUserFinding.kt"),
@@ -85,17 +114,7 @@ sealed class SolvingStatus {
     @Serializable
     data class Next(val questionJson: JsonElement) : SolvingStatus()
     @Serializable
-    data class Failed(val input: JsonElement, val actual: JsonElement, val expected: JsonElement) : SolvingStatus()
-    @Serializable
-    data object IncorrectInput : SolvingStatus()
-    @Serializable
-    data object InvalidApiKey : SolvingStatus()
-    @Serializable
-    data object PuzzleNotOpenedYet : SolvingStatus()
-    @Serializable
-    data object AlreadySolved : SolvingStatus()
-    @Serializable
-    data object Done : SolvingStatus()
+    data class Done(val result: KotlinBasicsPuzzleResult) : SolvingStatus()
 }
 
 @Serializable
