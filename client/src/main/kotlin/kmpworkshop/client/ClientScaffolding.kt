@@ -2,8 +2,6 @@ package kmpworkshop.client
 
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import io.ktor.client.*
 import io.ktor.http.*
@@ -69,44 +67,17 @@ internal fun defaultWorkshopProtocol(host: String): URLProtocol =
 
 @Composable
 fun ClientEntryPoint() {
-    ClientEntryPoint(
-        server = remember {
-            workshopService.asServer(ApiKey(clientApiKey ?: error("You need to finish registration first!")))
-        },
-    )
+    val key = clientApiKey
+    if (key == null) {
+        Text("Finish registration first, then restart WorkshopClient.")
+    } else {
+        ClientEntryPoint(server = remember { workshopService.asServer(ApiKey(key)) })
+    }
 }
 
 @Composable
 fun ClientEntryPoint(
     server: WorkshopServer,
 ) {
-    val stage by remember { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
-    when (stage) {
-        WorkshopStage.Registration -> Text("""
-            The host went back to the Registration phase.
-            Most likely the host is configuring something.
-            A moment of patience please.
-            
-            (Maybe you can take these seconds to help your peers? :) )
-        """.trimIndent())
-        WorkshopStage.SumOfTwoIntsSlow,
-        WorkshopStage.SumOfTwoIntsFast,
-        WorkshopStage.FindMaximumAgeCoroutines,
-        WorkshopStage.FastFindMaximumAgeCoroutines,
-        WorkshopStage.SimpleFlow,
-        WorkshopStage.CollectLatest,
-        WorkshopStage.FileExposureStepOne,
-        WorkshopStage.FileExposureStepTwo,
-        WorkshopStage.FileExposureStepThree,
-        WorkshopStage.MappingFromLegacyApisStepOne,
-        WorkshopStage.MappingFromLegacyApisStepTwo,
-        WorkshopStage.MappingFromLegacyApisStepThree,
-        WorkshopStage.MappingFromLegacyApisStepFour,
-        WorkshopStage.ExceptionCatchingWithCoroutines,
-        WorkshopStage.PalindromeCheckTask,
-        WorkshopStage.FindMinimumAgeOfUserTask,
-        WorkshopStage.FindOldestUserTask -> Text("""
-            Hmm, we went back to one of the non UI tasks...
-        """.trimIndent())
-    }
+    WorkshopClient(server)
 }
