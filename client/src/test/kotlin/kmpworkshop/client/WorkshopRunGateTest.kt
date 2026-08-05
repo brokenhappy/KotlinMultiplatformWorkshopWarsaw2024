@@ -1,6 +1,7 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsFast
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsSlow
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -8,7 +9,7 @@ import kotlin.test.assertTrue
 class WorkshopRunGateTest {
     @Test
     fun `allows one attempt per stage and successful reload generation`() {
-        val gate = WorkshopRunGate(WorkshopStage.SumOfTwoIntsSlow)
+        val gate = WorkshopRunGate(SumOfTwoIntsSlow)
 
         assertTrue(gate.startAttempt())
         assertFalse(gate.startAttempt())
@@ -17,17 +18,17 @@ class WorkshopRunGateTest {
         assertTrue(gate.startAttempt())
         assertFalse(gate.startAttempt())
 
-        gate.enterStage(WorkshopStage.SumOfTwoIntsFast)
+        gate.enterStage(SumOfTwoIntsFast)
         assertTrue(gate.startAttempt())
     }
 
     @Test
     fun `returning to a stage does not bypass its generation gate`() {
-        val gate = WorkshopRunGate(WorkshopStage.SumOfTwoIntsSlow)
+        val gate = WorkshopRunGate(SumOfTwoIntsSlow)
         assertTrue(gate.startAttempt())
-        gate.enterStage(WorkshopStage.SumOfTwoIntsFast)
+        gate.enterStage(SumOfTwoIntsFast)
         assertTrue(gate.startAttempt())
-        gate.enterStage(WorkshopStage.SumOfTwoIntsSlow)
+        gate.enterStage(SumOfTwoIntsSlow)
         assertFalse(gate.startAttempt())
     }
 }

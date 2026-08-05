@@ -111,11 +111,16 @@ fun WorkshopClient(
         when (val stage = stage) {
             WorkshopStage.Registration -> RegistrationWaiting()
             is WorkshopStage.KotlinBasicsPuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
-                Text(status ?: "Preparing test…", color = kotlinBasicsResultColor(kotlinBasicsResult))
+                Text(
+                    status ?: "Preparing test…",
+                    modifier = Modifier.testTag("puzzle-status"),
+                    color = kotlinBasicsResultColor(kotlinBasicsResult),
+                )
             }
             is WorkshopStage.CoroutinePuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
                 val canRun = runGate.canRun
                 Button(
+                    modifier = Modifier.testTag("puzzle-run-button"),
                     enabled = canRun,
                     onClick = {
                         check(runGate.startAttempt())
@@ -150,7 +155,7 @@ fun WorkshopClient(
                     else "Run Test is available once. Start the shared WorkshopClient configuration to enable it after edits.",
                     style = MaterialTheme.typography.caption,
                 )
-                status?.let { Text(it, color = resultColor(result)) }
+                status?.let { Text(it, modifier = Modifier.testTag("puzzle-status"), color = resultColor(result)) }
                 CoroutineTimeline(history, result)
             }
         }

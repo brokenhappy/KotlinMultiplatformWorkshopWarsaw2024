@@ -4,6 +4,8 @@ plugins {
     kotlin("plugin.serialization")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlinx.rpc.plugin")
+    id("org.jetbrains.compose")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 group = "com.woutwerkman"
@@ -32,6 +34,9 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
     testImplementation(project(":testEnvironment"))
+    testImplementation(compose.desktop.uiTestJUnit4)
+    testImplementation(compose.desktop.currentOs)
+    testImplementation(compose.material3)
 }
 
 tasks.test {
