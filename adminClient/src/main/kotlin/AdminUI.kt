@@ -37,6 +37,7 @@ import androidx.compose.ui.window.application
 import io.ktor.client.*
 import io.ktor.http.*
 import kmpworkshop.common.*
+import kmpworkshop.common.superSecretFallbackPassword
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
@@ -65,7 +66,7 @@ fun main(): Unit = application {
     AdminApp(onExit = ::exitApplication)
 }
 
-private val adminPassword = System.getenv("ADMIN_PASSWORD")
+private val adminPassword = System.getenv("ADMIN_PASSWORD") ?: superSecretFallbackPassword()
 
 private val workshopStages: List<WorkshopStage> = listOf(WorkshopStage.Registration) +
     WorkshopStage.KotlinBasicsPuzzleStage.entries + WorkshopStage.CoroutinePuzzleStage.entries

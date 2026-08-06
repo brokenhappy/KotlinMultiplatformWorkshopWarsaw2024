@@ -3,6 +3,7 @@ package kmpworkshop.server
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kmpworkshop.common.superSecretFallbackPassword
 import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.OnEvent
 import workshop.adminaccess.ServerState
@@ -12,23 +13,25 @@ import workshop.adminaccess.WorkshopEventWithResult
 import workshop.adminaccess.fire
 import workshop.adminaccess.schedule
 
+private val adminAccessPassword = System.getenv("admin_access_password") ?: superSecretFallbackPassword()
+
 fun adminAccess(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
     sounds: Flow<SoundPlayEvent>,
 ): AdminAccess = object : AdminAccess {
     override fun serverState(password: String): Flow<ServerState> = serverState.also { _ ->
-        if (password != System.getenv("admin_access_password")) error("Incorrect password")
+        if (password != adminAccessPassword) error("Incorrect password")
     }
 
     override fun soundEvents(password: String): Flow<SoundPlayEvent> = sounds.also { _ ->
-        if (password != System.getenv("admin_access_password")) error("Incorrect password")
+        if (password != adminAccessPassword) error("Incorrect password")
     }
 
     override suspend fun heartbeat() { /* pong! */ }
 
     override suspend fun fire(password: String, event: WorkshopEvent): JsonElement? = when {
-        password != System.getenv("admin_access_password") -> error("Incorrect password")
+        password != adminAccessPassword -> error("Incorrect password")
         event is WorkshopEventWithResult<*> -> onEvent.fireRaw(event)
         else -> {
             onEvent.schedule(event)
