@@ -47,14 +47,13 @@ typealias CoroutinePuzzleBatch<T> = List<CoroutinePuzzleBatchEntry<T>>
 }
 
 fun interface CoroutinePuzzle {
-    fun solveAsFlow(
-        solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
-    ): Flow<CoroutinePuzzleSolveState>
+    fun solveAsFlow(solution: CoroutinePuzzleSolution): Flow<CoroutinePuzzleSolveState>
 }
 
-suspend fun CoroutinePuzzle.solve(
-    solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
-): CoroutinePuzzleResultWithHistory = solveAsFlow(solution).toResultWithHistory()
+typealias CoroutinePuzzleSolution = suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
+
+suspend fun CoroutinePuzzle.solve(solution: CoroutinePuzzleSolution): CoroutinePuzzleResultWithHistory =
+    solveAsFlow(solution).toResultWithHistory()
 
 suspend fun Flow<CoroutinePuzzleSolveState>.toResultWithHistory(): CoroutinePuzzleResultWithHistory {
     val history = mutableListOf<CoroutinePuzzleHistoryBatch>()

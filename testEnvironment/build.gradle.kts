@@ -12,6 +12,7 @@ group = "com.woutwerkman"
 version = "unspecified"
 
 repositories {
+    mavenLocal()
     mavenCentral()
     google()
 }
@@ -32,8 +33,26 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    jvmToolchain(17)
+    // The client includes the Java 25 call-tree visualizer UI.
+    jvmToolchain(25)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
+    }
+}
+
+// Compose's hotRun task otherwise defaults to the IDE/Gradle JVM (currently Java 21),
+// which cannot load the Java 25 classes supplied by call-tree-ui.
+val java25Launcher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(25))
+}
+System.setProperty(
+    "compose.reload.jbr.binary",
+    java25Launcher.get().executablePath.asFile.absolutePath,
+)
+
+compose.desktop {
+    application {
+        mainClass = "TestEnvironmentMainKt"
+        javaHome = java25Launcher.get().metadata.installationPath.asFile.absolutePath
     }
 }

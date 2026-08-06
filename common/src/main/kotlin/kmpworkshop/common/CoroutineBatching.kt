@@ -30,6 +30,26 @@ import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
+/** Keeps the quiescence tracker alive while a coroutine is suspended waiting for an external coroutine. */
+public suspend fun <T> assumeNotQuiescent(block: suspend () -> T): T {
+    val tracker = currentCoroutineContext()[QuiescenceTracker]
+        ?: return block()
+    tracker.enterNonQuiescentSection()
+    return try {
+        block()
+    } finally {
+        tracker.exitNonQuiescentSection()
+    }
+}
+
+private interface QuiescenceTracker : CoroutineContext.Element {
+    fun enterNonQuiescentSection()
+    fun exitNonQuiescentSection()
+
+    companion object Key : CoroutineContext.Key<QuiescenceTracker>
+    override val key: CoroutineContext.Key<*> get() = Key
+}
+
 /**
  * See [autoBatchedOnQuiescence]
  *
@@ -199,8 +219,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                 state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
             },
         ) {
-            withContext(
-                object : BatchedScope<T, R> {
+            val batchedScope = object : BatchedScope<T, R> {
                     override suspend fun callAutoBatched(request: T): R =
                         suspendCancellableCoroutine { continuation ->
                             val guardedContinuation =
@@ -219,9 +238,22 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                         }
 
                     override val key: Key<*> = this@autoBatchedOnQuiescence.key
-                },
-                block,
-            ).also { isComplete.store(true) }
+                }
+            val quiescenceTracker = object : QuiescenceTracker {
+                    override fun enterNonQuiescentSection() {
+                        state.update {
+                            it.copy(
+                                activeCoroutineCount = it.activeCoroutineCount + 1,
+                                expectingZeroActiveCountBecauseWeJustClearedRequests = false,
+                            )
+                        }
+                    }
+
+                    override fun exitNonQuiescentSection() {
+                        state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
+                    }
+                }
+            withContext(batchedScope + quiescenceTracker, block).also { isComplete.store(true) }
         }
     }
 }

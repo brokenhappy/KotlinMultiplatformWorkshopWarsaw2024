@@ -37,9 +37,13 @@ import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.FindMinimumAgeOf
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.FindOldestUserTask
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage.PalindromeCheckTask
 import kmpworkshop.solutions.*
+import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEvent
+import com.woutwerkman.calltreevisualizer.coroutineintegration.trackingCallStacks
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.compose.reload.AfterHotReloadEffect
@@ -79,6 +83,7 @@ fun WorkshopClient(
     var status by remember(stage) { mutableStateOf<String?>(null) }
     var openError by remember(stage) { mutableStateOf<String?>(null) }
     var activeRun by remember { mutableStateOf<Job?>(null) }
+    var debuggerEvents by remember(stage) { mutableStateOf<Channel<CallStackTrackEvent>?>(null) }
     val scope = rememberCoroutineScope()
 
     AfterHotReloadEffect {
@@ -89,6 +94,8 @@ fun WorkshopClient(
     LaunchedEffect(stage, gateVersion) {
         activeRun?.cancel()
         activeRun = null
+        debuggerEvents?.close()
+        debuggerEvents = null
         history.clear()
         result = null
         kotlinBasicsResult = null
@@ -125,36 +132,60 @@ fun WorkshopClient(
             }
             is WorkshopStage.CoroutinePuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
                 val canRun = runGate.canRun
-                Button(
-                    modifier = Modifier.testTag("puzzle-run-button"),
-                    enabled = canRun,
-                    onClick = {
-                        check(runGate.startAttempt())
-                        status = "Running test…"
-                        activeRun = scope.launch {
-                            try {
-                                runCoroutinePuzzleClientAsFlow(server, stage, solutions).collect {
-                                    status = when (it) {
-                                        is CoroutinePuzzleSolveState.Running -> {
-                                            history.add(it.batch)
-                                            "Running test…"
-                                        }
-                                        is CoroutinePuzzleSolveState.Completed -> {
-                                            result = it.result
-                                            it.result.toMessage()
-                                        }
+                fun startRun(stepped: Boolean) {
+                    check(runGate.startAttempt())
+                    status = "Running test…"
+                    val trackedEvents = if (stepped) Channel<CallStackTrackEvent>(Channel.RENDEZVOUS) else null
+                    debuggerEvents = trackedEvents
+                    activeRun = scope.launch {
+                        try {
+                            server.coroutinePuzzle(stage).solveAsFlow {
+                                val userSolution = solutions.asSolution(stage)
+                                if (trackedEvents == null) {
+                                    withContext(NoOpStackTracker) {
+                                        withImportantCleanup { userSolution() }
+                                    }
+                                } else {
+                                    trackingCallStacks(
+                                        block = { withImportantCleanup { userSolution() } },
+                                        emit = { event -> assumeNotQuiescent { trackedEvents.send(event) } },
+                                    )
+                                }
+                            }.collect { state ->
+                                when (state) {
+                                    is CoroutinePuzzleSolveState.Running -> {
+                                        history.add(state.batch)
+                                        status = "Running test…"
+                                    }
+                                    is CoroutinePuzzleSolveState.Completed -> {
+                                        result = state.result
+                                        status = state.result.toMessage()
                                     }
                                 }
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (failure: Throwable) {
-                                status = "Test failed: ${failure.message ?: failure::class.simpleName}"
-                            } finally {
-                                activeRun = null
                             }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (failure: Throwable) {
+                            status = "Test failed: ${failure.message ?: failure::class.simpleName}"
+                        } finally {
+                            trackedEvents?.close()
+                            activeRun = null
                         }
-                    },
-                ) { Text("Run Test") }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        modifier = Modifier.testTag("puzzle-run-button"),
+                        enabled = canRun,
+                        onClick = { startRun(stepped = false) },
+                    ) { Text("Run Test") }
+                    Button(
+                        modifier = Modifier.testTag("puzzle-run-stepped-button"),
+                        enabled = canRun,
+                        onClick = { startRun(stepped = true) },
+                    ) { Text("Run Stepped") }
+                }
 
                 if (!canRun) Text(
                     if (isHotReloadActive) "Waiting for a successful hot reload."
@@ -162,7 +193,22 @@ fun WorkshopClient(
                     style = MaterialTheme.typography.caption,
                 )
                 status?.let { Text(it, modifier = Modifier.testTag("puzzle-status"), color = resultColor(result)) }
-                CoroutineTimeline(history, result)
+                Column(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    debuggerEvents?.let { events ->
+                        CoroutineDebuggerPanel(
+                            events = events,
+                            enabled = activeRun != null,
+                        )
+                    }
+                    CoroutineTimeline(
+                        history = history,
+                        result = result,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
             }
         }
     }
@@ -190,10 +236,14 @@ private fun StagePage(stage: WorkshopStage, openError: String?, onOpen: () -> Un
 }
 
 @Composable
-internal fun CoroutineTimeline(history: List<CoroutinePuzzleHistoryBatch>, result: CoroutinePuzzleSolutionResult?) {
+internal fun CoroutineTimeline(
+    history: List<CoroutinePuzzleHistoryBatch>,
+    result: CoroutinePuzzleSolutionResult?,
+    modifier: Modifier = Modifier,
+) {
     val calls = remember(history) { coroutineTimeline(history) }
     if (history.isEmpty()) {
-        Card(backgroundColor = Color(0xFFF7F8FA), elevation = 0.dp) {
+        Card(modifier = modifier, backgroundColor = Color(0xFFF7F8FA), elevation = 0.dp) {
             Text("The timeline will appear here as soon as your solution makes its first call.", Modifier.padding(20.dp), color = Color(0xFF5F6368))
         }
         return
@@ -206,7 +256,7 @@ internal fun CoroutineTimeline(history: List<CoroutinePuzzleHistoryBatch>, resul
         horizontal.scrollTo(horizontal.maxValue)
         vertical.scrollTo(vertical.maxValue)
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "Call timeline",
             style = MaterialTheme.typography.subtitle1,

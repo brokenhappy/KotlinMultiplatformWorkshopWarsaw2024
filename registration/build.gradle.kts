@@ -13,6 +13,7 @@ group = "com.woutwerkman"
 version = "unspecified"
 
 repositories {
+    mavenLocal()
     mavenCentral()
     google()
 }
@@ -31,5 +32,5 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }

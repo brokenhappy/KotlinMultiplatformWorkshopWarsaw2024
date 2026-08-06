@@ -1,11 +1,15 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.calltreevisualizer)
 }
 
 group = "com.woutwerkman"
 version = "1.0-SNAPSHOT"
 
-repositories { mavenCentral() }
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
 
 dependencies {
     implementation(project(":workshopApi"))

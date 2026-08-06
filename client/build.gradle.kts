@@ -8,13 +8,13 @@ plugins {
     alias(libs.plugins.kotlinx.rpc)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.compose)
-    alias(libs.plugins.compose.hot.reload)
 }
 
 group = "com.woutwerkman"
 version = "unspecified"
 
 repositories {
+    mavenLocal()
     mavenCentral()
     google()
 }
@@ -33,6 +33,8 @@ dependencies {
     implementation(compose.ui)
     implementation(compose.desktop.currentOs)
     implementation(libs.compose.hot.reload.runtime.api)
+    implementation(libs.calltreevisualizer.tracked.flow)
+    implementation(libs.calltreevisualizer.call.tree.ui)
     implementation(project(":common"))
     implementation(project(":workshopApi"))
     implementation(project(":workshopSolutions"))
@@ -40,8 +42,14 @@ dependencies {
     testImplementation(compose.desktop.uiTestJUnit4)
 }
 
+tasks.test {
+    // Compose generates implementation classes whose names contain `Test`; they are not JUnit tests.
+    exclude("**/ComposableSingletons*")
+}
+
 kotlin {
-    jvmToolchain(17)
+    // The published call-tree UI is built for Java 25.
+    jvmToolchain(25)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }
@@ -50,5 +58,19 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "kmpworkshop.client.MainKt"
+        // Run with the same JVM that can load the Java 25 call-tree UI.
+        javaHome = javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(25))
+        }.get().metadata.installationPath.asFile.absolutePath
     }
 }
+
+// Compose Hot Reload defaults to a Java 21 JetBrains Runtime; the call-tree UI is
+// Java 25 bytecode, so use the project toolchain for all Compose launch variants.
+val java25Launcher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(25))
+}
+System.setProperty(
+    "compose.reload.jbr.binary",
+    java25Launcher.get().executablePath.asFile.absolutePath,
+)

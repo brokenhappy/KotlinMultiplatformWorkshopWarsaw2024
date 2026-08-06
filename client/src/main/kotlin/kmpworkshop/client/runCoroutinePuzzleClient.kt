@@ -4,7 +4,6 @@ import kmpworkshop.api.*
 import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
 
 data class CoroutinePuzzleWorkshopSolutions(
     val sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
@@ -15,47 +14,31 @@ data class CoroutinePuzzleWorkshopSolutions(
     val fileExposureSolution: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit,
 )
 
+fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePuzzleStage): CoroutinePuzzleSolution = {
+    when (stage) {
+        SumOfTwoIntsSlow,
+        SumOfTwoIntsFast, -> sumSolution(getNumberAndSubmit())
+        FindMaximumAgeCoroutines,
+        FastFindMaximumAgeCoroutines, -> maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
+        MappingFromLegacyApisStepOne -> mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))
+        MappingFromLegacyApisStepTwo,
+        MappingFromLegacyApisStepThree,
+        MappingFromLegacyApisStepFour -> mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
+        ExceptionCatchingWithCoroutines -> exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
+        SimpleFlow,
+        CollectLatest, -> collectSolution(numberFlowAndSubmit())
+        FileExposureStepOne,
+        FileExposureStepTwo,
+        FileExposureStepThree -> fileExposureScaffolding(fileExposureSolution)
+    }
+}
+
 suspend fun runCoroutinePuzzleClient(
     puzzleProvider: CoroutinePuzzleProvider,
     stage: WorkshopStage.CoroutinePuzzleStage,
-    solutions: CoroutinePuzzleWorkshopSolutions,
+    solution: CoroutinePuzzleSolution,
 ): CoroutinePuzzleResultWithHistory =
-    runCoroutinePuzzleClientAsFlow(puzzleProvider, stage, solutions).toResultWithHistory()
-
-fun runCoroutinePuzzleClientAsFlow(
-    puzzleProvider: CoroutinePuzzleProvider,
-    stage: WorkshopStage.CoroutinePuzzleStage,
-    solutions: CoroutinePuzzleWorkshopSolutions,
-): Flow<CoroutinePuzzleSolveState> = when (stage) {
-    SumOfTwoIntsSlow,
-    SumOfTwoIntsFast -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        solutions.sumSolution(this, getNumberAndSubmit())
-    }
-    FindMaximumAgeCoroutines,
-    FastFindMaximumAgeCoroutines -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        solutions.maximumAgeFindingTheSecondCoroutineSolution(this, getUserDatabase())
-    }
-    MappingFromLegacyApisStepOne -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        solutions.mappingLegacyApiCoroutineSolution(this, getUserDatabaseWithLegacyQueryUser(this))
-    }
-    MappingFromLegacyApisStepTwo,
-    MappingFromLegacyApisStepThree,
-    MappingFromLegacyApisStepFour -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        mapFromLegacyApiWithScaffolding(solutions.mappingLegacyApiCoroutineSolution)
-    }
-    ExceptionCatchingWithCoroutines -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        exceptionsInCoroutineHandlingScaffolding(solutions.exceptionHandlingSolution)
-    }
-    SimpleFlow,
-    CollectLatest -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        solutions.collectSolution(this, numberFlowAndSubmit())
-    }
-    FileExposureStepOne,
-    FileExposureStepTwo,
-    FileExposureStepThree -> puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow {
-        fileExposureScaffolding(solutions.fileExposureSolution)
-    }
-}
+    puzzleProvider.coroutinePuzzle(stage).wrappedWithImportantCleanup().solveAsFlow(solution).toResultWithHistory()
 
 private fun CoroutinePuzzle.wrappedWithImportantCleanup(): CoroutinePuzzle = CoroutinePuzzle { solution ->
     this@wrappedWithImportantCleanup.solveAsFlow {

@@ -12,6 +12,7 @@ group = "com.woutwerkman"
 version = "unspecified"
 
 repositories {
+    mavenLocal()
     mavenCentral()
     google()
 }
@@ -35,6 +36,7 @@ dependencies {
     testImplementation(libs.kotlinx.rpc.krpc.ktor.server)
     testImplementation(libs.kotlinx.rpc.krpc.ktor.client)
     testImplementation(libs.kotlinx.rpc.krpc.serialization.json)
+    testImplementation(libs.calltreevisualizer.stack.tracking.core.api)
     testImplementation(project(":testEnvironment"))
     testImplementation(compose.desktop.uiTestJUnit4)
     testImplementation(compose.desktop.currentOs)
@@ -45,7 +47,8 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    jvmToolchain(17)
+    // The client includes the Java 25 call-tree visualizer UI.
+    jvmToolchain(25)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }

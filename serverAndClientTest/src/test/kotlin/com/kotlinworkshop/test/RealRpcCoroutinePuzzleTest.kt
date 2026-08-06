@@ -13,14 +13,10 @@ import kmpworkshop.server.rpcService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import testWorkshopService
-import workshop.adminaccess.PuzzleState
-import workshop.adminaccess.ServerState
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
@@ -48,14 +44,14 @@ class WorkshopCoroutinePuzzleTestWithRealRpcTransport : WorkshopCoroutinePuzzleT
 
     override suspend fun runCoroutinePuzzle(
         stage: WorkshopStage.CoroutinePuzzleStage,
-        solutions: CoroutinePuzzleWorkshopSolutions,
-    ): CoroutinePuzzleResultWithHistory = runRealRpcTestClient(stage, solutions)
+        solution: CoroutinePuzzleSolution,
+    ): CoroutinePuzzleResultWithHistory = runRealRpcTestClient(stage, solution)
 }
 
 @OptIn(ExperimentalTime::class)
 internal suspend fun runRealRpcTestClient(
     stage: WorkshopStage.CoroutinePuzzleStage,
-    solutions: CoroutinePuzzleWorkshopSolutions,
+    solution: CoroutinePuzzleSolution,
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
         val server = rpcServer(
@@ -80,7 +76,7 @@ internal suspend fun runRealRpcTestClient(
             runCoroutinePuzzleClient(
                 puzzleProvider = service.asServer(ApiKey("1234-5678")),
                 stage,
-                solutions,
+                solution,
             )
         } finally {
             httpClient.close()

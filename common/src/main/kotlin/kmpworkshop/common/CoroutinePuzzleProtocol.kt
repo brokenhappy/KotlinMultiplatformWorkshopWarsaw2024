@@ -27,7 +27,7 @@ sealed class CoroutinePuzzleHistoryBatch {
 }
 
 suspend fun Resource<CoroutinePuzzleProtocol>.solve(
-    solution: suspend context(CoroutinePuzzleSolutionScope) CoroutineScope.() -> Unit
+    solution: CoroutinePuzzleSolution
 ): CoroutinePuzzleResultWithHistory = asPuzzle().solve(solution)
 
 fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuzzle { solution ->

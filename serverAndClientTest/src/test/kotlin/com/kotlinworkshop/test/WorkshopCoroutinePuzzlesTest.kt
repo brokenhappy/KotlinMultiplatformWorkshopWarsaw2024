@@ -1,15 +1,20 @@
 package com.kotlinworkshop.test
 
+import com.woutwerkman.calltreevisualizer.StackTrackingContext
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.workshopSolutions
 import kmpworkshop.api.*
+import kmpworkshop.client.asSolution
 import kmpworkshop.solutions.allowPeopleToDownloadExposedFile
 import kmpworkshop.common.*
+import kmpworkshop.common.ApiKey
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
+import kmpworkshop.common.asServer
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
 import kmpworkshop.server.CoroutinePuzzleType
 import kotlinx.coroutines.*
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -20,34 +25,29 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertFails
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
 
 class CoroutinePuzzleTestWithoutRpcService : WorkshopCoroutinePuzzleTest() {
     override suspend fun runCoroutinePuzzle(
         stage: CoroutinePuzzleStage,
-        solutions: Solutions,
+        solution: CoroutinePuzzleSolution,
     ): ResultsWHistory = runCoroutinePuzzleClient(
         puzzleProvider = { CoroutinePuzzleType.findPuzzleFor(it).asPuzzle() },
         stage,
-        solutions,
+        solution,
     )
 }
 
-@OptIn(ExperimentalTime::class)
-suspend fun runTestClient(
-    stage: CoroutinePuzzleStage,
-    solutions: Solutions,
-): ResultsWHistory = coroutineScope {
-    testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
-        runCoroutinePuzzleClient(puzzleProvider = service.asServer(ApiKey("1234-5678")), stage, solutions)
-    }
-}
-
 class WorkshopCoroutinePuzzleTestWithRpcService : WorkshopCoroutinePuzzleTest() {
-    override suspend fun runCoroutinePuzzle(stage: CoroutinePuzzleStage, solutions: Solutions): ResultsWHistory =
-        runTestClient(stage, solutions)
+    override suspend fun runCoroutinePuzzle(
+        stage: CoroutinePuzzleStage,
+        solution: CoroutinePuzzleSolution
+    ): ResultsWHistory = coroutineScope {
+        testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
+            runCoroutinePuzzleClient(puzzleProvider = service.asServer(ApiKey("1234-5678")), stage, solution)
+        }
+    }
 }
 
 abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
@@ -61,12 +61,21 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             exceptionHandlingSolution = {},
             fileExposureSolution = {}
         )
-        CoroutinePuzzleStage.entries.forEach { stage -> runCoroutinePuzzle(stage, emptySolutions).assertIsNotOk() }
+        CoroutinePuzzleStage.entries.forEach { stage ->
+            runCoroutinePuzzle(stage, emptySolutions.asSolution(stage)).assertIsNotOk()
+        }
     }
 
     @Test
     fun `default implementations are wrong`(): Unit = runPuzzleTest {
-        CoroutinePuzzleStage.entries.forEach { stage -> runCoroutinePuzzle(stage, workshopSolutions).assertIsNotOk() }
+        CoroutinePuzzleStage.entries.forEach { stage ->
+            runCoroutinePuzzle(stage) {
+                // Default implementations are tracked, and need to be tracked.
+                withContext(NoOpStackTracker) {
+                    workshopSolutions.asSolution(stage)()
+                }
+            }.assertIsNotOk()
+        }
     }
 
     @Test
@@ -557,7 +566,13 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
     protected open fun runPuzzleTest(block: suspend CoroutineScope.() -> Unit): Unit =
         runTestWithRandomizedDispatchOrdering(block = block)
 
-    protected abstract suspend fun runCoroutinePuzzle(stage: CoroutinePuzzleStage, solutions: Solutions): ResultsWHistory
+    private suspend fun runCoroutinePuzzle(stage: CoroutinePuzzleStage, solutions: Solutions): ResultsWHistory =
+        runCoroutinePuzzle(stage, solutions.asSolution(stage))
+
+    protected abstract suspend fun runCoroutinePuzzle(
+        stage: CoroutinePuzzleStage,
+        solution: CoroutinePuzzleSolution
+    ): ResultsWHistory
 
     suspend fun doSimpleSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SumOfTwoIntsSlow, solutions(sumSolution = block))
@@ -684,3 +699,7 @@ private inline fun <reified T> ResultsWHistory.arguments(
     .mapNotNull { it.payload as? CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted }
     .filter { it.endPoint == endpoint.descriptor }
     .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
+
+object NoOpStackTracker: StackTrackingContext {
+    override suspend fun <T> track(functionFqn: String, metadata: ULong, child: suspend () -> T): T = child()
+}
