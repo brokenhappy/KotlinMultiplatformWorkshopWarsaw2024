@@ -23,7 +23,7 @@ dependencies {
     implementation(project(":adminClient"))
     implementation(project(":serverAndAdminCommon"))
     implementation(project(":client"))
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server:0.9.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server:0.10.3")
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
 }

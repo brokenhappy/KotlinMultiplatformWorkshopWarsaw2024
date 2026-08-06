@@ -68,7 +68,7 @@ internal suspend fun runRealRpcTestClient(
         // only so it can be closed between the many repeated runs below.
         val httpClient = HttpClient(CIO) {
             installKrpc {
-                waitForServices = true
+                connector { }
             }
         }
         try {

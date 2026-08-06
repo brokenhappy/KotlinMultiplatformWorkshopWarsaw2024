@@ -2,19 +2,19 @@
 
 This document captures project-specific knowledge for building, running, testing, and extending this repository. It is meant for advanced developers; only non-trivial, project-tailored details are included.
 
-Last verified on: 2025-10-15
+Last verified on: 2026-08-06
 
 ## 1. Build and Configuration
 
 This repo is a Gradle multi-module Kotlin project with a mix of JVM, Kotlin Multiplatform (KMP), Android, iOS, and Ktor server code.
 
 - Gradle versioning/plugins are centralized in the root `build.gradle.kts`:
-  - Kotlin multiplatform: 2.2.0 (apply false)
-  - Kotlin JVM (for server and other JVM-only modules): 2.0.10 (apply false)
+  - Kotlin multiplatform: 2.4.10 (apply false)
+  - Kotlin JVM (for server and other JVM-only modules): 2.4.10 (apply false)
   - Android Gradle Plugin: 8.11.2 (apply false)
   - Ktor plugin: 3.3.0 (apply false)
-  - KSP: 2.2.0-2.0.2
-  - kotlinx.rpc plugin: 0.9.1
+  - KSP: 2.3.11
+  - kotlinx.rpc plugin: 0.10.3
   - Compose Multiplatform plugin: 1.8.2
 - Toolchains are resolved via Foojay resolver (see `settings.gradle.kts`). JVM toolchain for the server is set to 17.
 
@@ -117,7 +117,7 @@ Notes for coroutine/flow tests:
 
 ## 5. Known Pitfalls
 
-- Mismatch in Kotlin versions across modules: root plugin versions differ for KMP (2.2.0) vs JVM (2.0.10). This is intentional in this workshop; do not blindly unify without checking plugin compatibility.
+- Kotlin compiler versions are unified at 2.4.10 across the project. Keep compiler-plugin versions (including KSP and kotlinx.rpc) compatible when upgrading Kotlin.
 - Timing-sensitive tests can be flaky on heavily loaded CI; run locally or adjust timeouts only if you also adapt server-side checks.
 - iOS toolchain is required for building actual iOS binaries. If you don’t need to run iOS locally, skip iOS targets during development.
 
@@ -127,4 +127,3 @@ Notes for coroutine/flow tests:
 - Test all: `./gradlew test`
 - Test server only: `./gradlew :server:test`
 - Clean: `./gradlew clean`
-

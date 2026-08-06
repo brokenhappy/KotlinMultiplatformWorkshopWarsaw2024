@@ -73,7 +73,7 @@ private val workshopStages: List<WorkshopStage> = listOf(WorkshopStage.Registrat
 suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
     val ktorClient = HttpClient {
         installKrpc {
-            waitForServices = true
+            connector { }
         }
     }
 

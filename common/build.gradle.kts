@@ -22,9 +22,9 @@ repositories {
 dependencies {
     implementation(project(":workshopApi"))
     implementation("io.ktor:ktor-client-core:3.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.9.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.9.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.9.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.10.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.10.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.10.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")

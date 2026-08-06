@@ -28,7 +28,7 @@ val workshopService: WorkshopApiService get() = _workshopService ?: createWorksh
 fun createWorkshopService(): WorkshopApiService = runBlocking {
     HttpClient {
         installKrpc {
-            waitForServices = true
+            connector { }
         }
     }.connectWorkshopService()
 }
