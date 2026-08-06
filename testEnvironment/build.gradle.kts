@@ -1,11 +1,11 @@
 plugins {
-    kotlin("jvm")
-    kotlin("plugin.serialization")
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 //    id("io.ktor.plugin")
-    id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlinx.rpc.plugin") // Don't ask my why I need all of this, I'm just trying to make my build pass okay? :((
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.compose")
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinx.rpc) // Don't ask my why I need all of this, I'm just trying to make my build pass okay? :((
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.compose)
 }
 
 group = "com.woutwerkman"
@@ -17,13 +17,13 @@ repositories {
 }
 
 dependencies {
-    testImplementation(kotlin("test"))
+    testImplementation(libs.kotlin.test)
     implementation(project(":common"))
     implementation(project(":server"))
     implementation(project(":adminClient"))
     implementation(project(":serverAndAdminCommon"))
     implementation(project(":client"))
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server:0.10.3")
+    implementation(libs.kotlinx.rpc.krpc.server)
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
 }

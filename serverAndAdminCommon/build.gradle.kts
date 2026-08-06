@@ -1,9 +1,9 @@
 plugins {
-    kotlin("jvm")
+    alias(libs.plugins.kotlin.jvm)
     application
-    kotlin("plugin.serialization")
-    id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlinx.rpc.plugin")
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinx.rpc)
 }
 
 group = "com.woutwerkman"
@@ -20,12 +20,12 @@ repositories {
 
 dependencies {
     implementation(project(":common"))
-    implementation("io.ktor:ktor-client-core:3.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
-    testImplementation(kotlin("test"))
+    implementation(libs.ktor.client.core)
+    implementation(libs.kotlinx.rpc.krpc.client)
+    implementation(libs.kotlinx.rpc.krpc.serialization.json)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.serialization.core)
+    testImplementation(libs.kotlin.test)
 }
 
 tasks.test {

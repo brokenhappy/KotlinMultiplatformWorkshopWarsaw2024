@@ -1,10 +1,10 @@
 plugins {
-    kotlin("jvm")
+    alias(libs.plugins.kotlin.jvm)
     application
-    kotlin("plugin.serialization")
-    id("com.google.cloud.tools.jib")
-    id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlinx.rpc.plugin")
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.jib)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinx.rpc)
 }
 
 group = "com.woutwerkman"
@@ -29,18 +29,18 @@ dependencies {
     implementation(project(":workshopApi"))
     implementation(project(":common"))
     implementation(project(":serverAndAdminCommon"))
-    implementation("io.ktor:ktor-server-netty-jvm:3.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-server:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.10.3")
-    implementation("ch.qos.logback:logback-classic:1.5.18")
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation(kotlin("test"))
+    implementation(libs.ktor.server.netty.jvm)
+    implementation(libs.kotlinx.rpc.krpc.server)
+    implementation(libs.kotlinx.rpc.krpc.ktor.server)
+    implementation(libs.kotlinx.rpc.krpc.serialization.json)
+    implementation(libs.logback.classic.server)
+    implementation(libs.kotlinx.datetime)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.collections.immutable)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.kotlin.test)
 }
 
 tasks.test {

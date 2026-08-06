@@ -1,12 +1,12 @@
 plugins {
-    kotlin("jvm")
-    kotlin("plugin.serialization")
-    id("org.jetbrains.compose.hot-reload")
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose.hot.reload)
 //    id("io.ktor.plugin")
-    id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlinx.rpc.plugin")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.compose")
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinx.rpc)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.compose)
 }
 
 group = "com.woutwerkman"
@@ -20,18 +20,18 @@ repositories {
 dependencies {
     implementation(project(":common"))
     implementation(project(":serverAndAdminCommon"))
-    implementation("io.ktor:ktor-client-cio:3.3.0")
-    implementation("io.ktor:ktor-client-core:3.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
-    implementation("io.ktor:ktor-client-logging:2.3.12")
-    implementation("ch.qos.logback:logback-classic:1.5.13")
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.core)
+    implementation(libs.kotlinx.rpc.krpc.client)
+    implementation(libs.kotlinx.rpc.krpc.ktor.client)
+    implementation(libs.kotlinx.rpc.krpc.serialization.json)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.ktor.client.logging.legacy)
+    implementation(libs.logback.classic.admin)
     implementation(compose.desktop.currentOs)
-    implementation("io.ktor:ktor-client-cio-jvm:3.3.0")
-    testImplementation(kotlin("test"))
+    implementation(libs.ktor.client.cio.jvm)
+    testImplementation(libs.kotlin.test)
 }
 
 tasks.test {

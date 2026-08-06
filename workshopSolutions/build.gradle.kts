@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm")
+    alias(libs.plugins.kotlin.jvm)
 }
 
 group = "com.woutwerkman"
@@ -9,7 +9,7 @@ repositories { mavenCentral() }
 
 dependencies {
     implementation(project(":workshopApi"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation(libs.kotlinx.coroutines.core)
 }
 
 kotlin {

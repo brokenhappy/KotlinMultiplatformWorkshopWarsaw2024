@@ -1,7 +1,7 @@
 plugins {
-    kotlin("jvm")
-    kotlin("plugin.serialization")
-    id("org.jetbrains.kotlinx.rpc.plugin")
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlinx.rpc)
     application
 }
 
@@ -18,11 +18,11 @@ repositories {
 }
 
 dependencies {
-    implementation("io.ktor:ktor-client-core:3.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.10.3")
-    testImplementation(kotlin("test"))
+    implementation(libs.ktor.client.core)
+    implementation(libs.kotlinx.rpc.krpc.client)
+    implementation(libs.kotlinx.rpc.krpc.ktor.client)
+    implementation(libs.kotlinx.rpc.krpc.serialization.json)
+    testImplementation(libs.kotlin.test)
     implementation(project(":client"))
     implementation(project(":common"))
 }

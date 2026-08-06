@@ -1,10 +1,10 @@
 import org.gradle.kotlin.dsl.implementation
 
 plugins {
-    kotlin("jvm")
-    kotlin("plugin.serialization")
-    id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlinx.rpc.plugin")
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinx.rpc)
 }
 
 repositories {
@@ -21,16 +21,16 @@ repositories {
 
 dependencies {
     implementation(project(":workshopApi"))
-    implementation("io.ktor:ktor-client-core:3.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json:0.10.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.0")
-    testImplementation(kotlin("test"))
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    implementation(libs.ktor.client.core)
+    implementation(libs.kotlinx.rpc.krpc.client)
+    implementation(libs.kotlinx.rpc.krpc.ktor.client)
+    implementation(libs.kotlinx.rpc.krpc.serialization.json)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.collections.immutable)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.test { useJUnitPlatform() }
