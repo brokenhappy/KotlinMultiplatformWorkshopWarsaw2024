@@ -21,6 +21,8 @@ import kmpworkshop.client.kotlinBasicsPuzzleSolutions
 import kmpworkshop.client.workshopSolutions
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.CoroutinePuzzle
+import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.CoroutinePuzzleSolveState
 import kmpworkshop.common.KotlinBasicsPuzzle
 import kmpworkshop.common.KotlinBasicsPuzzleResult
 import kmpworkshop.common.WorkshopStage
@@ -28,9 +30,12 @@ import kmpworkshop.common.WorkshopServer
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.asServer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import testWorkshopService
@@ -56,7 +61,12 @@ class PuzzleUiQaTest {
         onNodeWithText("Call timeline").assertIsDisplayed()
         onNodeWithTag("timeline-marker-1-0").assertIsDisplayed()
         onNodeWithTag("puzzle-run-button").assertIsEnabled().performClick()
-        onNodeWithText("No changes to the code have been observed since last run.").assertIsDisplayed()
+        waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                onNodeWithText("Yaay! You solved it again! Perhaps you could look around and see if some of your peers would like your help? :))")
+                    .assertIsDisplayed()
+            }.isSuccess
+        }
     }
 
     @Test
@@ -116,6 +126,34 @@ class PuzzleUiQaTest {
         onAllNodesWithText("The workshop is in registration. Waiting for the host to open a puzzle…")
             .assertCountEquals(0)
         onNodeWithTag("puzzle-run-button").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a coroutine puzzle can be run again after leaving and returning to its stage`(): Unit = runComposeUiTest {
+        val stage = MutableStateFlow<WorkshopStage>(CoroutinePuzzleStage.SumOfTwoIntsSlow)
+        val server = UiTestWorkshopServer(stage)
+        setContent {
+            MaterialTheme { Surface { WorkshopClient(server) } }
+        }
+
+        onNodeWithTag("puzzle-run-button").performClick()
+        waitUntil(timeoutMillis = 10_000) {
+            runCatching { onNodeWithText("The puzzle was solved").assertIsDisplayed() }.isSuccess
+        }
+
+        stage.value = CoroutinePuzzleStage.SumOfTwoIntsFast
+        waitUntil(timeoutMillis = 10_000) {
+            runCatching { onNodeWithText("Sum Of Two Ints Fast").assertIsDisplayed() }.isSuccess
+        }
+        stage.value = CoroutinePuzzleStage.SumOfTwoIntsSlow
+        waitUntil(timeoutMillis = 10_000) {
+            runCatching { onNodeWithText("Sum Of Two Ints Slow").assertIsDisplayed() }.isSuccess
+        }
+
+        onNodeWithTag("puzzle-run-button").assertIsEnabled().performClick()
+        waitUntil(timeoutMillis = 10_000) {
+            runCatching { onNodeWithText("The puzzle was solved").assertIsDisplayed() }.isSuccess
+        }
     }
 
     @Test
@@ -221,7 +259,7 @@ private class UiTestWorkshopServer(
     override fun kotlinBasicsPuzzle(stage: KotlinBasicsPuzzleStage): KotlinBasicsPuzzle = puzzleFactory(stage)
 
     override fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle =
-        error("The UI test did not expect a coroutine puzzle call for $stage")
+        CoroutinePuzzle { flowOf(CoroutinePuzzleSolveState.Completed(CoroutinePuzzleSolutionResult.Success)) }
 }
 
 internal fun serverStateThatOpened(stage: CoroutinePuzzleStage): ServerState = ServerState(
