@@ -28,7 +28,6 @@ class CoroutineDebuggerStateTest {
         val childNode = state.tree.nodes[2] ?: error("child missing from call tree")
         val exception = assertIs<CallTree.Node.Type.ThrewException>(childNode.type)
         assertEquals(false, exception.wasCancellation)
-        assertEquals("solution.child threw boom", state.lastEvent)
     }
 
     @OptIn(ExperimentalTestApi::class)

@@ -15,7 +15,6 @@ internal object NoOpStackTracker : StackTrackingContext {
 
 internal data class CoroutineDebuggerState(
     val tree: CallTree = CallTree.Empty,
-    val lastEvent: String? = null,
 )
 
 internal class CoroutineDebuggerBatchController {
@@ -36,18 +35,14 @@ internal fun CoroutineDebuggerState.after(event: CallStackTrackEvent): Coroutine
     when (val type = event.eventType) {
         CallStackTrackEventType.CallStackPushType -> copy(
             tree = tree.after(event),
-            lastEvent = "Entered ${event.node.functionFqn}",
         )
         CallStackTrackEventType.CallStackPopType -> copy(
             tree = tree.after(event),
-            lastEvent = "Returned from ${event.node.functionFqn}",
         )
         is CallStackTrackEventType.CallStackThrowType -> copy(
             tree = tree.after(event),
-            lastEvent = "${event.node.functionFqn} threw ${type.throwable.message ?: type.throwable::class.simpleName}",
         )
         CallStackTrackEventType.CallStackCancelled -> copy(
             tree = tree.after(event),
-            lastEvent = "Cancelled ${event.node.functionFqn}",
         )
     }
