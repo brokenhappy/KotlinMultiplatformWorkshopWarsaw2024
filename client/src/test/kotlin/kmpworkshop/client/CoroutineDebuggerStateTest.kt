@@ -47,6 +47,7 @@ class CoroutineDebuggerStateTest {
         onNodeWithTag("debugger-step-button").assertIsDisplayed()
         onNodeWithTag("debugger-resume-button").assertIsDisplayed()
         onNodeWithTag("debugger-resume-until-batch-button").assertIsDisplayed()
+        onAllNodesWithTag("debugger-status-symbol").assertCountEquals(0)
         onAllNodesWithTag("debugger-pause-button").assertCountEquals(0)
     }
 }
