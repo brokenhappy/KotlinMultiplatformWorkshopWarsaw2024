@@ -46,8 +46,8 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    // The client includes the Java 25 call-tree visualizer UI.
-    jvmToolchain(25)
+    // Keep test compilation and execution on the project-wide JVM version.
+    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }

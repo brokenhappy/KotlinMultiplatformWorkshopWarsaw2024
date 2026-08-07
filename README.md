@@ -1,7 +1,7 @@
 
 ## Build requirements
 
-The local call-tree compiler plugin requires the Gradle daemon to run on JDK 23 or newer. The repository declares this in `gradle/gradle-daemon-jvm.properties`; Gradle will select or provision that daemon JDK. The published call-tree UI is compiled for JDK 25, so JDK 25 must also be available for the affected module toolchains.
+The project uses JDK 23 for the Gradle daemon, compilation, tests, Compose applications, and the server runtime. The repository declares this in `gradle/gradle-daemon-jvm.properties`; Gradle will select or provision the JDK through its toolchain support.
 
 ```shell
 ./gradlew :client:test

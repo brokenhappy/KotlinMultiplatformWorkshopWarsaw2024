@@ -12,7 +12,7 @@ version = "unspecified"
 
 jib {
     from {
-        image = "amazoncorretto:17"
+        image = "amazoncorretto:23"
     }
 }
 
@@ -47,7 +47,7 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }

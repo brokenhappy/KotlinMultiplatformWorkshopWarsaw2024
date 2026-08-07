@@ -1,5 +1,5 @@
 # Stage 1: Build the application using a Gradle image
-FROM gradle:8.4-jdk17-alpine AS build
+FROM gradle:9.3.0-jdk23-alpine AS build
 WORKDIR /home/gradle/src
 
 # Copy only the necessary files to leverage Docker layer caching
@@ -20,7 +20,7 @@ COPY serverAndAdminCommon ./serverAndAdminCommon
 RUN ./gradlew :server:installDist --no-daemon
 
 # Stage 2: Create the final, lightweight runtime image
-FROM amazoncorretto:17-alpine-jdk
+FROM amazoncorretto:23-alpine-jdk
 WORKDIR /app
 
 # Copy the built application from the 'build' stage

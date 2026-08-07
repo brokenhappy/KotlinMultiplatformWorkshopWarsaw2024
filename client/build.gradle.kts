@@ -48,8 +48,8 @@ tasks.test {
 }
 
 kotlin {
-    // The published call-tree UI is built for Java 25.
-    jvmToolchain(25)
+    // Keep compilation and application execution on the project-wide JVM version.
+    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }
@@ -58,19 +58,18 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "kmpworkshop.client.MainKt"
-        // Run with the same JVM that can load the Java 25 call-tree UI.
+        // Run with the same JVM used to compile the application.
         javaHome = javaToolchains.launcherFor {
-            languageVersion.set(JavaLanguageVersion.of(25))
+            languageVersion.set(JavaLanguageVersion.of(23))
         }.get().metadata.installationPath.asFile.absolutePath
     }
 }
 
-// Compose Hot Reload defaults to a Java 21 JetBrains Runtime; the call-tree UI is
-// Java 25 bytecode, so use the project toolchain for all Compose launch variants.
-val java25Launcher = javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(25))
+// Use the project toolchain for all Compose launch variants.
+val java23Launcher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(23))
 }
 System.setProperty(
     "compose.reload.jbr.binary",
-    java25Launcher.get().executablePath.asFile.absolutePath,
+    java23Launcher.get().executablePath.asFile.absolutePath,
 )

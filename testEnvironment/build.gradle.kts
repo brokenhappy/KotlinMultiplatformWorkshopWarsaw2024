@@ -33,26 +33,26 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    // The client includes the Java 25 call-tree visualizer UI.
-    jvmToolchain(25)
+    // Keep compilation and application execution on the project-wide JVM version.
+    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }
 }
 
-// Compose's hotRun task otherwise defaults to the IDE/Gradle JVM (currently Java 21),
-// which cannot load the Java 25 classes supplied by call-tree-ui.
-val java25Launcher = javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(25))
+// Compose's hotRun task otherwise defaults to the IDE/Gradle JVM. Use the
+// project toolchain for all Compose launch variants.
+val java23Launcher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(23))
 }
 System.setProperty(
     "compose.reload.jbr.binary",
-    java25Launcher.get().executablePath.asFile.absolutePath,
+    java23Launcher.get().executablePath.asFile.absolutePath,
 )
 
 compose.desktop {
     application {
         mainClass = "TestEnvironmentMainKt"
-        javaHome = java25Launcher.get().metadata.installationPath.asFile.absolutePath
+        javaHome = java23Launcher.get().metadata.installationPath.asFile.absolutePath
     }
 }

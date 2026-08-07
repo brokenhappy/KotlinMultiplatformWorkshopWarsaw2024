@@ -36,7 +36,7 @@ dependencies {
 tasks.test { useJUnitPlatform() }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }
