@@ -104,14 +104,6 @@ internal fun CoroutineDebuggerPanel(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Coroutine debugger", style = MaterialTheme.typography.subtitle1)
-                Text(
-                    when {
-                        !enabled -> "Idle"
-                        isPaused -> "Paused"
-                        else -> "Running"
-                    },
-                    color = if (isPaused) Color(0xFFB3261E) else Color(0xFF3C4043),
-                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -129,7 +121,22 @@ internal fun CoroutineDebuggerPanel(
                     enabled = enabled && isPaused,
                     onClick = { controls.trySend(DebuggerCommand.ResumeUntilNextBatch) },
                 ) { Text("Resume until next batch") }
-                state.lastEvent?.let { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                Text(
+                    text = when {
+                        !enabled -> "○"
+                        isPaused -> "⏸"
+                        else -> "●"
+                    },
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .testTag("debugger-status-symbol"),
+                    color = when {
+                        !enabled -> Color(0xFF5F6368)
+                        isPaused -> Color(0xFFB3261E)
+                        else -> Color(0xFF2E7D32)
+                    },
+                    style = MaterialTheme.typography.h6,
+                )
             }
             Box(
                 modifier = Modifier
