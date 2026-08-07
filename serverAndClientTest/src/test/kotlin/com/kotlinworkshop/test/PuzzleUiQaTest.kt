@@ -7,7 +7,7 @@ import androidx.compose.material.Surface
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onNodeWithTag
@@ -54,7 +54,8 @@ class PuzzleUiQaTest {
     ) {
         onNodeWithTag("puzzle-status").assertTextContains("The puzzle was solved")
         onNodeWithText("Call timeline").assertIsDisplayed()
-        onNodeWithTag("puzzle-run-button").assertIsNotEnabled()
+        onNodeWithTag("puzzle-run-button").assertIsEnabled().performClick()
+        onNodeWithText("No changes to the code have been observed since last run.").assertIsDisplayed()
     }
 
     @Test
@@ -65,8 +66,7 @@ class PuzzleUiQaTest {
         ),
     ) {
         onNodeWithTag("puzzle-status").assertTextContains("Test failed: deliberate test failure")
-        onNodeWithTag("puzzle-run-button").assertIsDisplayed()
-        onNodeWithTag("puzzle-run-button").assertIsNotEnabled()
+        onNodeWithTag("puzzle-run-button").assertIsDisplayed().assertIsEnabled()
     }
 
     @Test
@@ -197,6 +197,12 @@ private fun runPuzzleUiTest(
             onNodeWithTag("puzzle-run-button").assertIsDisplayed().performClick()
             waitUntil(timeoutMillis = 10_000) {
                 runCatching { onNodeWithTag("puzzle-status").assertExists() }.isSuccess
+            }
+            waitUntil(timeoutMillis = 10_000) {
+                runCatching {
+                    onNodeWithTag("puzzle-status").assertTextContains("Running test…")
+                    false
+                }.getOrDefault(true)
             }
             assertions()
         }

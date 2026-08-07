@@ -48,7 +48,6 @@ import kotlinx.serialization.json.JsonElement
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.compose.reload.AfterHotReloadEffect
 import org.jetbrains.compose.reload.DelicateHotReloadApi
-import org.jetbrains.compose.reload.isHotReloadActive
 import java.awt.Desktop
 import java.io.File
 
@@ -177,19 +176,24 @@ fun WorkshopClient(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         modifier = Modifier.testTag("puzzle-run-button"),
-                        enabled = canRun,
-                        onClick = { startRun(stepped = false) },
+                        enabled = activeRun == null,
+                        colors = puzzleRunButtonColors(canRun),
+                        onClick = {
+                            if (canRun) startRun(stepped = false)
+                        },
                     ) { Text("Run Test") }
                     Button(
                         modifier = Modifier.testTag("puzzle-run-stepped-button"),
-                        enabled = canRun,
-                        onClick = { startRun(stepped = true) },
+                        enabled = activeRun == null,
+                        colors = puzzleRunButtonColors(canRun),
+                        onClick = {
+                            if (canRun) startRun(stepped = true)
+                        },
                     ) { Text("Run Stepped") }
                 }
 
                 if (!canRun) Text(
-                    if (isHotReloadActive) "Waiting for a successful hot reload."
-                    else "Run Test is available once. Start the shared WorkshopClient configuration to enable it after edits.",
+                    "No changes to the code have been observed since last run.",
                     style = MaterialTheme.typography.caption,
                 )
                 status?.let { Text(it, modifier = Modifier.testTag("puzzle-status"), color = resultColor(result)) }
@@ -299,6 +303,11 @@ internal fun CoroutineTimeline(
         }
     }
 }
+
+@Composable
+private fun puzzleRunButtonColors(canRun: Boolean): ButtonColors = ButtonDefaults.buttonColors(
+    backgroundColor = if (canRun) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(alpha = 0.72f),
+)
 
 private data class Marker(val text: String, val title: String? = null, val detail: String? = null)
 
