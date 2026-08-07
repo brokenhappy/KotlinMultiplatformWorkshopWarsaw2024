@@ -53,25 +53,23 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
             )
 
 
-            coroutineScope {
-                withLaunched(taskThatMustOutliveUsage = {
-                    try {
-                        submissionFunction.autoBatchedOnQuiescence {
-                            withImportantCleanup {
-                                context(submissionFunction.asSolutionScope()) {
-                                    solution()
-                                }
+            withLaunched(taskThatMustOutliveUsage = {
+                try {
+                    submissionFunction.autoBatchedOnQuiescence {
+                        withImportantCleanup {
+                            context(submissionFunction.asSolutionScope()) {
+                                solution()
                             }
                         }
-                    } finally {
-                        submissions.close()
                     }
-                }) {
-                    val result = messageReceivingActor(expectations, pending, onBatchReceived = {
-                        send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Expectation(it)))
-                    })
-                    send(CoroutinePuzzleSolveState.Completed(result))
+                } finally {
+                    submissions.close()
                 }
+            }) {
+                val result = messageReceivingActor(expectations, pending, onBatchReceived = {
+                    send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Expectation(it)))
+                })
+                send(CoroutinePuzzleSolveState.Completed(result))
             }
         }
     }
