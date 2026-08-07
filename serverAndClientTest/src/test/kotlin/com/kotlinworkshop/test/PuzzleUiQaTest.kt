@@ -54,6 +54,7 @@ class PuzzleUiQaTest {
     ) {
         onNodeWithTag("puzzle-status").assertTextContains("The puzzle was solved")
         onNodeWithText("Call timeline").assertIsDisplayed()
+        onNodeWithTag("timeline-marker-1-0").assertIsDisplayed()
         onNodeWithTag("puzzle-run-button").assertIsEnabled().performClick()
         onNodeWithText("No changes to the code have been observed since last run.").assertIsDisplayed()
     }

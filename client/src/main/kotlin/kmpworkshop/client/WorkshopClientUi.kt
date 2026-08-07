@@ -245,7 +245,7 @@ internal fun CoroutineTimeline(
     result: CoroutinePuzzleSolutionResult?,
     modifier: Modifier = Modifier,
 ) {
-    val calls = remember(history) { coroutineTimeline(history) }
+    val calls = remember(history.size) { coroutineTimeline(history) }
     if (history.isEmpty()) {
         Card(modifier = modifier, backgroundColor = Color(0xFFF7F8FA), elevation = 0.dp) {
             Text("The timeline will appear here as soon as your solution makes its first call.", Modifier.padding(20.dp), color = Color(0xFF5F6368))
