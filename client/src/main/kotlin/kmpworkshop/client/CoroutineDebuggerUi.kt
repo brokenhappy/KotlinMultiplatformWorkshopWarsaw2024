@@ -28,13 +28,15 @@ import com.woutwerkman.calltreevisualizer.gui.KotlinFqnTextRenderer
 import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEvent
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.selects.select
 
-internal enum class DebuggerCommand { Step, Resume }
+internal enum class DebuggerCommand { Step, Resume, ResumeUntilNextBatch }
 
 @Composable
 internal fun CoroutineDebuggerPanel(
     events: ReceiveChannel<CallStackTrackEvent>?,
+    batchBoundaries: ReceiveChannel<Unit>?,
+    batchController: CoroutineDebuggerBatchController,
     enabled: Boolean,
 ) {
     var state by remember(events) { mutableStateOf(CoroutineDebuggerState()) }
@@ -46,16 +48,48 @@ internal fun CoroutineDebuggerPanel(
         // Stepped runs always stop at the first event. Step keeps this flag set so
         // every subsequent event becomes the next stopping point; Resume clears it.
         var pauseBeforeNextEvent = true
-        eventChannel.consumeEach { event ->
-            state = state.after(event)
-            if (pauseBeforeNextEvent) {
-                isPaused = true
-                when (controls.receive()) {
-                    DebuggerCommand.Step -> Unit
-                    DebuggerCommand.Resume -> pauseBeforeNextEvent = false
+        var pauseAtNextBatch = false
+        var eventChannelClosed = false
+        while (true) {
+            select<Unit> {
+                eventChannel.onReceiveCatching { result ->
+                    val event = result.getOrNull()
+                    if (event == null) {
+                        eventChannelClosed = true
+                    } else {
+                        state = state.after(event)
+                    }
+                    if (event != null && pauseBeforeNextEvent) {
+                        isPaused = true
+                        when (controls.receive()) {
+                            DebuggerCommand.Step -> Unit
+                            DebuggerCommand.Resume -> pauseBeforeNextEvent = false
+                            DebuggerCommand.ResumeUntilNextBatch -> {
+                                pauseBeforeNextEvent = false
+                                pauseAtNextBatch = true
+                                batchController.resumeUntilNextBatch()
+                            }
+                        }
+                        isPaused = false
+                    }
                 }
-                isPaused = false
+                batchBoundaries?.onReceiveCatching { result ->
+                    if (result.getOrNull() != null && pauseAtNextBatch) {
+                        pauseAtNextBatch = false
+                        isPaused = true
+                        when (controls.receive()) {
+                            DebuggerCommand.Step -> pauseBeforeNextEvent = true
+                            DebuggerCommand.Resume -> Unit
+                            DebuggerCommand.ResumeUntilNextBatch -> {
+                                pauseAtNextBatch = true
+                                batchController.resumeUntilNextBatch()
+                            }
+                        }
+                        isPaused = false
+                    }
+                }
             }
+            if (eventChannelClosed) break
         }
     }
 
@@ -90,6 +124,11 @@ internal fun CoroutineDebuggerPanel(
                     enabled = enabled && isPaused,
                     onClick = { controls.trySend(DebuggerCommand.Resume) },
                 ) { Text("Resume") }
+                Button(
+                    modifier = Modifier.testTag("debugger-resume-until-batch-button"),
+                    enabled = enabled && isPaused,
+                    onClick = { controls.trySend(DebuggerCommand.ResumeUntilNextBatch) },
+                ) { Text("Resume until next batch") }
                 state.lastEvent?.let { Text(it, modifier = Modifier.padding(start = 4.dp)) }
             }
             Box(

@@ -38,6 +38,8 @@ class CoroutineDebuggerStateTest {
             MaterialTheme {
                 CoroutineDebuggerPanel(
                     events = null,
+                    batchBoundaries = null,
+                    batchController = CoroutineDebuggerBatchController(),
                     enabled = true,
                 )
             }
@@ -45,6 +47,7 @@ class CoroutineDebuggerStateTest {
 
         onNodeWithTag("debugger-step-button").assertIsDisplayed()
         onNodeWithTag("debugger-resume-button").assertIsDisplayed()
+        onNodeWithTag("debugger-resume-until-batch-button").assertIsDisplayed()
         onAllNodesWithTag("debugger-pause-button").assertCountEquals(0)
     }
 }

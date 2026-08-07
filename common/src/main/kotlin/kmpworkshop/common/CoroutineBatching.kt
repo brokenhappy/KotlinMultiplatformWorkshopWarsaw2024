@@ -157,6 +157,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
 
     val isComplete = AtomicBoolean(false)
     val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 0, currentRequests = persistentListOf()))
+    val parentQuiescenceTracker = currentCoroutineContext()[QuiescenceTracker]
     @OptIn(ExperimentalTime::class)
     return withLaunched(taskThatMustOutliveUsage = {
         // Keep publication independent from the collectLatest flush body: that body can intentionally remain inside
@@ -241,6 +242,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                 }
             val quiescenceTracker = object : QuiescenceTracker {
                     override fun enterNonQuiescentSection() {
+                        parentQuiescenceTracker?.enterNonQuiescentSection()
                         state.update {
                             it.copy(
                                 activeCoroutineCount = it.activeCoroutineCount + 1,
@@ -251,6 +253,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
 
                     override fun exitNonQuiescentSection() {
                         state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
+                        parentQuiescenceTracker?.exitNonQuiescentSection()
                     }
                 }
             withContext(batchedScope + quiescenceTracker, block).also { isComplete.store(true) }

@@ -5,6 +5,8 @@ import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEve
 import com.woutwerkman.calltreevisualizer.gui.CallTree
 import com.woutwerkman.calltreevisualizer.gui.after
 import com.woutwerkman.calltreevisualizer.StackTrackingContext
+import kotlinx.coroutines.channels.Channel
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Provides the tracking context required by compiler-instrumented code in normal runs. */
 internal object NoOpStackTracker : StackTrackingContext {
@@ -15,6 +17,20 @@ internal data class CoroutineDebuggerState(
     val tree: CallTree = CallTree.Empty,
     val lastEvent: String? = null,
 )
+
+internal class CoroutineDebuggerBatchController {
+    private val pauseAtNextBatch = AtomicBoolean(false)
+
+    fun resumeUntilNextBatch() {
+        pauseAtNextBatch.set(true)
+    }
+
+    fun onEmptyBatch(boundaries: Channel<Unit>) {
+        if (pauseAtNextBatch.compareAndSet(true, false)) {
+            boundaries.trySend(Unit)
+        }
+    }
+}
 
 internal fun CoroutineDebuggerState.after(event: CallStackTrackEvent): CoroutineDebuggerState =
     when (val type = event.eventType) {

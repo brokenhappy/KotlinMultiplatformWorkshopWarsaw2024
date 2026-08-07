@@ -85,6 +85,8 @@ fun WorkshopClient(
     var attemptVersion by remember(stage) { mutableStateOf(0L) }
     var activeRun by remember { mutableStateOf<Job?>(null) }
     var debuggerEvents by remember(stage) { mutableStateOf<Channel<CallStackTrackEvent>?>(null) }
+    var debuggerBatchBoundaries by remember(stage) { mutableStateOf<Channel<Unit>?>(null) }
+    var debuggerBatchController by remember(stage) { mutableStateOf<CoroutineDebuggerBatchController?>(null) }
     val scope = rememberCoroutineScope()
     val latestActiveRun = rememberUpdatedState(activeRun)
     val latestDebuggerEvents = rememberUpdatedState(debuggerEvents)
@@ -94,6 +96,9 @@ fun WorkshopClient(
         activeRun = null
         latestDebuggerEvents.value?.close()
         debuggerEvents = null
+        debuggerBatchBoundaries?.close()
+        debuggerBatchBoundaries = null
+        debuggerBatchController = null
         reloadVersion++
     }
 
@@ -127,6 +132,9 @@ fun WorkshopClient(
             activeRun = null
             latestDebuggerEvents.value?.close()
             debuggerEvents = null
+            debuggerBatchBoundaries?.close()
+            debuggerBatchBoundaries = null
+            debuggerBatchController = null
         }
     }
 
@@ -146,10 +154,16 @@ fun WorkshopClient(
                     result = null
                     debuggerEvents?.close()
                     debuggerEvents = null
+                    debuggerBatchBoundaries?.close()
+                    debuggerBatchBoundaries = null
                     attemptVersion++
                     status = "Running test…"
                     val trackedEvents = if (stepped) Channel<CallStackTrackEvent>(Channel.RENDEZVOUS) else null
+                    val batchBoundaries = if (stepped) Channel<Unit>(Channel.CONFLATED) else null
+                    val batchController = CoroutineDebuggerBatchController()
                     debuggerEvents = trackedEvents
+                    debuggerBatchBoundaries = batchBoundaries
+                    debuggerBatchController = batchController
                     val run = scope.launch(start = CoroutineStart.LAZY) {
                         try {
                             server.coroutinePuzzle(stage).solveAsFlow {
@@ -159,17 +173,23 @@ fun WorkshopClient(
                                         withImportantCleanup { userSolution() }
                                     }
                                 } else {
-                                    trackingCallStacks(
-                                        block = {
-                                            globalScopeContext = this.coroutineContext
-                                            try {
-                                                withImportantCleanup { userSolution() }
-                                            } finally {
-                                                globalScopeContext = EmptyCoroutineContext
-                                            }
-                                        },
-                                        emit = { event -> assumeNotQuiescent { trackedEvents.send(event) } },
-                                    )
+                                    val debuggerQuiescence = AutoBatchedFunctionId<Unit, Unit> { batch ->
+                                        check(batch.isEmpty()) { "Debugger quiescence must never receive batched calls" }
+                                        batchController.onEmptyBatch(requireNotNull(batchBoundaries))
+                                    }
+                                    debuggerQuiescence.autoBatchedOnQuiescence {
+                                        trackingCallStacks(
+                                            block = {
+                                                globalScopeContext = this.coroutineContext
+                                                try {
+                                                    withImportantCleanup { userSolution() }
+                                                } finally {
+                                                    globalScopeContext = EmptyCoroutineContext
+                                                }
+                                            },
+                                            emit = { event -> assumeNotQuiescent { trackedEvents.send(event) } },
+                                        )
+                                    }
                                 }
                             }.collect { state ->
                                 when (state) {
@@ -217,6 +237,8 @@ fun WorkshopClient(
                     debuggerEvents?.let { events ->
                         CoroutineDebuggerPanel(
                             events = events,
+                            batchBoundaries = debuggerBatchBoundaries,
+                            batchController = requireNotNull(debuggerBatchController),
                             enabled = activeRun != null,
                         )
                     }
