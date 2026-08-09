@@ -42,6 +42,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 calltreevisualizer-tracked-flow = { module = "com.woutwerkman.calltreevisualizer:tracked-call-tree-as-flow", version.ref = "calltreevisualizer" }
 calltreevisualizer-call-tree-ui = { module = "com.woutwerkman.calltreevisualizer:call-tree-ui", version.ref = "calltreevisualizer" }
 calltreevisualizer-stack-tracking-core-api = { module = "com.woutwerkman.calltreevisualizer:stack-tracking-core-api", version.ref = "calltreevisualizer" }
+calltreevisualizer-flow-context-agent-api = { module = "com.woutwerkman.calltreevisualizer:flow-context-agent-api", version.ref = "calltreevisualizer" }
 
 compose-hot-reload-runtime-api = { module = "org.jetbrains.compose.hot-reload:hot-reload-runtime-api", version.ref = "compose-hot-reload" }
 logback-classic-admin = { module = "ch.qos.logback:logback-classic", version.ref = "logback-admin" }

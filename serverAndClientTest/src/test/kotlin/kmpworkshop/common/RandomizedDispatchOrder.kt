@@ -1,5 +1,6 @@
 package kmpworkshop.common
 
+import com.woutwerkman.calltreevisualizer.WrappingDispatcher
 import kotlinx.coroutines.*
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
@@ -27,7 +28,7 @@ suspend fun <T> withRandomizedDispatchOrder(
 
     @OptIn(InternalCoroutinesApi::class)
     fun wrapDispatcher(delegateDispatcher: CoroutineDispatcher, delegateDelay: Delay): CoroutineDispatcher {
-        return object : CoroutineDispatcher(), Delay {
+        return object : CoroutineDispatcher(), Delay, WrappingDispatcher {
             private val pending = mutableListOf<Pair<CoroutineContext, Runnable>>()
             private var drainScheduled = false
 
@@ -77,6 +78,9 @@ suspend fun <T> withRandomizedDispatchOrder(
 
             override fun limitedParallelism(parallelism: Int, name: String?): CoroutineDispatcher =
                 wrapDispatcher(delegateDispatcher.limitedParallelism(parallelism, name), delegateDelay)
+
+            override fun wrap(other: CoroutineDispatcher): CoroutineDispatcher =
+                wrapDispatcher((other as? WrappingDispatcher)?.wrap(other) ?: other, delegateDelay)
 
             override fun scheduleResumeAfterDelay(timeMillis: Long, continuation: CancellableContinuation<Unit>) {
                 delegateDelay.scheduleResumeAfterDelay(timeMillis, continuation)

@@ -1,5 +1,6 @@
 package kmpworkshop.common
 
+import com.woutwerkman.calltreevisualizer.WrappingDispatcher
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -36,7 +37,7 @@ suspend fun <T> withInterceptingDispatcher(
 
     @OptIn(InternalCoroutinesApi::class)
     fun wrapDispatcher(delegateDispatcher: CoroutineDispatcher, delegateDelay: Delay): CoroutineDispatcher {
-        return object : CoroutineDispatcher(), Delay {
+        return object : CoroutineDispatcher(), Delay, WrappingDispatcher {
             /**
              * This is a bit of a tricky case, since this isn't just a Runnable we can wrap.
              * The Runnable comes later, namely at the moment that our [delegateDispatcher] calls [continuation].
@@ -119,6 +120,9 @@ suspend fun <T> withInterceptingDispatcher(
 
             override fun limitedParallelism(parallelism: Int, name: String?): CoroutineDispatcher =
                 wrapDispatcher(delegateDispatcher.limitedParallelism(parallelism, name), delegateDelay)
+
+            override fun wrap(other: CoroutineDispatcher): CoroutineDispatcher =
+                wrapDispatcher((delegateDispatcher as? WrappingDispatcher)?.wrap(other) ?: other, delegateDelay)
         }
     }
 

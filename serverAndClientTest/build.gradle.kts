@@ -36,6 +36,7 @@ dependencies {
     testImplementation(libs.kotlinx.rpc.krpc.ktor.client)
     testImplementation(libs.kotlinx.rpc.krpc.serialization.json)
     testImplementation(libs.calltreevisualizer.stack.tracking.core.api)
+    testImplementation(libs.calltreevisualizer.flow.context.agent.api)
     testImplementation(project(":testEnvironment"))
     testImplementation(compose.desktop.uiTestJUnit4)
     testImplementation(compose.desktop.currentOs)
