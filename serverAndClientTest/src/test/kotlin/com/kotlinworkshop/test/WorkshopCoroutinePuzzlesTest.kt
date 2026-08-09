@@ -1,6 +1,7 @@
 package com.kotlinworkshop.test
 
 import com.woutwerkman.calltreevisualizer.StackTrackingContext
+import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.workshopSolutions
 import kmpworkshop.api.*
@@ -701,5 +702,9 @@ private inline fun <reified T> ResultsWHistory.arguments(
     .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
 
 object NoOpStackTracker: StackTrackingContext {
-    override suspend fun <T> track(functionFqn: String, metadata: ULong, child: suspend () -> T): T = child()
+    override suspend fun <T> track(
+        functionFqn: String,
+        metadata: StackTrackingMetadata,
+        child: suspend () -> T,
+    ): T = child()
 }
