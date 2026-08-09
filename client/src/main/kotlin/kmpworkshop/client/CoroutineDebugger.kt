@@ -5,12 +5,14 @@ import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEve
 import com.woutwerkman.calltreevisualizer.gui.CallTree
 import com.woutwerkman.calltreevisualizer.gui.after
 import com.woutwerkman.calltreevisualizer.StackTrackingContext
+import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
 import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Provides the tracking context required by compiler-instrumented code in normal runs. */
 internal object NoOpStackTracker : StackTrackingContext {
-    override suspend fun <T> track(functionFqn: String, metadata: ULong, child: suspend () -> T): T = child()
+    override suspend fun <T> track(functionFqn: String, metadata: StackTrackingMetadata, child: suspend () -> T): T =
+        child()
 }
 
 internal data class CoroutineDebuggerState(
