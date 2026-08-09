@@ -83,7 +83,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     fun `first solution should not work for first file exposure puzzle`(): Unit = runPuzzleTest {
         // Step 1: a weak -> strong transition must wait for cancellation of the previous network task.
         // The workshop scaffold reacts from a non-suspending callback, so it cancels without joining before restart.
-        doFileExposureStepOne { allowPeopleToDownloadExposedFile(it) }
+        doFileExposureStepOne { withContext(NoOpStackTracker) { allowPeopleToDownloadExposedFile(it) } }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
             .message
             .assertEquals(CoroutinePuzzleErrorMessages.networkRestartStartedTooEarly(
