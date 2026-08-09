@@ -18,7 +18,8 @@ fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): Resour
     }
 
     val submittedValue = submitNumber.expectCall(Unit)
-    verify(submittedValue == 47) { CoroutinePuzzleErrorMessages.wrongOldestAge(submittedValue, 47) }
+    val maxAge = database.maxOf { it.value.age }
+    verify(submittedValue == maxAge) { CoroutinePuzzleErrorMessages.wrongOldestAge(submittedValue, maxAge) }
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -123,19 +124,21 @@ private suspend fun expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExcep
 
 private fun generateUserDatabase(): Map<Int, SerializableUser> = generateSequence { (0..10_000).random() }
     .runningFold(emptySet<Int>()) { acc, id -> acc + id }
-    .first { it.size == 8 } // Set of unique ids
+    .first { it.size == databaseSize - 1 } // Set of unique ids
     .plus(10_001) // Fix last id for debugging
-    .zip(
-        listOf(
-            SerializableUser("Alice", 10),
-            SerializableUser("Bob", 15),
-            SerializableUser("Charlie", 20),
-            SerializableUser("Alice's dad", 35),
-            SerializableUser("Bob's dad", 43),
-            SerializableUser("Charlie's dad", 44),
-            SerializableUser("Alice's mom", 39),
-            SerializableUser("Bob's mom", 47),
-            SerializableUser("Charlie's mom", 46),
-        )
-    )
+    .zip(names.shuffled().take(databaseSize).map { SerializableUser(it, (5..85).random()) })
     .toMap()
+
+private val names = listOf(
+    "Alice",
+    "Bob",
+    "Charlie",
+    "John",
+    "Jane",
+    "Martin",
+    "Janice",
+    "Ella",
+    "Joe",
+)
+
+private val databaseSize = 2.coerceAtMost(names.size)
