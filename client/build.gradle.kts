@@ -33,6 +33,7 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(libs.calltreevisualizer.tracked.flow)
     implementation(libs.calltreevisualizer.call.tree.ui)
+    implementation(libs.compose.hot.reload.runtime.api)
     implementation(project(":common"))
     implementation(project(":workshopApi"))
     implementation(project(":workshopSolutions"))

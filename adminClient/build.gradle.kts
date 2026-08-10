@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose.hot.reload)
 //    id("io.ktor.plugin")
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinx.rpc)

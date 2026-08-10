@@ -4,6 +4,7 @@ ksp = "2.3.11"
 kotlinx-rpc = "0.10.3"
 jib = "3.4.5"
 compose = "1.12.0-beta03"
+compose-hot-reload = "1.2.0-rc01"
 ktor = "3.3.0"
 ktor-legacy = "2.3.12"
 serialization = "1.9.0"
@@ -44,6 +45,7 @@ calltreevisualizer-stack-tracking-core-api = { module = "com.woutwerkman.calltre
 calltreevisualizer-flow-context-agent-api = { module = "com.woutwerkman.calltreevisualizer:flow-context-agent-api", version.ref = "calltreevisualizer" }
 calltreevisualizer-flow-context-agent = { module = "com.woutwerkman.calltreevisualizer:flow-context-agent", version.ref = "calltreevisualizer" }
 
+compose-hot-reload-runtime-api = { module = "org.jetbrains.compose.hot-reload:hot-reload-runtime-api", version.ref = "compose-hot-reload" }
 logback-classic-admin = { module = "ch.qos.logback:logback-classic", version.ref = "logback-admin" }
 logback-classic-server = { module = "ch.qos.logback:logback-classic", version.ref = "logback-server" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
@@ -56,4 +58,5 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlinx-rpc = { id = "org.jetbrains.kotlinx.rpc.plugin", version.ref = "kotlinx-rpc" }
 jib = { id = "com.google.cloud.tools.jib", version.ref = "jib" }
 compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+compose-hot-reload = { id = "org.jetbrains.compose.hot-reload", version.ref = "compose-hot-reload" }
 calltreevisualizer = { id = "com.woutwerkman.calltreevisualizer", version.ref = "calltreevisualizer" }
