@@ -4,9 +4,13 @@ import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonContentPolymorphicSerializer
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 interface WorkshopServer : CoroutinePuzzleProvider, KotlinBasicsPuzzleProvider {
     fun currentStage(): Flow<WorkshopStage>
@@ -53,19 +57,21 @@ fun WorkshopApiService.asServer(
         }.asPuzzle()
 }
 
-@Serializable
+@Serializable(with = WorkshopStageSerializer::class)
 sealed interface WorkshopStage {
     val kotlinFile: String
 
-    data object Registration : WorkshopStage {
+    @Serializable data object Registration : WorkshopStage {
         override val kotlinFile: String = "Registration.kt"
     }
-    enum class KotlinBasicsPuzzleStage(override val kotlinFile: String): WorkshopStage {
+
+    @Serializable enum class KotlinBasicsPuzzleStage(override val kotlinFile: String): WorkshopStage {
         PalindromeCheckTask("PalindromeCheck.kt"),
         FindMinimumAgeOfUserTask("MinimumAgeFinding.kt"),
         FindOldestUserTask("OldestUserFinding.kt"),
     }
-    enum class CoroutinePuzzleStage(override val kotlinFile: String): WorkshopStage {
+
+    @Serializable enum class CoroutinePuzzleStage(override val kotlinFile: String): WorkshopStage {
         SumOfTwoIntsSlow("NumSumFun.kt"),
         SumOfTwoIntsFast("NumSumFun.kt"),
         FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
@@ -80,6 +86,26 @@ sealed interface WorkshopStage {
         FileExposureStepOne("FileExposure.kt"),
         FileExposureStepTwo("FileExposure.kt"),
         FileExposureStepThree("FileExposure.kt"),
+    }
+}
+
+/**
+ * Keeps enum stages as JSON strings instead of trying to add a polymorphic type discriminator to them.
+ *
+ * `Json` can only use a discriminator with object-like values, while enum serializers produce primitives.
+ * Since the enum name is the only subtype marker in this representation, names must be unique across
+ * [KotlinBasicsPuzzleStage] and [CoroutinePuzzleStage]. When adding a stage, rename it if its name is
+ * already used by the other enum; `WorkshopStageSerializationTest` enforces this contract.
+ */
+object WorkshopStageSerializer : JsonContentPolymorphicSerializer<WorkshopStage>(WorkshopStage::class) {
+    override fun selectDeserializer(element: JsonElement): DeserializationStrategy<WorkshopStage> = when (element) {
+        is JsonObject -> WorkshopStage.Registration.serializer()
+        is JsonPrimitive -> when (element.content) {
+            in KotlinBasicsPuzzleStage.entries.map { it.name } -> KotlinBasicsPuzzleStage.serializer()
+            in CoroutinePuzzleStage.entries.map { it.name } -> CoroutinePuzzleStage.serializer()
+            else -> error("Unknown workshop stage: ${element.content}")
+        }
+        else -> error("Workshop stage must be a JSON object or string, but was $element")
     }
 }
 

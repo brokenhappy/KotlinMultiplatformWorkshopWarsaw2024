@@ -130,7 +130,7 @@ fun AdminApp(onExit: () -> Unit) {
                                     ),
                                 )
                             } catch (e: SerializationException) {
-                                backupDir.resolve("unrestorableBackup${Clock.System.now()}").writeText(backupDir.readText())
+                                backupDir.resolve("unrestorableBackup${Clock.System.now()}").writeText(backupDir.resolve("adminLocalBackup").readText())
                             } catch (e: NoSuchFileException) {
                                 // No probs
                             }
