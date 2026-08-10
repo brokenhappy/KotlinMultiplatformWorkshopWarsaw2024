@@ -10,10 +10,9 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEvent
 import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEventType
 import com.woutwerkman.calltreevisualizer.coroutineintegration.CallTreeEventNode
-import com.woutwerkman.calltreevisualizer.gui.CallTree
+import com.woutwerkman.calltreevisualizer.gui.CallStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 class CoroutineDebuggerStateTest {
     @Test
@@ -25,9 +24,11 @@ class CoroutineDebuggerStateTest {
             .after(CallStackTrackEvent(child, CallStackTrackEventType.CallStackPushType))
             .after(CallStackTrackEvent(child, CallStackTrackEventType.CallStackThrowType(IllegalStateException("boom"))))
 
-        val childNode = state.tree.nodes[2] ?: error("child missing from call tree")
-        val exception = assertIs<CallTree.Node.Type.ThrewException>(childNode.type)
-        assertEquals(false, exception.wasCancellation)
+        val childNode = state.tree.roots
+            .single { it.id == root.id }
+            .children
+            .single { it.id == child.id }
+        assertEquals(CallStatus.Failed, childNode.status)
     }
 
     @OptIn(ExperimentalTestApi::class)
