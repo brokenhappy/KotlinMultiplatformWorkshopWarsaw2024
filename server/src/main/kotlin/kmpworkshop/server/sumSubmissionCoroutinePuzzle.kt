@@ -19,7 +19,7 @@ fun simpleSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     }
 }
 
-fun timedSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
+fun concurrentSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val randomNumbers = List(2) { (0..100).random() }
     awaitQuiescenceAndVerifyUnmatchedSubmissions(List(randomNumbers.size) { getNumber }) {
         CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()

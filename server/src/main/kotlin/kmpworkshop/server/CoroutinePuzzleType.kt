@@ -33,7 +33,7 @@ object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion,
 
     override fun findPuzzleFor(stage: CoroutinePuzzleStage): Resource<CoroutinePuzzleProtocol> = when (stage) {
         SumOfTwoIntsSlow -> simpleSumPuzzle()
-        SumOfTwoIntsFast -> timedSumPuzzle()
+        SumOfTwoIntsFast -> concurrentSumPuzzle()
         FindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false)
         FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true)
         MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()

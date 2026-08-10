@@ -264,7 +264,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doSimpleSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber() + api.getNumber())
         }.assertIsNotOk()
-        doTimedSumPuzzle { api ->
+        doConcurrentSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             val secondSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await() + secondSum.await())
@@ -306,16 +306,16 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `timed sum correct solution`(): Unit = runPuzzleTest {
-        doTimedSumPuzzle { api ->
+    fun `concurrent sum correct solution`(): Unit = runPuzzleTest {
+        doConcurrentSumPuzzle { api ->
             val firstSum = async { api.getNumber() }
             api.submit(api.getNumber() + firstSum.await())
         }.assertIsOk()
     }
 
     @Test
-    fun `timed sum too slow solution fails`(): Unit = runPuzzleTest {
-        doTimedSumPuzzle { api ->
+    fun `sequential sum solution fails`(): Unit = runPuzzleTest {
+        doConcurrentSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
         }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
@@ -577,7 +577,7 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
 
     suspend fun doSimpleSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SumOfTwoIntsSlow, solutions(sumSolution = block))
-    suspend fun doTimedSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
+    suspend fun doConcurrentSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SumOfTwoIntsFast, solutions(sumSolution = block))
     suspend fun doSimpleCollectPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SimpleFlow, solutions(collectSolution = block))
