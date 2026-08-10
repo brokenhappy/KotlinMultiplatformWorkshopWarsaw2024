@@ -1,6 +1,7 @@
 /common/src/main/resources/Secrets.ini
 *.iml
 .gradle
+/.jdk/
 **/build/
 xcuserdata
 !src/**/build/

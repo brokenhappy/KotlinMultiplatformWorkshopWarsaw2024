@@ -35,6 +35,9 @@ set APP_HOME=%DIRNAME%
 @rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
+@rem Prefer the project-local JBR installed by scripts\setup.ps1.
+if exist "%APP_HOME%\.jdk\bin\java.exe" set JAVA_HOME=%APP_HOME%\.jdk
+
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 

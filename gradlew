@@ -117,6 +117,11 @@ esac
 
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
+# Prefer the project-local JBR installed by scripts/setup.sh.
+if [ -x "$APP_HOME/.jdk/bin/java" ] ; then
+    JAVA_HOME=$APP_HOME/.jdk
+fi
+
 
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
