@@ -1,0 +1,28 @@
+apiVersion: skaffold/v4beta8
+kind: Config
+metadata:
+  name: CoroutineWorkshop
+build:
+  tagPolicy:
+    sha256: {} # Please don't change this, until you really know what you are doing
+  artifacts:
+    - image: ghcr.io/jetbrains/CoroutineWorkshop/server
+      docker: {}
+  local:
+    useDockerCLI: false
+    useBuildkit: true
+deploy:
+  helm:
+    releases:
+      - name: CoroutineWorkshop
+        remoteChart: oci://ghcr.io/jetbrains/sre-helm-charts/simple-app
+        version: 0.3.5
+        namespace: woutprojects
+        upgradeOnChange: true
+        setValueTemplates:
+          image: "{{.IMAGE_FULLY_QUALIFIED}}"
+          applicationName: CoroutineWorkshop
+        valuesFiles:
+          - values.yaml
+profiles:
+  - name: prod

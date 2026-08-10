@@ -1,0 +1,36 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: JetBrains/sre-workflows/.github/workflows/gke-skaffold.yaml@master
+    with:
+      # GCP and cluster configuration
+      gcp_project: itk8s-208609
+      gcp_region: europe-west1
+      gke_cluster: europe-west1-production
+
+      # Authentication
+      service_account: ghc-3c4d2560434a5edb0dfa780daa@jetbrains-github-controller.iam.gserviceaccount.com
+      workload_identity_provider: projects/1035036546488/locations/global/workloadIdentityPools/github-controller/providers/github-org-878437
+
+      # Skaffold configuration
+      skaffold_profile: prod # Your Skaffold profile name
+      context: . # Path to skaffold.yaml (default: repository root)
+
+      setup_java_version: "25"
+
+      # Optional parameters (uncomment and adjust if needed)
+      # helm_version: v3.18.4
+      # skaffold_command: run # or 'deploy', 'dev', etc.
+      # skaffold_extra_params: "--cache-artifacts=false"
+      # setup_java_distribution: corretto
