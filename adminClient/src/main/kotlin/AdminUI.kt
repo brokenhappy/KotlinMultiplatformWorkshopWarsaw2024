@@ -71,6 +71,29 @@ private val adminPassword = System.getenv("ADMIN_PASSWORD") ?: superSecretFallba
 private val workshopStages: List<WorkshopStage> = listOf(WorkshopStage.Registration) +
     WorkshopStage.KotlinBasicsPuzzleStage.entries + WorkshopStage.CoroutinePuzzleStage.entries
 
+private val AdminBackground = Color(0xFFF5F7FB)
+private val AdminSurface = Color(0xFFFFFFFF)
+private val AdminInk = Color(0xFF182230)
+private val AdminMuted = Color(0xFF667085)
+private val AdminPrimary = Color(0xFF635BFF)
+private val AdminSuccess = Color(0xFF12805C)
+private val AdminWarning = Color(0xFFB54708)
+private val AdminDanger = Color(0xFFB42318)
+private val AdminBorder = Color(0xFFE4E7EC)
+
+private val AdminColors = lightColors(
+    primary = AdminPrimary,
+    primaryVariant = Color(0xFF4B45CC),
+    secondary = AdminSuccess,
+    background = AdminBackground,
+    surface = AdminSurface,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = AdminInk,
+    onSurface = AdminInk,
+    error = AdminDanger,
+)
+
 suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
     val ktorClient = HttpClient {
         installKrpc {
@@ -237,7 +260,21 @@ fun WorkshopWindow(
                 onSettingsChange = { onEvent.schedule(SettingsChangeEvent(it)) },
             )
         }
-        MaterialTheme { adminUi(state, onEvent) }
+        MaterialTheme(
+            colors = AdminColors,
+            typography = Typography(
+                defaultFontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                h5 = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = AdminInk),
+                h6 = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AdminInk),
+                body1 = TextStyle(fontSize = 14.sp, color = AdminInk),
+                button = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+            ),
+            shapes = Shapes(
+                small = RoundedCornerShape(8.dp),
+                medium = RoundedCornerShape(12.dp),
+                large = RoundedCornerShape(18.dp),
+            ),
+        ) { adminUi(state, onEvent) }
     }
 }
 
@@ -623,7 +660,7 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
     CompositionLocalProvider(
         LocalDensity provides Density(LocalDensity.current.density * state.settings.zoom)
     ) {
-        Column {
+        Column(Modifier.fillMaxSize().background(AdminBackground)) {
             // TODO: Start first pressive tick event when switching to Pressive game!
             StageTopBar(state.currentStage, onEvent)
             when (val stage = state.currentStage) {
@@ -646,10 +683,13 @@ private fun Puzzle(state: ServerState, puzzleName: String, onEvent: OnEvent) {
             }
             Spacer(modifier = Modifier.weight(1f))
         }
-        is PuzzleState.Opened -> Row {
+        is PuzzleState.Opened -> Row(
+            Modifier.fillMaxSize().padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             state.participants.map { it.team }.distinct().sortedBy { it.ordinal }.forEach { team ->
-                Box(Modifier.weight(1f)) {
-                    Submissions(puzzleState.asSubmissions(state.participants, team))
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    Submissions(puzzleState.asSubmissions(state.participants, team), team)
                 }
             }
         }
@@ -660,27 +700,62 @@ private fun ServerState.getParticipantBy(key: ApiKey): Participant =
     participants.firstOrNull { it.apiKey == key } ?: deactivatedParticipants.first { it.apiKey == key }
 
 @Composable
-private fun Submissions(submissions: Submissions) {
-    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-        BasicText(text = "Completions: ${submissions.completedSubmissions.size}/${submissions.participants.size}")
-        // Table header
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Text("Participant", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Text("Finish Time", fontWeight = FontWeight.Bold, modifier = Modifier.width(150.dp))
+private fun Submissions(submissions: Submissions, team: TeamColor) {
+    val completed = submissions.completedSubmissions.size
+    val total = submissions.participants.size
+    val progress = if (total == 0) 0f else completed.toFloat() / total
+    val accent = team.toComposeColor().transitionTo(Color.White, 0.18f)
+
+    Column(
+        Modifier.fillMaxSize()
+            .clip(RoundedCornerShape(16.dp))
+            .background(AdminSurface)
+            .border(1.dp, AdminBorder, RoundedCornerShape(16.dp)),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(11.dp).clip(RoundedCornerShape(50)).background(accent))
+                Text(
+                    "${team.name} team",
+                    style = MaterialTheme.typography.h6,
+                    modifier = Modifier.padding(start = 10.dp).weight(1f),
+                )
+                Text("$completed / $total", color = AdminMuted, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50)),
+                color = accent,
+                backgroundColor = AdminBorder,
+            )
         }
-        Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
-        submissions.participants.forEach { participant ->
-            val timeOfCompletion = submissions.completedSubmissions[participant.apiKey]
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text(participant.name, modifier = Modifier.weight(1f))
-                if (timeOfCompletion != null) {
-                    val duration = timeOfCompletion - submissions.startTime
-                    Text(formatDuration(duration), modifier = Modifier.width(150.dp))
-                } else {
-                    Text("", modifier = Modifier.width(150.dp))
+        Divider(color = AdminBorder)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text("PARTICIPANT", color = AdminMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text("RESULT", color = AdminMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(110.dp))
+        }
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 2.dp)) {
+            submissions.participants.forEachIndexed { index, participant ->
+                val timeOfCompletion = submissions.completedSubmissions[participant.apiKey]
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (index % 2 == 0) AdminBackground else AdminSurface)
+                        .padding(horizontal = 10.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(participant.name, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box(Modifier.width(110.dp)) {
+                        if (timeOfCompletion != null) {
+                            val duration = timeOfCompletion - submissions.startTime
+                            Text(formatDuration(duration), color = AdminSuccess, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Text("In progress", color = AdminMuted)
+                        }
+                    }
                 }
             }
-            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEEEEE)))
         }
     }
 }
@@ -705,16 +780,20 @@ private fun formatDuration(duration: Duration): String = when {
 
 @Composable
 private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
-    Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(AdminSurface).padding(horizontal = 24.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         MoveStageButton(stage, onEvent, -1, Key.DirectionLeft) {
-            Text("<")
+            Text("←", fontSize = 18.sp)
         }
-        Spacer(modifier = Modifier.weight(1f))
-        Column(modifier = Modifier.align(Alignment.CenterVertically)) {
+        Spacer(modifier = Modifier.width(18.dp))
+        Column {
+            Text("WORKSHOP STAGE", color = AdminMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             var expanded by remember { mutableStateOf(false) }
             ClickableText(
-                text = AnnotatedString("Go to file: ${stage.kotlinFile}"),
-                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                text = AnnotatedString(stage.kotlinFile),
+                style = MaterialTheme.typography.h5.copy(color = AdminInk),
                 onClick = { expanded = true }
             )
             DropdownMenu(
@@ -730,12 +809,11 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
         }
         Spacer(modifier = Modifier.weight(1f))
         MoveStageButton(stage, onEvent, 1, Key.DirectionRight) {
-            Text(">")
+            Text("→", fontSize = 18.sp)
         }
     }
     Divider(
-        modifier = Modifier.padding(bottom = 8.dp),
-        color = Color.Black,
+        color = AdminBorder,
         thickness = 1.dp,
     )
 }
@@ -765,11 +843,13 @@ private enum class RegistrationViewMode {
 @Composable
 private fun Registration(state: ServerState, onEvent: OnEvent) {
     var registrationMode by remember { mutableStateOf(RegistrationViewMode.entries.first()) }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-        Button(onClick = {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp)) {
+        Text("Registration", style = MaterialTheme.typography.h5)
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(onClick = {
             registrationMode = RegistrationViewMode.entries[(registrationMode.ordinal + 1) % RegistrationViewMode.entries.size]
         }) {
-            Text("Toggle mode")
+            Text(if (registrationMode == RegistrationViewMode.ParticipantRegistration) "Table setup" else "Participant list")
         }
     }
     when (registrationMode) {
@@ -781,67 +861,58 @@ private fun Registration(state: ServerState, onEvent: OnEvent) {
 @Composable
 private fun RegistrationList(state: ServerState, onEvent: OnEvent) {
     var searchText by remember { mutableStateOf("") }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Search: ")
-        TextField(searchText, onValueChange = { searchText = it })
-    }
-
-    BasicText(text = "Number of verified participants: ${state.participants.size}")
     fun List<Participant>.filtered(): List<Participant> =
-        if (searchText.isEmpty()) this else filter { searchText in it.name }
-    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-        state.participants.filtered().forEach { participant ->
-            Row(modifier = Modifier.padding(8.dp)) {
-                BasicText(text = participant.name)
-                BasicText(
-                    text = "Verified",
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent.schedule(ParticipantDeactivationEvent(participant)) }) {
-                    Text("Deactivate")
-                }
+        if (searchText.isBlank()) this else filter { it.name.contains(searchText, ignoreCase = true) }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp).clip(RoundedCornerShape(16.dp)).background(AdminSurface).border(1.dp, AdminBorder, RoundedCornerShape(16.dp))) {
+        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text("Participants", style = MaterialTheme.typography.h6)
+                Text("${state.participants.size} active · ${state.unverifiedParticipants.size} pending", color = AdminMuted)
             }
-            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
+            Spacer(Modifier.weight(1f))
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                placeholder = { Text("Search participants…") },
+                singleLine = true,
+                modifier = Modifier.width(300.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(focusedBorderColor = AdminPrimary, unfocusedBorderColor = AdminBorder),
+            )
         }
-        Spacer(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.Red))
-        state.deactivatedParticipants.filtered().forEach { participant ->
-            Row(modifier = Modifier.padding(8.dp)) {
-                BasicText(text = participant.name)
-                BasicText(
-                    text = "Deactivated",
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = {
-                    onEvent.schedule(
-                        ParticipantReactivationEvent(
-                            participant,
-                            Random.nextLong()
-                        )
-                    )
-                }) {
-                    Text("Activate")
-                }
-                Button(onClick = { onEvent.schedule(ParticipantRemovalEvent(participant)) }) {
-                    Text("Delete")
-                }
+        Divider(color = AdminBorder)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+            ParticipantSection("Active", state.participants.filtered(), AdminSuccess) { participant ->
+                OutlinedButton(onClick = { onEvent.schedule(ParticipantDeactivationEvent(participant)) }) { Text("Deactivate") }
+            }
+            ParticipantSection("Pending approval", state.unverifiedParticipants.filtered(), AdminWarning) { participant ->
+                OutlinedButton(onClick = { onEvent.schedule(ParticipantRejectionEvent(participant)) }) { Text("Reject") }
+            }
+            ParticipantSection("Deactivated", state.deactivatedParticipants.filtered(), AdminMuted) { participant ->
+                TextButton(onClick = { onEvent.schedule(ParticipantRemovalEvent(participant)) }, colors = ButtonDefaults.textButtonColors(contentColor = AdminDanger)) { Text("Delete") }
+                Button(onClick = { onEvent.schedule(ParticipantReactivationEvent(participant, Random.nextLong())) }) { Text("Activate") }
             }
         }
-        Spacer(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.Red))
-        state.unverifiedParticipants.filtered().forEach { participant ->
-            Row(modifier = Modifier.padding(8.dp)) {
-                BasicText(text = participant.name)
-                BasicText(
-                    text = "Pending",
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = { onEvent.schedule(ParticipantRejectionEvent(participant)) }) {
-                    Text("Reject")
-                }
-            }
-            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
+    }
+}
+
+@Composable
+private fun ParticipantSection(
+    title: String,
+    participants: List<Participant>,
+    accent: Color,
+    actions: @Composable RowScope.(Participant) -> Unit,
+) {
+    if (participants.isEmpty()) return
+    Text(title.uppercase(), color = AdminMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp))
+    participants.forEach { participant ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(10.dp)).background(AdminBackground).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(accent))
+            Text(participant.name, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 12.dp).weight(1f))
+            actions(participant)
         }
     }
 }
