@@ -14,7 +14,7 @@ datetime = "0.7.1"
 logback-server = "1.5.18"
 logback-admin = "1.5.13"
 junit = "6.0.0"
-calltreevisualizer = "0.0.2-SNAPSHOT"
+calltreevisualizer = "0.0.2-alpha02"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

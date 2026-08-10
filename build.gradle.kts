@@ -15,10 +15,6 @@ plugins {
 val flowContextAgentDependency = libs.calltreevisualizer.flow.context.agent
 
 subprojects {
-    repositories {
-        mavenLocal()
-    }
-
     val flowContextAgent by configurations.creating {
         isTransitive = false
     }

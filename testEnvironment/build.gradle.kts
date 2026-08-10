@@ -12,7 +12,6 @@ group = "com.woutwerkman"
 version = "unspecified"
 
 repositories {
-    mavenLocal()
     mavenCentral()
     google()
 }

@@ -8,7 +8,6 @@ plugins {
 }
 
 repositories {
-    mavenLocal()
     google()
     mavenCentral()
 }
@@ -17,7 +16,6 @@ group = "com.woutwerkman"
 version = "1.0-SNAPSHOT"
 
 repositories {
-    mavenLocal()
     mavenCentral()
 }
 
