@@ -705,34 +705,32 @@ private fun formatDuration(duration: Duration): String = when {
 
 @Composable
 private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
-    Row(modifier = Modifier.padding(16.dp)) {
-        Row {
-            MoveStageButton(stage, onEvent, -1, Key.DirectionLeft) {
-                Text("<")
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Column(modifier = Modifier.align(Alignment.CenterVertically)) {
-                var expanded by remember { mutableStateOf(false) }
-                ClickableText(
-                    text = AnnotatedString("Go to file: ${stage.kotlinFile}"),
-                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
-                    onClick = { expanded = true }
-                )
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                ) {
-                    workshopStages.forEach {
-                        DropdownMenuItem(onClick = { expanded = false; onEvent.schedule(StageChangeEvent(it)) }) {
-                            Text(it.kotlinFile)
-                        }
+    Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        MoveStageButton(stage, onEvent, -1, Key.DirectionLeft) {
+            Text("<")
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.align(Alignment.CenterVertically)) {
+            var expanded by remember { mutableStateOf(false) }
+            ClickableText(
+                text = AnnotatedString("Go to file: ${stage.kotlinFile}"),
+                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                onClick = { expanded = true }
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                workshopStages.forEach {
+                    DropdownMenuItem(onClick = { expanded = false; onEvent.schedule(StageChangeEvent(it)) }) {
+                        Text(it.kotlinFile)
                     }
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
-            MoveStageButton(stage, onEvent, 1, Key.DirectionRight) {
-                Text(">")
-            }
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        MoveStageButton(stage, onEvent, 1, Key.DirectionRight) {
+            Text(">")
         }
     }
     Divider(
