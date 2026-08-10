@@ -1,18 +1,24 @@
 
 ## Build requirements
 
-The project uses JDK 23 for the Gradle daemon, compilation, tests, Compose applications, and the server runtime. The repository declares this in `gradle/gradle-daemon-jvm.properties`; Gradle will select or provision the JDK through its toolchain support.
+The project uses one Java installation: **JetBrains Runtime 25**. It runs Gradle,
+the Kotlin compiler, tests, Compose applications, and Compose Hot Reload. Kotlin
+and Java compilation are restricted to the Java 23 bytecode and API level, so
+the resulting artifacts remain Java 23 compatible.
 
-Install the project toolchain once using [mise](https://mise.jdx.dev/):
+IntelliJ IDEA bundles JBR. Select its JBR 25 as the project and Gradle JVM, or
+install JBR 25 separately and point `JAVA_HOME` to it. Then verify the complete
+setup once:
 
 ```shell
 ./scripts/setup.sh
-mise exec -- ./gradlew :client:test
 ```
 
-On Windows, run `.\scripts\setup.ps1` and use `mise exec -- .\gradlew.bat :client:test`.
-The Java version is pinned in `mise.toml`; no `JAVA_HOME` configuration is
-needed. Gradle toolchains remain enabled as a fallback for Gradle-invoked JDKs.
+On Windows, run `.\scripts\setup.ps1`.
+
+The checked-in Gradle daemon criteria pin JetBrains Runtime 25 and include
+provisioning URLs for macOS, Linux, and Windows. Compose Hot Reload uses the
+same JBR generation. No Temurin, Corretto, or second local JDK is required.
 
 Here are the attributions for the sound snippets I used:
 

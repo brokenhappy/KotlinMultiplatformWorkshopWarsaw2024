@@ -46,8 +46,6 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    // Keep test compilation and execution on the project-wide JVM version.
-    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }

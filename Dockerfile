@@ -20,7 +20,7 @@ COPY serverAndAdminCommon ./serverAndAdminCommon
 RUN ./gradlew :server:installDist --no-daemon
 
 # Stage 2: Create the final, lightweight runtime image
-FROM amazoncorretto:23-alpine-jdk
+FROM amazoncorretto:25-alpine-jdk
 WORKDIR /app
 
 # Copy the built application from the 'build' stage

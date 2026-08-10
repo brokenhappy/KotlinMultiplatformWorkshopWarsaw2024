@@ -31,7 +31,6 @@ dependencies {
     implementation(compose.material)
     implementation(compose.ui)
     implementation(compose.desktop.currentOs)
-    implementation(libs.compose.hot.reload.runtime.api)
     implementation(libs.calltreevisualizer.tracked.flow)
     implementation(libs.calltreevisualizer.call.tree.ui)
     implementation(project(":common"))
@@ -47,28 +46,24 @@ tasks.test {
 }
 
 kotlin {
-    // Keep compilation and application execution on the project-wide JVM version.
-    jvmToolchain(23)
     compilerOptions {
         freeCompilerArgs.add("-Xcontext-parameters")
     }
 }
 
-compose.desktop {
-    application {
-        mainClass = "kmpworkshop.client.MainKt"
-        // Run with the same JVM used to compile the application.
-        javaHome = javaToolchains.launcherFor {
-            languageVersion.set(JavaLanguageVersion.of(23))
-        }.get().metadata.installationPath.asFile.absolutePath
-    }
-}
-
-// Use the project toolchain for all Compose launch variants.
-val java23Launcher = javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(23))
+// Compose launch variants and Hot Reload use the same DCEVM-capable runtime.
+val java25Launcher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(25))
+    vendor.set(JvmVendorSpec.JETBRAINS)
 }
 System.setProperty(
     "compose.reload.jbr.binary",
-    java23Launcher.get().executablePath.asFile.absolutePath,
+    java25Launcher.get().executablePath.asFile.absolutePath,
 )
+
+compose.desktop {
+    application {
+        mainClass = "kmpworkshop.client.MainKt"
+        javaHome = java25Launcher.get().metadata.installationPath.asFile.absolutePath
+    }
+}
