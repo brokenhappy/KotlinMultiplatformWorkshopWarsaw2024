@@ -23,14 +23,11 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
         "Event references unknown callId $callId"
     }
 
-    fun activeCall(callId: Long): RenderedCall {
+    fun activeCall(callId: Long): RenderedCall? {
         val call = call(callId)
-
-        require(call.terminalBatch == null) {
-            "Call $callId already completed in batch ${call.terminalBatch!! + 1}"
-        }
-
-        return call
+        // A cancellation can be delivered after the result it raced with. The first terminal event is the one
+        // shown in history; the later transport cleanup belongs to the same call and is intentionally compacted.
+        return call.takeIf { it.terminalBatch == null }
     }
 
     batches.forEachIndexed { batchIndex, batch ->
@@ -52,7 +49,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
                         CoroutinePuzzleSubmissionPayload.CallShouldCancel -> {
                             // Cancellation can race with a normal response: the cancellation request may only be
                             // flushed after the response has already been added to the history.
-                            val call = call(callId)
+                            val call = calls[callId] ?: continue
 
                             require(call.cancelRequestedBatch == null) {
                                 "Cancellation was requested more than once for call $callId"
@@ -65,7 +62,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
             }
             is CoroutinePuzzleHistoryBatch.Expectation -> {
                 for ((callId, payload) in batch.entries) {
-                    val call = activeCall(callId)
+                    val call = activeCall(callId) ?: continue
 
                     when (payload) {
                         is CoroutinePuzzleExpectationPayload.CallAnswered -> call.finish(batchIndex, '✓')

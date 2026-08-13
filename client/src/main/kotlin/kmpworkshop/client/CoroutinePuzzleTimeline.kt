@@ -6,6 +6,7 @@ import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 
 enum class TimelineCompletion { RETURNED, THREW, CANCELLED }
 
@@ -42,7 +43,7 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
                         is CoroutinePuzzleExpectationPayload.CallAnswered -> call.copy(
                             endBatch = batchIndex,
                             completion = TimelineCompletion.RETURNED,
-                            returnValue = payload.result,
+                            returnValue = payload.result.unwrapCollectorValue(),
                         )
                         is CoroutinePuzzleExpectationPayload.CallThrew -> call.copy(
                             endBatch = batchIndex,
@@ -59,3 +60,11 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
 }
 
 internal fun JsonElement.isUnitValue(): Boolean = this is JsonObject && isEmpty()
+
+/** Keep the timeline focused on the value a collector observed, not its transport call id. */
+internal fun JsonElement.unwrapCollectorValue(): JsonElement =
+    (this as? JsonObject)
+        ?.get("payload")
+        ?.let { it as? JsonObject }
+        ?.get("value")
+        ?: this

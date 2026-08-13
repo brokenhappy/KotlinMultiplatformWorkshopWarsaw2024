@@ -5,7 +5,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 
 class QueryFetchFailedForSomeReasonException(message: String? = null) : Exception(message)
@@ -17,8 +16,8 @@ fun getNumberAndSubmit(): GetNumberAndSubmit = object : GetNumberAndSubmit {
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-fun numberFlowAndSubmit(): NumberFlowAndSubmit = object : NumberFlowAndSubmit {
-    override fun numbers(): Flow<Int> = flow { while (true) emit(emitNumber.submitCall(Unit) ?: break) }
+fun numberFlowAndSubmit(numbers: Flow<Int>): NumberFlowAndSubmit = object : NumberFlowAndSubmit {
+    override fun numbers(): Flow<Int> = numbers
     override suspend fun submit(number: Int) { submitNumber.submitCall(number) }
 }
 

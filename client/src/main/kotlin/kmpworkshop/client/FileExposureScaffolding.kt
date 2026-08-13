@@ -3,13 +3,14 @@ package kmpworkshop.client
 import kmpworkshop.api.FileToInternetExposingApi
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
 import kmpworkshop.common.callLifetime
+import kmpworkshop.common.emitFileToExpose
+import kmpworkshop.common.emitNetworkStrength
 import kmpworkshop.common.fileToInternetExposingApi
 import kmpworkshop.common.importantCleanup
 import kmpworkshop.common.sideEffect
 import kmpworkshop.common.submitCall
 import kmpworkshop.common.withImportantCleanup
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 context(_: CoroutinePuzzleSolutionScope)
@@ -19,7 +20,11 @@ suspend fun fileExposureScaffolding(
     withImportantCleanup {
         launch {
             try {
-                coroutineScope { solution(fileToInternetExposingApi(this)) }
+                emitFileToExpose.asFlows().use { files ->
+                    emitNetworkStrength.asFlows().use { strengths ->
+                        solution(fileToInternetExposingApi(this, files, strengths))
+                    }
+                }
             } finally {
                 importantCleanup { /* lets adapter cleanup finish before this job completes */ }
             }

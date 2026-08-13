@@ -26,7 +26,7 @@ fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePu
         MappingFromLegacyApisStepFour -> mapFromLegacyApiWithScaffolding(mappingLegacyApiCoroutineSolution)
         ExceptionCatchingWithCoroutines -> exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
         SimpleFlow,
-        CollectLatest, -> collectSolution(numberFlowAndSubmit())
+        CollectLatest, -> flowScaffolding(collectSolution)
         FileExposureStepOne,
         FileExposureStepTwo,
         FileExposureStepThree -> fileExposureScaffolding(fileExposureSolution)

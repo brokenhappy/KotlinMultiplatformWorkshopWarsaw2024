@@ -3,22 +3,25 @@ package kmpworkshop.common
 import kmpworkshop.api.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
-fun fileToInternetExposingApi(scope: CoroutineScope): FileToInternetExposingApi = object : FileToInternetExposingApi {
+fun fileToInternetExposingApi(
+    scope: CoroutineScope,
+    files: Flow<FakeFileId>,
+    networkStrengths: Flow<NetworkStrength>,
+): FileToInternetExposingApi = object : FileToInternetExposingApi {
     private var observer: NetworkStrengthObserver? = null
 
     override val coroutineScope: CoroutineScope = scope
 
     init {
-        scope.launch { while (true) emitNetworkStrength.submitCall(Unit).also { observer?.changed(it) } }
+        scope.launch { networkStrengths.collect { observer?.changed(it) } }
     }
 
-    override fun currentFileToExpose(): Flow<FakeFile> = flow {
-        while (true) emit(RemoteFakeFile(emitFileToExpose.submitCall(Unit)))
-    }
+    override fun currentFileToExpose(): Flow<FakeFile> = files.map(::RemoteFakeFile)
 
     override fun registerObserver(observer: NetworkStrengthObserver) {
         require(this.observer == null) { "An observer is already registered" }

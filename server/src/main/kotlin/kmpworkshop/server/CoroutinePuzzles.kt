@@ -9,6 +9,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
@@ -290,10 +291,9 @@ private suspend fun puzzleStateActor(
 }
 
 private fun cancelRunningTask(callId: Long, runningTasks: Map<Long, Job>) {
-    val task = runningTasks[callId] ?: failInternal(CoroutinePuzzleSolutionResult.CustomFailure(
-        "Unexpected cancellation for call $callId: its expectation was not running.",
-    ))
-    task.cancel(CancellationAcrossRpc())
+    // A cancellation request can be flushed after its answer batch. In that case the task was already removed;
+    // it belongs to this call only and must not interfere with another collector.
+    runningTasks[callId]?.cancel(CancellationAcrossRpc())
 }
 
 private fun List<WithCallId<CoroutinePuzzleSubmissionPayload>>.partitionSubmissionsAndCancellations(): Pair<
@@ -461,3 +461,109 @@ context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */ R, /* @Exact */ T>.expectCall(
     value: T,
 ): R = expectCall { value }
+
+context(_: CoroutinePuzzleBuilderScope)
+inline fun <reified A, reified T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCompletion<T>>>.expectingFlowCollector(
+): Resource<Resource<Pair<A, suspend (T) -> Unit>>> = createExpectedFlowCollectors(serializer(), serializer())
+
+@PublishedApi
+context(_: CoroutinePuzzleBuilderScope)
+internal fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCompletion<T>>>.createExpectedFlowCollectors(
+    argumentSerializer: KSerializer<WithCallId<A>>,
+    resultSerializer: KSerializer<WithCallId<ValueOrCompletion<T>>>,
+): Resource<Resource<Pair<A, suspend (T) -> Unit>>> = resource { consume ->
+        val registrations = Channel<ExpectedFlowCollector<A, T>>(Channel.UNLIMITED)
+        val matcher = launch { matchFlowCollectors(registrations, argumentSerializer, resultSerializer) }
+        try {
+            consume(resource { consumeCollector ->
+                val collector = ExpectedFlowCollector<A, T>()
+                registrations.send(collector)
+                try {
+                    try {
+                        consumeCollector(collector.argument.await() to { value -> collector.send(FlowCollectorEvent.Value(value)) })
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (failure: Throwable) {
+                        collector.send(FlowCollectorEvent.Failure(failure))
+                        throw failure
+                    }.also {
+                        collector.send(FlowCollectorEvent.Completion())
+                    }
+                } finally {
+                    collector.events.cancel()
+                }
+            })
+        } finally {
+            matcher.cancel()
+        }
+    }
+
+context(builder: CoroutinePuzzleBuilderScope)
+internal suspend fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCompletion<T>>>.matchFlowCollectors(
+    registrations: ReceiveChannel<ExpectedFlowCollector<A, T>>,
+    argumentSerializer: KSerializer<WithCallId<A>>,
+    resultSerializer: KSerializer<WithCallId<ValueOrCompletion<T>>>,
+) {
+    val collectors = mutableMapOf<Long, ExpectedFlowCollector<A, T>>()
+    var pending: Pair<ExpectedFlowCollector<A, T>, FlowCollectorEvent<T>>? = null
+    try {
+        while (true) {
+            var submittedCollectorId: Long? = null
+            try {
+                builder.expectCallTo(this@matchFlowCollectors, argumentSerializer, resultSerializer) { submitted ->
+                    submittedCollectorId = submitted.callId
+                    val (collector, event) = pending ?: run {
+                        val matched = collectors[submitted.callId] ?: registrations.receive().also {
+                            it.collectorId = submitted.callId
+                            it.argument.complete(submitted.payload)
+                            collectors[submitted.callId] = it
+                        }
+                        (matched to matched.events.receive()).also { pending = it }
+                    }
+                    val collectorId = collector.collectorId!!
+                    when (event) {
+                        is FlowCollectorEvent.Value -> WithCallId(collectorId, ValueOrCompletion.Value(event.value))
+                        is FlowCollectorEvent.Completion -> WithCallId(collectorId, ValueOrCompletion.Completion)
+                        is FlowCollectorEvent.Failure -> throw event.failure
+                    }
+                }
+            } catch (cancellation: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                collectors.remove(submittedCollectorId)?.events?.cancel(cancellation)
+                if (pending?.first?.collectorId == submittedCollectorId) pending = null
+                continue
+            } catch (failure: Throwable) {
+                if ((pending?.second as? FlowCollectorEvent.Failure)?.failure !== failure) throw failure
+            }
+
+            val (collector, event) = pending!!
+            event.sent.complete(Unit)
+            if (event !is FlowCollectorEvent.Value) collectors.remove(collector.collectorId)
+            pending = null
+        }
+    } finally {
+        collectors.values.forEach { it.events.cancel() }
+    }
+}
+
+internal class ExpectedFlowCollector<A, T> {
+    var collectorId: Long? = null
+    val argument = CompletableDeferred<A>()
+    val events = Channel<FlowCollectorEvent<T>>(Channel.RENDEZVOUS)
+
+    suspend fun send(event: FlowCollectorEvent<T>) {
+        events.send(event)
+        event.sent.await()
+    }
+}
+
+internal sealed interface FlowCollectorEvent<out T> {
+    val sent: CompletableDeferred<Unit>
+
+    data class Value<T>(val value: T, override val sent: CompletableDeferred<Unit> = CompletableDeferred()) : FlowCollectorEvent<T>
+    data class Completion(override val sent: CompletableDeferred<Unit> = CompletableDeferred()) : FlowCollectorEvent<Nothing>
+    data class Failure(
+        val failure: Throwable,
+        override val sent: CompletableDeferred<Unit> = CompletableDeferred(),
+    ) : FlowCollectorEvent<Nothing>
+}

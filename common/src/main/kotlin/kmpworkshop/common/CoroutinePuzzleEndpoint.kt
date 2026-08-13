@@ -3,7 +3,7 @@ package kmpworkshop.common
 import kmpworkshop.api.FakeFileId
 import kmpworkshop.api.NetworkStrength
 
-val emitNumber = coroutinePuzzleEndPoint<Unit, Int?>("Call emit(): Int")
+val emitNumber = coroutinePuzzleEndPoint<WithCallId<Unit>, WithCallId<ValueOrCompletion<Int>>>("Call emit(): Int")
 val getAllUserIds = coroutinePuzzleEndPoint<Unit, List<Int>>("Call getAllUserIds(): List<Int>")
 val queryUserById = coroutinePuzzleEndPoint<Int, SerializableUser>("Call queryUserById(id: Int): User")
 val queryExceptionThrown = coroutinePuzzleEndPoint<Unit, Unit>("Throw the exception given by queryUserWithCallback!")
@@ -12,8 +12,8 @@ val callIsDone = coroutinePuzzleEndPoint<Unit, Unit>("Finish the execution of yo
 val legacyCancellationCompletion = coroutinePuzzleEndPoint<Unit, Unit>("Wait for the legacy system to finish cancelling (Done in scaffolding)")
 val getNumber = coroutinePuzzleEndPoint<Unit, Int>("Call getNumber(): Int")
 val submitNumber = coroutinePuzzleEndPoint<Int, Unit>("Call submit(number: Int): Unit")
-val emitFileToExpose = coroutinePuzzleEndPoint<Unit, FakeFileId>("Waiting for currentFileToExpose() emission")
-val emitNetworkStrength = coroutinePuzzleEndPoint<Unit, NetworkStrength>("Waiting for new network strength change")
+val emitFileToExpose = coroutinePuzzleEndPoint<WithCallId<Unit>, WithCallId<ValueOrCompletion<FakeFileId>>>("Waiting for currentFileToExpose() emission")
+val emitNetworkStrength = coroutinePuzzleEndPoint<WithCallId<Unit>, WithCallId<ValueOrCompletion<NetworkStrength>>>("Waiting for new network strength change")
 val openExposedFile = coroutinePuzzleEndPoint<FakeFileId, Unit>("Call FakeFile.open()")
 val closeExposedFile = coroutinePuzzleEndPoint<FakeFileId, Unit>("Call FakeFile.close()")
 val makeFileDownloadable = coroutinePuzzleEndPoint<FakeFileId, Unit>("Call makeDownloadable(FakeFile)")

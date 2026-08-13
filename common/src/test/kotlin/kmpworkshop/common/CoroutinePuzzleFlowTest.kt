@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
@@ -54,6 +55,15 @@ class CoroutinePuzzleFlowTest {
 
         puzzle.solveAsFlow { endpoint.submitCall(Unit) }.take(1).toList()
         assertEquals(1, cancelled.get())
+    }
+
+    @Test
+    fun `collector result keeps call id around a serialized value or completion`() {
+        val value: WithCallId<ValueOrCompletion<Int>> = WithCallId(42, ValueOrCompletion.Value(7))
+        val completion: WithCallId<ValueOrCompletion<Int>> = WithCallId(42, ValueOrCompletion.Completion)
+
+        assertEquals(value, Json.decodeFromString<WithCallId<ValueOrCompletion<Int>>>(Json.encodeToString(value)))
+        assertEquals(completion, Json.decodeFromString<WithCallId<ValueOrCompletion<Int>>>(Json.encodeToString(completion)))
     }
 
     private fun successfulPuzzle(attempts: AtomicInteger): CoroutinePuzzle =

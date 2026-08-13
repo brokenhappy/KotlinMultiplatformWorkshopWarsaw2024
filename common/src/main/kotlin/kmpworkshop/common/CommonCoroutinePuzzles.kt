@@ -47,6 +47,12 @@ typealias CoroutinePuzzleBatch<T> = List<WithCallId<T>>
     @Serializable data object CallCancellationCompleted : CoroutinePuzzleExpectationPayload()
 }
 
+/** A value sent to one Flow collector, or the end of that collector's stream. */
+@Serializable sealed class ValueOrCompletion<out T> {
+    @Serializable data class Value<T>(val value: T) : ValueOrCompletion<T>()
+    @Serializable data object Completion : ValueOrCompletion<Nothing>()
+}
+
 fun interface CoroutinePuzzle {
     fun solveAsFlow(solution: CoroutinePuzzleSolution): Flow<CoroutinePuzzleSolveState>
 }
