@@ -1,6 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleBatch
+import kmpworkshop.common.DefaultApis
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleExpectationBatchOrCompletion.Completion
 import kmpworkshop.common.CoroutinePuzzleProtocol

@@ -1,6 +1,9 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
+import kmpworkshop.common.DefaultApis.clearCachesEndpoint
+import kmpworkshop.common.DefaultApis.refreshTokensEndpoint
+import kmpworkshop.common.DefaultApis.reportExceptionEndpoint
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch

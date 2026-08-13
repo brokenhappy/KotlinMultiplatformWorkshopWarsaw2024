@@ -12,7 +12,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class CoroutinePuzzleFlowTest {
-    private val endpoint = coroutinePuzzleEndPoint<Unit, Unit>("work()")
+    private object TestApis : EndpointDescriptorRegistry() {
+        val work by descriptor<Unit, Unit>("work()")
+
+        init { seal() }
+    }
+
+    private val endpoint = TestApis.work
 
     @Test
     fun `flow emits each history batch and one completion`(): Unit = runBlocking {

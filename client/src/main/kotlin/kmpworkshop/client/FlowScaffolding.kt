@@ -2,7 +2,8 @@ package kmpworkshop.client
 
 import kmpworkshop.api.NumberFlowAndSubmit
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
-import kmpworkshop.common.emitNumber
+import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.DefaultApis.emitNumber
 import kmpworkshop.common.numberFlowAndSubmit
 import kotlinx.coroutines.CoroutineScope
 

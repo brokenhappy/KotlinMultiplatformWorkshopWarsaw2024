@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.WorkshopClient
+import kmpworkshop.client.defaultClientMetadata
 import kmpworkshop.client.kotlinBasicsPuzzleSolutions
 import kmpworkshop.client.workshopSolutions
 import kmpworkshop.common.ApiKey
@@ -101,7 +102,7 @@ class PuzzleUiQaTest {
             MutableStateFlow(CoroutinePuzzleStage.SumOfTwoIntsSlow),
         )
         setContent {
-            MaterialTheme { Surface { WorkshopClient(server) } }
+            MaterialTheme { Surface { WorkshopClient(server, clientMetadata = defaultClientMetadata) } }
         }
 
         onNodeWithTag("puzzle-run-button").assertIsDisplayed()
@@ -114,7 +115,7 @@ class PuzzleUiQaTest {
         val stage = MutableStateFlow<WorkshopStage>(WorkshopStage.Registration)
         val server = UiTestWorkshopServer(stage)
         setContent {
-            MaterialTheme { Surface { WorkshopClient(server) } }
+            MaterialTheme { Surface { WorkshopClient(server, clientMetadata = defaultClientMetadata) } }
         }
 
         onNodeWithText("The workshop is in registration. Waiting for the host to open a puzzle…")
@@ -133,7 +134,7 @@ class PuzzleUiQaTest {
         val stage = MutableStateFlow<WorkshopStage>(CoroutinePuzzleStage.SumOfTwoIntsSlow)
         val server = UiTestWorkshopServer(stage)
         setContent {
-            MaterialTheme { Surface { WorkshopClient(server) } }
+            MaterialTheme { Surface { WorkshopClient(server, clientMetadata = defaultClientMetadata) } }
         }
 
         onNodeWithTag("puzzle-run-button").performClick()
@@ -172,7 +173,7 @@ class PuzzleUiQaTest {
         setContent {
             MaterialTheme {
                 Surface {
-                    WorkshopClient(server)
+                    WorkshopClient(server, clientMetadata = defaultClientMetadata)
                 }
             }
         }
@@ -202,6 +203,7 @@ class PuzzleUiQaTest {
                 Surface {
                     WorkshopClient(
                         server,
+                        clientMetadata = defaultClientMetadata,
                         kotlinBasicsSolutions = kotlinBasicsPuzzleSolutions.copy(
                             oldestUserSolution = { error("code runner failed") },
                         ),
@@ -229,7 +231,7 @@ private fun runPuzzleUiTest(
         runComposeUiTest {
             setContent {
                 MaterialTheme {
-                    Surface { WorkshopClient(service.asServer(ApiKey("test")), solutions) }
+                    Surface { WorkshopClient(service.asServer(ApiKey("test")), solutions, clientMetadata = defaultClientMetadata) }
                 }
             }
 

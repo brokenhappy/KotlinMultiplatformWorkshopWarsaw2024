@@ -1,6 +1,14 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
+import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.DefaultApis.callIsDone
+import kmpworkshop.common.DefaultApis.callLifetime
+import kmpworkshop.common.DefaultApis.getAllUserIds
+import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
+import kmpworkshop.common.DefaultApis.queryExceptionThrown
+import kmpworkshop.common.DefaultApis.queryUserById
+import kmpworkshop.common.DefaultApis.submitNumber
 import kotlinx.coroutines.*
 
 fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {

@@ -1,9 +1,10 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleProtocol
+import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.DefaultApis.getNumber
+import kmpworkshop.common.DefaultApis.submitNumber
 import kmpworkshop.common.Resource
-import kmpworkshop.common.getNumber
-import kmpworkshop.common.submitNumber
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 

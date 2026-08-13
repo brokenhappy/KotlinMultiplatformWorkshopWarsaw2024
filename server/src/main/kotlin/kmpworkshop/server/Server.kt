@@ -4,6 +4,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
+import kmpworkshop.common.DefaultApis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -79,9 +80,12 @@ fun workshopService(
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
+        clientMetadataHash: String,
         messages: Flow<List<WithCallId<CoroutinePuzzleSubmissionPayload>>>
     ): Flow<CoroutinePuzzleExpectationBatchOrCompletion> =
-        context(CoroutinePuzzleType) { doPuzzleAttempt(key, puzzleId, messages, onEvent) }
+        if (clientMetadataHash != DefaultApis.endpointHash())
+            flow { emit(CoroutinePuzzleType.customError("Client and server coroutine puzzle APIs do not match.")) }
+        else context(CoroutinePuzzleType) { doPuzzleAttempt(key, puzzleId, messages, onEvent) }
 }
 
 /** Shit, I couldn't help myself from introducing a type class, just inline this and the type if it needs a lot of maintanence */
@@ -102,24 +106,28 @@ private fun <Stage: Enum<Stage>, Outgoing, Incoming> doPuzzleAttempt(
         }
 
     return channelFlow {
-        puzzle.use { (outgoing, incoming) ->
-            launch {
-                try {
-                    answers.collect { incoming.send(it) }
-                } finally {
-                    incoming.close()
+        try {
+            puzzle.use { (outgoing, incoming) ->
+                launch {
+                    try {
+                        answers.collect { incoming.send(it) }
+                    } finally {
+                        incoming.close()
+                    }
+                }
+                for (message in outgoing) {
+                    send(
+                        if (!message.isSuccessfulCompletion()) message
+                        else when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
+                            PuzzleCompletionResult.Done -> message
+                            PuzzleCompletionResult.AlreadySolved -> type.customError(alreadySolvedMessage)
+                            PuzzleCompletionResult.PuzzleNotOpenedYet -> type.customError(puzzleNotOpenedYetMessage)
+                        }
+                    )
                 }
             }
-            for (message in outgoing) {
-                send(
-                    if (!message.isSuccessfulCompletion()) message
-                    else when (onEvent.fire(PuzzleFinishedEvent(Clock.System.now(), key, puzzleId))) {
-                        PuzzleCompletionResult.Done -> message
-                        PuzzleCompletionResult.AlreadySolved -> type.customError(alreadySolvedMessage)
-                        PuzzleCompletionResult.PuzzleNotOpenedYet -> type.customError(puzzleNotOpenedYetMessage)
-                    }
-                )
-            }
+        } catch (_: MetadataNotFoundException) {
+            send(type.customError(metadataNotFoundMessage))
         }
     }
 }
@@ -141,4 +149,9 @@ private val alreadySolvedMessage = """
 private val puzzleNotOpenedYetMessage = """
     Hold on there pal! Don't get ahead of yourself, the puzzle is not yet open for solving!
     I'm sure there's people around you that you can help :))
+""".trimIndent()
+
+private val metadataNotFoundMessage = """
+    Tried to call endpoint that does not exist. The server and client are out of sync.
+    Try updating the repository (pulling latest changes). Otherwise ask for workshop host for help.
 """.trimIndent()

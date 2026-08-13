@@ -19,9 +19,10 @@ import androidx.compose.ui.unit.dp
 import kmpworkshop.common.WithCallId
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.EndpointDescriptorRegistry
+import kmpworkshop.common.descriptor
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.awt.image.BufferedImage
@@ -29,13 +30,29 @@ import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.Test
 
+private object UiTestApis : EndpointDescriptorRegistry() {
+    val loadParticipant by descriptor<Int, String>("load the current workshop participant")
+    val saveScore by descriptor<Unit, Unit>("save the calculated workshop score")
+    val waitForUpdate by descriptor<Unit, Unit>("wait for the next participant update")
+    val callNumber by descriptor<Int, Unit>("call number")
+
+    init { seal() }
+}
+
+private val testMetadata = clientMetadataOf(UiTestApis) { }
+
 class CoroutineTimelineUiTest {
     @Test
     fun `renders polished completed and incomplete call timeline`() = runComposeUiTest {
         setContent {
             MaterialTheme {
                 Surface(Modifier.size(900.dp, 560.dp)) {
-                    CoroutineTimeline(sampleHistory(), CoroutinePuzzleSolutionResult.CustomFailure("Incomplete call"))
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            sampleHistory(),
+                            CoroutinePuzzleSolutionResult.CustomFailure("Incomplete call"),
+                        )
+                    }
                 }
             }
         }
@@ -54,7 +71,7 @@ class CoroutineTimelineUiTest {
             CoroutinePuzzleHistoryBatch.Submission(listOf(entry(
                 id,
                 CoroutinePuzzleSubmissionPayload.CallSubmitted(
-                    CoroutinePuzzleEndPointDescriptor("call number $id"),
+                    UiTestApis.callNumber.id,
                     JsonPrimitive(index),
                 ),
             )))
@@ -62,7 +79,7 @@ class CoroutineTimelineUiTest {
         setContent {
             MaterialTheme {
                 Surface(Modifier.size(700.dp, 420.dp)) {
-                    CoroutineTimeline(longHistory, null)
+                    context(testMetadata) { CoroutineTimelineWithMetadata(longHistory, null) }
                 }
             }
         }
@@ -85,9 +102,9 @@ class CoroutineTimelineUiTest {
     }
 
     private fun sampleHistory(): List<CoroutinePuzzleHistoryBatch> {
-        val load = CoroutinePuzzleEndPointDescriptor("load the current workshop participant")
-        val save = CoroutinePuzzleEndPointDescriptor("save the calculated workshop score")
-        val hanging = CoroutinePuzzleEndPointDescriptor("wait for the next participant update")
+        val load = UiTestApis.loadParticipant.id
+        val save = UiTestApis.saveScore.id
+        val hanging = UiTestApis.waitForUpdate.id
         return listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(
                 entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(load, JsonPrimitive(42))),

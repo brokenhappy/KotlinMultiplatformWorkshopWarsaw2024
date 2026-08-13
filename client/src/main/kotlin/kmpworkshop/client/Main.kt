@@ -8,7 +8,7 @@ fun main() {
     application {
         Window(onCloseRequest = ::exitApplication, title = "Workshop Client") {
             MaterialTheme {
-                ClientEntryPoint()
+                ClientEntryPoint(defaultClientMetadata)
             }
         }
     }

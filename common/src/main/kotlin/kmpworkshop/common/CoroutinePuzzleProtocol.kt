@@ -2,8 +2,6 @@
 
 package kmpworkshop.common
 
-import kmpworkshop.common.CoroutinePuzzleExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload.CallSubmitted
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -84,7 +82,7 @@ private fun AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPayload>, 
         override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
             val callId = callIdCounter.incrementAndFetch()
             return try {
-                batched(WithCallId(callId, CallSubmitted(descriptor, t)))
+                batched(WithCallId(callId, CallSubmitted(id, t)))
             } catch (c: CancellationException) {
                 if (!currentCoroutineContext().isActive) {
                     importantCleanup {

@@ -1,6 +1,7 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.*
+import kmpworkshop.common.DefaultApis.emitNumber
+import kmpworkshop.common.DefaultApis.submitNumber
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope

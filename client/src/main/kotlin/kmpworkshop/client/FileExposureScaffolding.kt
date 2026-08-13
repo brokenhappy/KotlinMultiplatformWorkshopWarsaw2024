@@ -2,9 +2,10 @@ package kmpworkshop.client
 
 import kmpworkshop.api.FileToInternetExposingApi
 import kmpworkshop.common.CoroutinePuzzleSolutionScope
-import kmpworkshop.common.callLifetime
-import kmpworkshop.common.emitFileToExpose
-import kmpworkshop.common.emitNetworkStrength
+import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.DefaultApis.callLifetime
+import kmpworkshop.common.DefaultApis.emitFileToExpose
+import kmpworkshop.common.DefaultApis.emitNetworkStrength
 import kmpworkshop.common.fileToInternetExposingApi
 import kmpworkshop.common.importantCleanup
 import kmpworkshop.common.sideEffect

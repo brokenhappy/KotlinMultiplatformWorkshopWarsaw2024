@@ -1,6 +1,11 @@
 package kmpworkshop.common
 
 import kmpworkshop.api.*
+import kmpworkshop.common.DefaultApis.getAllUserIds
+import kmpworkshop.common.DefaultApis.getNumber
+import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
+import kmpworkshop.common.DefaultApis.queryUserById
+import kmpworkshop.common.DefaultApis.submitNumber
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin

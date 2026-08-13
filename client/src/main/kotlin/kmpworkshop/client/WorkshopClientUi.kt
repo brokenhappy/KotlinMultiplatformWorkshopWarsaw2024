@@ -74,6 +74,19 @@ fun WorkshopClient(
     server: WorkshopServer,
     solutions: CoroutinePuzzleWorkshopSolutions = workshopSolutions,
     kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions = kotlinBasicsPuzzleSolutions,
+    clientMetadata: ClientMetadata,
+) {
+    context(clientMetadata) {
+        WorkshopClientContent(server, solutions, kotlinBasicsSolutions)
+    }
+}
+
+@Composable
+context(clientMetadata: ClientMetadata)
+private fun WorkshopClientContent(
+    server: WorkshopServer,
+    solutions: CoroutinePuzzleWorkshopSolutions,
+    kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions,
 ) {
     val stage by remember(server) { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
     var reloadVersion by remember { mutableStateOf(0L) }
@@ -242,7 +255,7 @@ fun WorkshopClient(
                             enabled = activeRun != null,
                         )
                     }
-                    CoroutineTimeline(
+                    CoroutineTimelineWithMetadata(
                         history = history,
                         result = result,
                         attemptVersion = attemptVersion,
@@ -282,6 +295,19 @@ internal fun CoroutineTimeline(
     attemptVersion: Long = 0L,
     modifier: Modifier = Modifier,
 ) {
+    context(defaultClientMetadata) {
+        CoroutineTimelineWithMetadata(history, result, attemptVersion, modifier)
+    }
+}
+
+@Composable
+context(clientMetadata: ClientMetadata)
+internal fun CoroutineTimelineWithMetadata(
+    history: List<CoroutinePuzzleHistoryBatch>,
+    result: CoroutinePuzzleSolutionResult?,
+    attemptVersion: Long = 0L,
+    modifier: Modifier = Modifier,
+) {
     val calls = remember(attemptVersion, history.size) { coroutineTimeline(history) }
     if (history.isEmpty()) {
         Card(modifier = modifier, backgroundColor = Color(0xFFF7F8FA), elevation = 0.dp) {
@@ -316,7 +342,11 @@ internal fun CoroutineTimeline(
                 }
                 calls.forEach { call ->
                     Row {
-                        TimelineCell(call.endpoint.description, call.endpoint.description, width = 250)
+                        TimelineCell(
+                            clientMetadata.descriptionFor(call.endpoint),
+                            clientMetadata.descriptionFor(call.endpoint),
+                            width = 250,
+                        )
                         repeat(history.size) { batch ->
                             val marker = markerAt(call, batch, history.lastIndex)
                             TimelineMarkerCell(

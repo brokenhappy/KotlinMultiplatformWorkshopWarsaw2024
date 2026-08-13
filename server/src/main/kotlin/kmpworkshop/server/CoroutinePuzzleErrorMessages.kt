@@ -35,10 +35,13 @@ object CoroutinePuzzleErrorMessages {
     fun weakWifiExposureStarted(): String =
         "The WiFi is weak, but file exposure already started. Wait for a strong-network emission before downloading or advertising the file."
 
-    fun networkRestartStartedTooEarly(actions: List<CoroutinePuzzleEndPoint<*, *>>): String = """
+    fun networkRestartStartedTooEarly(
+        actions: List<CoroutinePuzzleEndPoint<*, *>>,
+        metadata: ServerMetadata = defaultServerMetadata,
+    ): String = """
         |The WiFi became weak and then strong again, but work for the previous strong-network period is still being cancelled.
         |Wait for that work to finish cancellation before starting the replacement work. Already started:
-        |${actions.joinToString("\n| ") { "  - ${it.descriptor.description}" }}
+        |${actions.joinToString("\n| ") { "  - ${metadata.descriptionFor(it.id)}" }}
     """.trimMargin()
 
     fun wrongFile(action: String, expectedRole: String): String =

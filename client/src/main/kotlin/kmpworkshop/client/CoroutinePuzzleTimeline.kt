@@ -2,17 +2,16 @@ package kmpworkshop.client
 
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
+import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
 
 enum class TimelineCompletion { RETURNED, THREW, CANCELLED }
 
 data class CoroutineTimelineCall(
     val callId: Long,
-    val endpoint: CoroutinePuzzleEndPointDescriptor,
+    val endpoint: CoroutinePuzzleEndPointId,
     val argument: JsonElement,
     val startBatch: Int,
     val cancellationRequestedBatch: Int? = null,
@@ -22,6 +21,7 @@ data class CoroutineTimelineCall(
     val exceptionMessage: String? = null,
 )
 
+context(clientMetadata: ClientMetadata)
 fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<CoroutineTimelineCall> {
     val calls = linkedMapOf<Long, CoroutineTimelineCall>()
     batches.forEachIndexed { batchIndex, batch ->

@@ -3,8 +3,10 @@ package kmpworkshop.client
 import kmpworkshop.common.WithCallId
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
+import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
+import kmpworkshop.common.EndpointDescriptorRegistry
+import kmpworkshop.common.descriptor
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -13,12 +15,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+private object TestApis : EndpointDescriptorRegistry() {
+    val answer by descriptor<Int, Unit>("answer")
+    val failure by descriptor<Unit, Unit>("failure")
+    val hanging by descriptor<Unit, Unit>("hanging")
+    val callLifetime by descriptor<Unit, Unit>("callLifetime")
+
+    init { seal() }
+}
+
+private val testMetadata = clientMetadataOf(TestApis) {
+    TestApis.callLifetime.register(isHiddenInHistory = true)
+}
+
 class CoroutinePuzzleTimelineTest {
     @Test
     fun `maps concurrent values throws cancellation races hanging calls and unit`() {
-        val answer = CoroutinePuzzleEndPointDescriptor("answer")
-        val failure = CoroutinePuzzleEndPointDescriptor("failure")
-        val hanging = CoroutinePuzzleEndPointDescriptor("hanging")
+        val answer = TestApis.answer.id
+        val failure = TestApis.failure.id
+        val hanging = TestApis.hanging.id
         val history = listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(
                 entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(answer, JsonPrimitive(7))),
@@ -32,7 +47,7 @@ class CoroutinePuzzleTimelineTest {
             CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, CoroutinePuzzleSubmissionPayload.CallShouldCancel))),
         )
 
-        val calls = coroutineTimeline(history)
+        val calls = context(testMetadata) { coroutineTimeline(history) }
         assertEquals(3, calls.size)
         assertEquals(JsonPrimitive(7), calls[0].argument)
         assertTrue(calls[0].returnValue!!.isUnitValue())
@@ -44,11 +59,11 @@ class CoroutinePuzzleTimelineTest {
 
     @Test
     fun `filters hidden scaffolding endpoints`() {
-        val hidden = kmpworkshop.common.callLifetime.descriptor
+        val hidden = TestApis.callLifetime.id
         val history = listOf(CoroutinePuzzleHistoryBatch.Submission(listOf(
             entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(hidden, JsonNull)),
         )))
-        assertTrue(coroutineTimeline(history).isEmpty())
+        assertTrue(context(testMetadata) { coroutineTimeline(history) }.isEmpty())
     }
 
     private fun <T> entry(id: Long, payload: T) = WithCallId(id, payload)

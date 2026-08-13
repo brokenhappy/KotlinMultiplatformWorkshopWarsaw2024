@@ -3,6 +3,14 @@ package kmpworkshop.server
 import kmpworkshop.common.*
 import kmpworkshop.api.FakeFileId
 import kmpworkshop.api.NetworkStrength
+import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.DefaultApis.advertiseExposedFile
+import kmpworkshop.common.DefaultApis.callLifetime
+import kmpworkshop.common.DefaultApis.closeExposedFile
+import kmpworkshop.common.DefaultApis.emitFileToExpose
+import kmpworkshop.common.DefaultApis.emitNetworkStrength
+import kmpworkshop.common.DefaultApis.makeFileDownloadable
+import kmpworkshop.common.DefaultApis.openExposedFile
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope

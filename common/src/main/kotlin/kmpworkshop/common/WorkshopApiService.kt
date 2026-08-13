@@ -31,6 +31,7 @@ fun interface KotlinBasicsPuzzleProvider {
     fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
+        clientMetadataHash: String,
         messages: Flow<List<WithCallId<CoroutinePuzzleSubmissionPayload>>>
     ): Flow<CoroutinePuzzleExpectationBatchOrCompletion>
 
@@ -43,6 +44,7 @@ fun interface KotlinBasicsPuzzleProvider {
 
 fun WorkshopApiService.asServer(
     apiKey: ApiKey,
+    clientMetadataHash: String = DefaultApis.endpointHash(),
 ): WorkshopServer = object : WorkshopServer {
     override fun currentStage(): Flow<WorkshopStage> = this@asServer.currentStage()
 
@@ -53,7 +55,7 @@ fun WorkshopApiService.asServer(
 
     override fun coroutinePuzzle(stage: CoroutinePuzzleStage): CoroutinePuzzle =
         mapFlowsToCommunicationProtocol { submissions ->
-            doCoroutinePuzzleSolveAttempt(apiKey, stage.name, submissions)
+            doCoroutinePuzzleSolveAttempt(apiKey, stage.name, clientMetadataHash, submissions)
         }.asPuzzle()
 }
 

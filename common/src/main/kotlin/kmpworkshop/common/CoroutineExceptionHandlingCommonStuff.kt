@@ -1,9 +1,9 @@
 package kmpworkshop.common
 
 import kmpworkshop.api.ExceptionalApi
-val clearCachesEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("clearCaches()")
-val refreshTokensEndpoint = coroutinePuzzleEndPoint<Unit, Unit>("refreshTokens()")
-val reportExceptionEndpoint = coroutinePuzzleEndPoint<String?, Unit>("reportException(e: Exception)")
+import kmpworkshop.common.DefaultApis.clearCachesEndpoint
+import kmpworkshop.common.DefaultApis.refreshTokensEndpoint
+import kmpworkshop.common.DefaultApis.reportExceptionEndpoint
 
 context(_: CoroutinePuzzleSolutionScope)
 fun coroutineExceptionHandlingApiService(): ExceptionalApi = object : ExceptionalApi {

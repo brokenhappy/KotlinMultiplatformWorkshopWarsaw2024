@@ -2,19 +2,21 @@ package kmpworkshop.client
 
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
+import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 
+/** This function is completely slopcoded, but it works I believe. */
+context(clientMetadata: ClientMetadata)
 fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): String {
     if (batches.isEmpty()) return "No calls have been made"
 
     val endpointLabels =
-        linkedMapOf<CoroutinePuzzleEndPointDescriptor, String>()
+        linkedMapOf<CoroutinePuzzleEndPointId, String>()
 
     val calls = linkedMapOf<Long, RenderedCall>()
 
     fun endpointLabel(
-        endpoint: CoroutinePuzzleEndPointDescriptor,
+        endpoint: CoroutinePuzzleEndPointId,
     ): String = endpointLabels.getOrPut(endpoint) {
         alphabeticLabel(endpointLabels.size)
     }
@@ -96,7 +98,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
             .forEach { entries ->
                 appendLine(
                     entries.joinToString(separator = "   ") { (endpoint, label) ->
-                        "$label ${endpoint.description}"
+                        "$label ${clientMetadata.descriptionFor(endpoint)}"
                     },
                 )
             }
@@ -106,6 +108,11 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
         append("× cancellation requested  c cancellation completed  > still running")
     }
 }
+
+fun renderCoroutinePuzzleHistory(
+    batches: List<CoroutinePuzzleHistoryBatch>,
+    clientMetadata: ClientMetadata,
+): String = context(clientMetadata) { renderCoroutinePuzzleHistory(batches) }
 
 private const val LABEL_COLUMN_WIDTH = 6
 

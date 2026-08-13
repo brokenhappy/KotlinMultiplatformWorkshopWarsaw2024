@@ -1,7 +1,8 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.common.advertiseExposedFile
-import kmpworkshop.common.makeFileDownloadable
+import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.DefaultApis.advertiseExposedFile
+import kmpworkshop.common.DefaultApis.makeFileDownloadable
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
 import org.junit.jupiter.api.Test
 

@@ -5,23 +5,40 @@ package kmpworkshop.client
 import kmpworkshop.common.WithCallId
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
+import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
+import kmpworkshop.common.EndpointDescriptorRegistry
+import kmpworkshop.common.descriptor
+import kmpworkshop.client.clientMetadataOf
 import kotlinx.serialization.json.JsonNull
 import org.junit.jupiter.api.Assertions.assertEquals
 import kotlin.test.Test
+
+private object TestApis : EndpointDescriptorRegistry() {
+    val endpoint by descriptor<Unit, Unit>("endpoint")
+    val fetchUser by descriptor<Unit, Unit>("fetchUser")
+    val loadAvatar by descriptor<Unit, Unit>("loadAvatar")
+    val saveAudit by descriptor<Unit, Unit>("saveAudit")
+    val refreshToken by descriptor<Unit, Unit>("refreshToken")
+
+    init { seal() }
+}
+
+private val testMetadata = clientMetadataOf(TestApis) { }
 
 class CoroutinePuzzleHistoryRendererTest {
 
     @Test
     fun `renders an answer returned after cancellation was requested`() {
-        val endpoint = CoroutinePuzzleEndPointDescriptor("endpoint")
+        val endpoint = TestApis.endpoint.id
 
-        val actual = renderCoroutinePuzzleHistory(listOf(
-            CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
-            CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
-        ))
+        val actual = context(testMetadata) {
+            renderCoroutinePuzzleHistory(listOf(
+                CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
+                CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
+                CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
+            ))
+        }
 
         assertEquals(
             """
@@ -39,13 +56,13 @@ class CoroutinePuzzleHistoryRendererTest {
 
     @Test
     fun `renders a cancellation request flushed after an answer`() {
-        val endpoint = CoroutinePuzzleEndPointDescriptor("endpoint")
+        val endpoint = TestApis.endpoint.id
 
-        val actual = renderCoroutinePuzzleHistory(listOf(
+        val actual = context(testMetadata) { renderCoroutinePuzzleHistory(listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
             CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
             CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
-        ))
+        )) }
 
         assertEquals(
             """
@@ -63,12 +80,12 @@ class CoroutinePuzzleHistoryRendererTest {
 
     @Test
     fun `renders concurrent calls, grouped completions, cancellation, and a hung call`() {
-        val fetchUser = CoroutinePuzzleEndPointDescriptor("fetchUser")
-        val loadAvatar = CoroutinePuzzleEndPointDescriptor("loadAvatar")
-        val saveAudit = CoroutinePuzzleEndPointDescriptor("saveAudit")
-        val refreshToken = CoroutinePuzzleEndPointDescriptor("refreshToken")
+        val fetchUser = TestApis.fetchUser.id
+        val loadAvatar = TestApis.loadAvatar.id
+        val saveAudit = TestApis.saveAudit.id
+        val refreshToken = TestApis.refreshToken.id
 
-        val actual = renderCoroutinePuzzleHistory(
+        val actual = context(testMetadata) { renderCoroutinePuzzleHistory(
             listOf(
                 // Batch 1: three calls start concurrently.
                 CoroutinePuzzleHistoryBatch.Submission(listOf(
@@ -121,7 +138,7 @@ class CoroutinePuzzleHistoryRendererTest {
                     answered(109),
                 )),
             ),
-        )
+        ) }
 
         val expected = """
                            1
@@ -149,7 +166,7 @@ class CoroutinePuzzleHistoryRendererTest {
 
     private fun submitted(
         callId: Long,
-        endPoint: CoroutinePuzzleEndPointDescriptor,
+        endPoint: CoroutinePuzzleEndPointId,
     ) = WithCallId<CoroutinePuzzleSubmissionPayload>(
         callId = callId,
         payload = CoroutinePuzzleSubmissionPayload.CallSubmitted(endPoint, arg = JsonNull),

@@ -2,6 +2,7 @@ package kmpworkshop.server
 
 import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSolutionResult.CustomFailure
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure
 import kmpworkshop.common.CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure
@@ -9,7 +10,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
@@ -34,7 +34,8 @@ interface CoroutinePuzzleBuilderScope {
     suspend fun awaitQuiescenceAndGetUnmatchedSubmissions(): List<CoroutinePuzzleEndPoint<*, *>>
 }
 
-fun coroutinePuzzle(
+context(serverMetadata: ServerMetadata)
+fun coroutinePuzzleWithMetadata(
     builder: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.() -> Unit,
 ): Resource<CoroutinePuzzleProtocol> = coroutinePuzzleCommunicationChannel { outgoing, incoming ->
     val events = Channel<InternalPuzzleEvent>(capacity = Channel.UNLIMITED)
@@ -75,7 +76,7 @@ fun coroutinePuzzle(
                                             valueProducer: suspend (T) -> R,
                                         ): T {
                                             val (element, callId) = coroutinePuzzleSubmissionFunction.batched(
-                                                InternalCoroutineExpectationMessage.Expectation(endPoint.descriptor),
+                                                InternalCoroutineExpectationMessage.Expectation(endPoint.id),
                                             ) as InternalCoroutineExpectationResult.MatchedSubmission
                                             return Json.decodeFromJsonElement(
                                                 tSerializer,
@@ -140,6 +141,7 @@ fun coroutinePuzzle(
                         outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(it))
                     },
                     runningTasks,
+                    serverMetadata,
                 )
             }.also { outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(it)) }
         }
@@ -150,11 +152,22 @@ fun coroutinePuzzle(
     }
 }
 
+fun coroutinePuzzle(
+    builder: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.() -> Unit,
+): Resource<CoroutinePuzzleProtocol> = context(defaultServerMetadata) { coroutinePuzzleWithMetadata(builder) }
+
+fun coroutinePuzzle(
+    serverMetadata: ServerMetadata,
+    builder: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.() -> Unit,
+): Resource<CoroutinePuzzleProtocol> = context(serverMetadata) { coroutinePuzzleWithMetadata(builder) }
+
 private suspend fun puzzleStateActor(
     events: ReceiveChannel<InternalPuzzleEvent>,
     emitBatch: suspend (CoroutinePuzzleBatch<CoroutinePuzzleExpectationPayload>) -> Unit,
     runningTasks: ConcurrentHashMap<Long, Job>,
+    serverMetadata: ServerMetadata,
 ): CoroutinePuzzleSolutionResult {
+    val flowCallIds = mutableSetOf<Long>()
     val accumulatedExpectations = mutableListOf<CoroutinePuzzleEndPointWaitingState>()
     val accumulatedSubmissions = mutableListOf<WithCallId<CoroutinePuzzleSubmissionPayload.CallSubmitted>>()
     val quiescenceWaiters = mutableListOf<QuiescenceWaitingState>()
@@ -178,8 +191,8 @@ private suspend fun puzzleStateActor(
             val ordinaryQuiescenceWaiters = incomingQuiescenceWaiters.filterNot { it.query.finishExpectations }
             if (expectedFollowups.isEmpty() && ordinaryQuiescenceWaiters.isNotEmpty()) {
                 val unmatchedSubmissions = accumulatedSubmissions.map {
-                    CoroutinePuzzleEndPoint<Any?, Any?>(it.payload.endPoint)
-                }
+                    serverMetadata.endpointFor(it.payload.endPoint)
+                }.filterNot { serverMetadata.isFlowEndpoint(it.id) }
                 ordinaryQuiescenceWaiters.resumeAllQuiescentTrackedScope {
                     it.continuation.resume(InternalCoroutineExpectationResult.QuiescenceReached(unmatchedSubmissions))
                 }
@@ -248,15 +261,18 @@ private suspend fun puzzleStateActor(
                     return CoroutinePuzzleSolutionResult.Success
                 }
                 if (quiescenceWaiters.isEmpty()) {
+                    val unexpectedIds = accumulatedSubmissions.map { it.payload.endPoint }
                     failInternal(CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
-                        unexpectedSubmissions = accumulatedSubmissions.map { it.payload.endPoint },
+                        unexpectedSubmissions = unexpectedIds
+                            .filterNot(serverMetadata::isFlowEndpoint)
+                            .ifEmpty { unexpectedIds },
                         expectations = accumulatedExpectations.map { it.query.endPoint },
                     ))
                 }
 
                 val unmatchedSubmissions = accumulatedSubmissions.map {
-                    CoroutinePuzzleEndPoint<Any?, Any?>(it.payload.endPoint)
-                }
+                    serverMetadata.endpointFor(it.payload.endPoint)
+                }.filterNot { serverMetadata.isFlowEndpoint(it.id) }
                 // This starts an expectation-side turn. Do not resume submissions here.
                 quiescenceWaiters.resumeAllQuiescentTrackedScope {
                     it.continuation.resume(InternalCoroutineExpectationResult.QuiescenceReached(unmatchedSubmissions))
@@ -266,8 +282,11 @@ private suspend fun puzzleStateActor(
                 continue
             }
 
+            (matches.map { it.second } + accumulatedSubmissions)
+                .filter { serverMetadata.isFlowEndpoint(it.payload.endPoint) }
+                .forEach { flowCallIds += it.callId }
             matches.firstOrNull()?.first?.continuation?.runOnScopeThatTracksQuiescence {
-                cancellations.forEach { cancelRunningTask(it.callId, runningTasks) }
+                cancellations.forEach { cancelRunningTask(it.callId, runningTasks, flowCallIds) }
 
                 matches.forEach { (expectation, submission) ->
                     expectation.continuation.resume(
@@ -275,7 +294,7 @@ private suspend fun puzzleStateActor(
                     )
                 }
             }   // Hmm sadly technically the following still has the race condition that runOnScopeThatTracksQuiescence tries to solve :(
-                ?: cancellations.forEach { cancelRunningTask(it.callId, runningTasks) }
+                ?: cancellations.forEach { cancelRunningTask(it.callId, runningTasks, flowCallIds) }
             submissionsAndCancellations = submissionsAndCancellations.filter { it.payload !is CoroutinePuzzleSubmissionPayload.CallShouldCancel }
 
             expectationAndResults = (events.receive() as InternalPuzzleEvent.ExpectationBatch).expectations
@@ -290,10 +309,12 @@ private suspend fun puzzleStateActor(
     }
 }
 
-private fun cancelRunningTask(callId: Long, runningTasks: Map<Long, Job>) {
-    // A cancellation request can be flushed after its answer batch. In that case the task was already removed;
-    // it belongs to this call only and must not interfere with another collector.
-    runningTasks[callId]?.cancel(CancellationAcrossRpc())
+private fun cancelRunningTask(callId: Long, runningTasks: Map<Long, Job>, flowCallIds: Set<Long>) {
+    val task = runningTasks[callId]
+    if (task == null && callId !in flowCallIds) failInternal(CustomFailure(
+        "Unexpected cancellation for call $callId: its expectation was not running.",
+    ))
+    task?.cancel(CancellationAcrossRpc())
 }
 
 private fun List<WithCallId<CoroutinePuzzleSubmissionPayload>>.partitionSubmissionsAndCancellations(): Pair<
@@ -340,7 +361,7 @@ private suspend fun ReceiveChannel<InternalPuzzleEvent>.receiveFirstTwoEvents(
 }
 
 private sealed class InternalCoroutineExpectationMessage {
-    data class Expectation(val endPoint: CoroutinePuzzleEndPointDescriptor): InternalCoroutineExpectationMessage()
+    data class Expectation(val endPoint: CoroutinePuzzleEndPointId): InternalCoroutineExpectationMessage()
     data class BatchEntry(val reply: WithCallId<CoroutinePuzzleExpectationPayload>): InternalCoroutineExpectationMessage()
     data class AwaitQuiescence(val finishExpectations: Boolean) : InternalCoroutineExpectationMessage()
 }
@@ -377,7 +398,7 @@ context(_: CoroutinePuzzleBuilderScope)
 fun fail(reason: CoroutinePuzzleSolutionResult): Nothing = failInternal(reason)
 
 context(_: CoroutinePuzzleBuilderScope)
-fun fail(message: String): Nothing = fail(CoroutinePuzzleSolutionResult.CustomFailure(message))
+fun fail(message: String): Nothing = fail(CustomFailure(message))
 
 context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */T, /* @Exact */R>.expectCall(
@@ -424,11 +445,11 @@ fun verifyUnmatchedSubmissions(
     expected: List<CoroutinePuzzleEndPoint<*, *>>,
     message: UnmatchedSubmissionMessageFunction? = null,
 ) {
-    if (submissions.groupingBy { it.descriptor }.eachCount() != expected.groupingBy { it.descriptor }.eachCount()) {
+    if (submissions.groupingBy { it.id }.eachCount() != expected.groupingBy { it.id }.eachCount()) {
         message?.invoke(submissions)?.let { fail(it) }
         fail(CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
-            submissions = submissions.map { it.descriptor },
-            expectations = expected.map { it.descriptor },
+            submissions = submissions.map { it.id },
+            expectations = expected.map { it.id },
         ))
     }
 }
@@ -451,11 +472,11 @@ suspend fun awaitQuiescenceAndVerifyUnmatchedSubmissions(
 
 context(builder: CoroutinePuzzleBuilderScope)
 inline fun verify(condition: Boolean, message: () -> String) {
-    if (!condition) fail(CoroutinePuzzleSolutionResult.CustomFailure(message()))
+    if (!condition) fail(CustomFailure(message()))
 }
 context(builder: CoroutinePuzzleBuilderScope)
 inline fun <T : Any> T?.verifyNotNull(message: () -> String): T =
-    this ?: fail(CoroutinePuzzleSolutionResult.CustomFailure(message()))
+    this ?: fail(CustomFailure(message()))
 
 context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */ R, /* @Exact */ T>.expectCall(
@@ -473,11 +494,13 @@ internal fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCom
     resultSerializer: KSerializer<WithCallId<ValueOrCompletion<T>>>,
 ): Resource<Resource<Pair<A, suspend (T) -> Unit>>> = resource { consume ->
         val registrations = Channel<ExpectedFlowCollector<A, T>>(Channel.UNLIMITED)
-        val matcher = launch { matchFlowCollectors(registrations, argumentSerializer, resultSerializer) }
+        val callsNeeded = Channel<Unit>(Channel.UNLIMITED)
+        val matcher = launch { matchFlowCollectors(registrations, callsNeeded, argumentSerializer, resultSerializer) }
         try {
             consume(resource { consumeCollector ->
-                val collector = ExpectedFlowCollector<A, T>()
+                val collector = ExpectedFlowCollector<A, T>(callsNeeded)
                 registrations.send(collector)
+                callsNeeded.send(Unit)
                 try {
                     try {
                         consumeCollector(collector.argument.await() to { value -> collector.send(FlowCollectorEvent.Value(value)) })
@@ -501,57 +524,58 @@ internal fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCom
 context(builder: CoroutinePuzzleBuilderScope)
 internal suspend fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCompletion<T>>>.matchFlowCollectors(
     registrations: ReceiveChannel<ExpectedFlowCollector<A, T>>,
+    callsNeeded: ReceiveChannel<Unit>,
     argumentSerializer: KSerializer<WithCallId<A>>,
     resultSerializer: KSerializer<WithCallId<ValueOrCompletion<T>>>,
 ) {
     val collectors = mutableMapOf<Long, ExpectedFlowCollector<A, T>>()
-    var pending: Pair<ExpectedFlowCollector<A, T>, FlowCollectorEvent<T>>? = null
-    try {
-        while (true) {
-            var submittedCollectorId: Long? = null
-            try {
-                builder.expectCallTo(this@matchFlowCollectors, argumentSerializer, resultSerializer) { submitted ->
-                    submittedCollectorId = submitted.callId
-                    val (collector, event) = pending ?: run {
-                        val matched = collectors[submitted.callId] ?: registrations.receive().also {
+    coroutineScope {
+        for (ignored in callsNeeded) {
+            launch {
+                var submittedCollectorId: Long? = null
+                var event: FlowCollectorEvent<T>? = null
+                try {
+                    builder.expectCallTo(this@matchFlowCollectors, argumentSerializer, resultSerializer) { submitted ->
+                        submittedCollectorId = submitted.callId
+                        val collector = collectors[submitted.callId] ?: registrations.receive().also {
                             it.collectorId = submitted.callId
                             it.argument.complete(submitted.payload)
                             collectors[submitted.callId] = it
                         }
-                        (matched to matched.events.receive()).also { pending = it }
+                        val received = collector.events.receive()
+                        event = received
+                        when (received) {
+                            is FlowCollectorEvent.Value -> WithCallId(submitted.callId, ValueOrCompletion.Value(received.value))
+                            is FlowCollectorEvent.Completion -> WithCallId(submitted.callId, ValueOrCompletion.Completion)
+                            is FlowCollectorEvent.Failure -> throw received.failure
+                        }
                     }
-                    val collectorId = collector.collectorId!!
-                    when (event) {
-                        is FlowCollectorEvent.Value -> WithCallId(collectorId, ValueOrCompletion.Value(event.value))
-                        is FlowCollectorEvent.Completion -> WithCallId(collectorId, ValueOrCompletion.Completion)
-                        is FlowCollectorEvent.Failure -> throw event.failure
-                    }
+                } catch (cancellation: CancellationException) {
+                    currentCoroutineContext().ensureActive()
+                    collectors.remove(submittedCollectorId)?.events?.cancel(cancellation)
+                    return@launch
+                } catch (failure: Throwable) {
+                    if ((event as? FlowCollectorEvent.Failure)?.failure !== failure) throw failure
                 }
-            } catch (cancellation: CancellationException) {
-                currentCoroutineContext().ensureActive()
-                collectors.remove(submittedCollectorId)?.events?.cancel(cancellation)
-                if (pending?.first?.collectorId == submittedCollectorId) pending = null
-                continue
-            } catch (failure: Throwable) {
-                if ((pending?.second as? FlowCollectorEvent.Failure)?.failure !== failure) throw failure
-            }
 
-            val (collector, event) = pending!!
-            event.sent.complete(Unit)
-            if (event !is FlowCollectorEvent.Value) collectors.remove(collector.collectorId)
-            pending = null
+                event!!.sent.complete(Unit)
+                if (event !is FlowCollectorEvent.Value) collectors.remove(submittedCollectorId)
+            }
         }
-    } finally {
-        collectors.values.forEach { it.events.cancel() }
     }
 }
 
-internal class ExpectedFlowCollector<A, T> {
+internal class ExpectedFlowCollector<A, T>(private val callsNeeded: Channel<Unit>) {
     var collectorId: Long? = null
     val argument = CompletableDeferred<A>()
     val events = Channel<FlowCollectorEvent<T>>(Channel.RENDEZVOUS)
 
     suspend fun send(event: FlowCollectorEvent<T>) {
+        if (events.trySend(event).isSuccess) {
+            event.sent.await()
+            return
+        }
+        callsNeeded.send(Unit)
         events.send(event)
         event.sent.await()
     }

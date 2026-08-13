@@ -66,16 +66,19 @@ internal fun defaultWorkshopProtocol(host: String): URLProtocol =
     if (host == "localhost" || host == "127.0.0.1" || host == "::1") URLProtocol.WS else URLProtocol.WSS
 
 @Composable
-fun ClientEntryPoint() {
+fun ClientEntryPoint(clientMetadata: ClientMetadata) {
     val key = clientApiKey
     if (key == null) {
         Text("Finish registration first, then restart WorkshopClient.")
     } else {
-        ClientEntryPoint(server = remember { workshopService.asServer(ApiKey(key)) })
+        ClientEntryPoint(
+            server = remember { context(clientMetadata) { workshopService.asServer(ApiKey(key)) } },
+            clientMetadata = clientMetadata,
+        )
     }
 }
 
 @Composable
-fun ClientEntryPoint(server: WorkshopServer) {
-    WorkshopClient(server)
+fun ClientEntryPoint(server: WorkshopServer, clientMetadata: ClientMetadata) {
+    WorkshopClient(server, clientMetadata = clientMetadata)
 }

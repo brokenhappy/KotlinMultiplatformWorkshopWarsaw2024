@@ -9,6 +9,9 @@ import kmpworkshop.client.asSolution
 import kmpworkshop.solutions.allowPeopleToDownloadExposedFile
 import kmpworkshop.common.*
 import kmpworkshop.common.ApiKey
+import kmpworkshop.common.DefaultApis.closeExposedFile
+import kmpworkshop.common.DefaultApis.emitFileToExpose
+import kmpworkshop.common.DefaultApis.openExposedFile
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kmpworkshop.common.asServer
@@ -107,8 +110,8 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doFileExposureStepTwo { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
         val advertisingFailure = doFileExposureStepThree { allowPeopleToDownloadExposedFile3(it) }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
-        advertisingFailure.expectations.assertEquals(emptyList<CoroutinePuzzleEndPointDescriptor>())
-        advertisingFailure.unexpectedSubmissions.assertEquals(listOf(closeExposedFile.descriptor))
+        advertisingFailure.expectations.assertEquals(emptyList<CoroutinePuzzleEndPointId>())
+        advertisingFailure.unexpectedSubmissions.assertEquals(listOf(closeExposedFile.id))
 
         // Solution 4 gives the task a lexical coroutineScope receiver; both download and advertising are children.
         doFileExposureStepOne { allowPeopleToDownloadExposedFile4(it) }.assertIsOk()
@@ -678,7 +681,7 @@ private inline fun <reified T> ResultsWHistory.returnedValues(
         .flatMap { it.entries }
         .mapNotNull { entry ->
             (entry.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted)
-                ?.takeIf { it.endPoint == endpoint.descriptor }
+                ?.takeIf { it.endPoint == endpoint.id }
                 ?.let { entry.callId }
         }
         .toSet()
@@ -694,7 +697,7 @@ private inline fun <reified T> ResultsWHistory.arguments(
 ): List<T> = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
     .flatMap { it.entries }
     .mapNotNull { it.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted }
-    .filter { it.endPoint == endpoint.descriptor }
+    .filter { it.endPoint == endpoint.id }
     .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
 
 object NoOpStackTracker: StackTrackingContext {
