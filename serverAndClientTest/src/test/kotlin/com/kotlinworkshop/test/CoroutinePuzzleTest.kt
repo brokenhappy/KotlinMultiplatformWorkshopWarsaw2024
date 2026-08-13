@@ -301,9 +301,9 @@ class CoroutinePuzzleTest {
             awaitCancellation()
         }.use { (expectations, submissions) ->
             submissions.send(listOf(
-                CoroutinePuzzleBatchEntry(
+                WithCallId(
                     callId = 1,
-                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted(
+                    payload = CoroutinePuzzleSubmissionPayload.CallSubmitted(
                         endpoint.descriptor,
                         Json.encodeToJsonElement(serializer<Unit>(), Unit),
                     ),
@@ -312,9 +312,9 @@ class CoroutinePuzzleTest {
             expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
 
             submissions.send(listOf(
-                CoroutinePuzzleBatchEntry(
+                WithCallId(
                     callId = 1,
-                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallShouldCancel,
+                    payload = CoroutinePuzzleSubmissionPayload.CallShouldCancel,
                 ),
             ))
             expectations.receive()
@@ -335,9 +335,9 @@ class CoroutinePuzzleTest {
             awaitCancellation()
         }.use { (expectations, submissions) ->
             submissions.send(listOf(
-                CoroutinePuzzleBatchEntry(
+                WithCallId(
                     callId = 1,
-                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted(
+                    payload = CoroutinePuzzleSubmissionPayload.CallSubmitted(
                         endpoint.descriptor,
                         Json.encodeToJsonElement(serializer<Unit>(), Unit),
                     ),
@@ -346,9 +346,9 @@ class CoroutinePuzzleTest {
             expectations.receive().assertIs<CoroutinePuzzleExpectationBatchOrCompletion.Batch>()
 
             submissions.send(listOf(
-                CoroutinePuzzleBatchEntry(
+                WithCallId(
                     callId = 1,
-                    payload = CoroutinePuzzleBatchEntry.SubmissionPayload.CallShouldCancel,
+                    payload = CoroutinePuzzleSubmissionPayload.CallShouldCancel,
                 ),
             ))
             expectations.receive()

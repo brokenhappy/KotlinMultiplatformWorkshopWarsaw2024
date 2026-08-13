@@ -16,9 +16,9 @@ import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import kmpworkshop.common.CoroutinePuzzleBatchEntry
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.WithCallId
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
@@ -53,7 +53,7 @@ class CoroutineTimelineUiTest {
         val longHistory = (1L..18L).mapIndexed { index, id ->
             CoroutinePuzzleHistoryBatch.Submission(listOf(entry(
                 id,
-                SubmissionPayload.CallSubmitted(
+                CoroutinePuzzleSubmissionPayload.CallSubmitted(
                     CoroutinePuzzleEndPointDescriptor("call number $id"),
                     JsonPrimitive(index),
                 ),
@@ -90,15 +90,15 @@ class CoroutineTimelineUiTest {
         val hanging = CoroutinePuzzleEndPointDescriptor("wait for the next participant update")
         return listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(
-                entry(1, SubmissionPayload.CallSubmitted(load, JsonPrimitive(42))),
-                entry(2, SubmissionPayload.CallSubmitted(save, JsonObject(emptyMap()))),
+                entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(load, JsonPrimitive(42))),
+                entry(2, CoroutinePuzzleSubmissionPayload.CallSubmitted(save, JsonObject(emptyMap()))),
             )),
-            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(1, ExpectationPayload.CallAnswered(JsonPrimitive("Ada"))))),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(3, SubmissionPayload.CallSubmitted(hanging, JsonObject(emptyMap()))))),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, SubmissionPayload.CallShouldCancel))),
-            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(2, ExpectationPayload.CallCancellationCompleted))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(1, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive("Ada"))))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(3, CoroutinePuzzleSubmissionPayload.CallSubmitted(hanging, JsonObject(emptyMap()))))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, CoroutinePuzzleSubmissionPayload.CallShouldCancel))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(2, CoroutinePuzzleExpectationPayload.CallCancellationCompleted))),
         )
     }
 
-    private fun <T> entry(id: Long, payload: T) = CoroutinePuzzleBatchEntry(id, payload)
+    private fun <T> entry(id: Long, payload: T) = WithCallId(id, payload)
 }

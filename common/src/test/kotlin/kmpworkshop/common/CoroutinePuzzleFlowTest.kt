@@ -61,7 +61,7 @@ class CoroutinePuzzleFlowTest {
             attempts.incrementAndGet()
             val submitted = submissions.receive()
             expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(
-                submitted.map { CoroutinePuzzleBatchEntry(it.callId, CoroutinePuzzleBatchEntry.ExpectationPayload.CallAnswered(JsonObject(emptyMap()))) },
+                submitted.map { WithCallId(it.callId, CoroutinePuzzleExpectationPayload.CallAnswered(JsonObject(emptyMap()))) },
             ))
             expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(CoroutinePuzzleSolutionResult.Success))
         }.asPuzzle()

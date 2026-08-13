@@ -1,6 +1,6 @@
 package kmpworkshop.common
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
 import kotlinx.coroutines.flow.Flow
@@ -31,7 +31,7 @@ fun interface KotlinBasicsPuzzleProvider {
     fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
-        messages: Flow<List<CoroutinePuzzleBatchEntry<SubmissionPayload>>>
+        messages: Flow<List<WithCallId<CoroutinePuzzleSubmissionPayload>>>
     ): Flow<CoroutinePuzzleExpectationBatchOrCompletion>
 
     fun doKotlinBasicsPuzzleSolveAttempt(

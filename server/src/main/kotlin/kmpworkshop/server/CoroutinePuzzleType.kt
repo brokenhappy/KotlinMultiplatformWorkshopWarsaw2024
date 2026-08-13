@@ -1,7 +1,7 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleBatch
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleExpectationBatchOrCompletion.Completion
 import kmpworkshop.common.CoroutinePuzzleProtocol
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
@@ -23,7 +23,7 @@ import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsFast
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsSlow
 import kmpworkshop.common.CoroutinePuzzleExpectationBatchOrCompletion as BatchOrCompletion
 
-object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion, CoroutinePuzzleBatch<SubmissionPayload>> {
+object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion, CoroutinePuzzleBatch<CoroutinePuzzleSubmissionPayload>> {
     override fun enumEntries(): List<CoroutinePuzzleStage> = kotlin.enums.enumEntries()
     override fun customError(message: String): BatchOrCompletion =
         Completion(CoroutinePuzzleSolutionResult.CustomFailure(message))

@@ -1,8 +1,8 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.WithCallId
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kotlinx.serialization.json.JsonNull
@@ -21,15 +21,15 @@ class CoroutinePuzzleTimelineTest {
         val hanging = CoroutinePuzzleEndPointDescriptor("hanging")
         val history = listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(
-                entry(1, SubmissionPayload.CallSubmitted(answer, JsonPrimitive(7))),
-                entry(2, SubmissionPayload.CallSubmitted(failure, JsonObject(emptyMap()))),
-                entry(3, SubmissionPayload.CallSubmitted(hanging, JsonNull)),
+                entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(answer, JsonPrimitive(7))),
+                entry(2, CoroutinePuzzleSubmissionPayload.CallSubmitted(failure, JsonObject(emptyMap()))),
+                entry(3, CoroutinePuzzleSubmissionPayload.CallSubmitted(hanging, JsonNull)),
             )),
             CoroutinePuzzleHistoryBatch.Expectation(listOf(
-                entry(1, ExpectationPayload.CallAnswered(JsonObject(emptyMap()))),
-                entry(2, ExpectationPayload.CallThrew("Database unavailable")),
+                entry(1, CoroutinePuzzleExpectationPayload.CallAnswered(JsonObject(emptyMap()))),
+                entry(2, CoroutinePuzzleExpectationPayload.CallThrew("Database unavailable")),
             )),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, SubmissionPayload.CallShouldCancel))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, CoroutinePuzzleSubmissionPayload.CallShouldCancel))),
         )
 
         val calls = coroutineTimeline(history)
@@ -46,10 +46,10 @@ class CoroutinePuzzleTimelineTest {
     fun `filters hidden scaffolding endpoints`() {
         val hidden = kmpworkshop.common.callLifetime.descriptor
         val history = listOf(CoroutinePuzzleHistoryBatch.Submission(listOf(
-            entry(1, SubmissionPayload.CallSubmitted(hidden, JsonNull)),
+            entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(hidden, JsonNull)),
         )))
         assertTrue(coroutineTimeline(history).isEmpty())
     }
 
-    private fun <T> entry(id: Long, payload: T) = CoroutinePuzzleBatchEntry(id, payload)
+    private fun <T> entry(id: Long, payload: T) = WithCallId(id, payload)
 }

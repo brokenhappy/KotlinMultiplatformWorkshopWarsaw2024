@@ -681,7 +681,7 @@ private inline fun <reified T> ResultsWHistory.returnedValues(
     val callIds = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
         .flatMap { it.entries }
         .mapNotNull { entry ->
-            (entry.payload as? CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted)
+            (entry.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted)
                 ?.takeIf { it.endPoint == endpoint.descriptor }
                 ?.let { entry.callId }
         }
@@ -689,7 +689,7 @@ private inline fun <reified T> ResultsWHistory.returnedValues(
     return history.filterIsInstance<CoroutinePuzzleHistoryBatch.Expectation>()
         .flatMap { it.entries }
         .filter { it.callId in callIds }
-        .mapNotNull { it.payload as? CoroutinePuzzleBatchEntry.ExpectationPayload.CallAnswered }
+        .mapNotNull { it.payload as? CoroutinePuzzleExpectationPayload.CallAnswered }
         .map { Json.decodeFromJsonElement(serializer<T>(), it.result) }
 }
 
@@ -697,7 +697,7 @@ private inline fun <reified T> ResultsWHistory.arguments(
     endpoint: CoroutinePuzzleEndPoint<T, *>,
 ): List<T> = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
     .flatMap { it.entries }
-    .mapNotNull { it.payload as? CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted }
+    .mapNotNull { it.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted }
     .filter { it.endPoint == endpoint.descriptor }
     .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
 

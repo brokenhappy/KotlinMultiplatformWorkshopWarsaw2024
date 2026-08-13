@@ -2,9 +2,9 @@
 
 package kmpworkshop.common
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload.CallSubmitted
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload.CallSubmitted
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
@@ -19,11 +19,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.ExperimentalTime
 
 typealias CoroutinePuzzleProtocol =
-    CommunicationProtocol<CoroutinePuzzleExpectationBatchOrCompletion, CoroutinePuzzleBatch<SubmissionPayload>>
+    CommunicationProtocol<CoroutinePuzzleExpectationBatchOrCompletion, CoroutinePuzzleBatch<CoroutinePuzzleSubmissionPayload>>
 
 sealed class CoroutinePuzzleHistoryBatch {
-    data class Submission(val entries: List<CoroutinePuzzleBatchEntry<SubmissionPayload>>) : CoroutinePuzzleHistoryBatch()
-    data class Expectation(val entries: List<CoroutinePuzzleBatchEntry<ExpectationPayload>>) : CoroutinePuzzleHistoryBatch()
+    data class Submission(val entries: List<WithCallId<CoroutinePuzzleSubmissionPayload>>) : CoroutinePuzzleHistoryBatch()
+    data class Expectation(val entries: List<WithCallId<CoroutinePuzzleExpectationPayload>>) : CoroutinePuzzleHistoryBatch()
 }
 
 suspend fun Resource<CoroutinePuzzleProtocol>.solve(
@@ -34,7 +34,7 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
     channelFlow {
         this@asPuzzle.use { (expectations, submissions) ->
             val pending = ConcurrentHashMap<Long, GuardedContinuation<JsonElement>>()
-            val submissionFunction = AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, JsonElement>(
+            val submissionFunction = AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPayload>, JsonElement>(
                 fallbackOutOfBatchScope = {
                     val addition =
                         (it.payload as? CallSubmitted)?.let { " when you tried to call ${it.endPoint}" } ?: ""
@@ -78,17 +78,17 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
 class ExceptionAcrossRpc(message: String): Exception(message, null, false, false)
 class CancellationAcrossRpc: CancellationException(null)
 
-private fun AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, JsonElement>.asSolutionScope(): CoroutinePuzzleSolutionScope =
+private fun AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPayload>, JsonElement>.asSolutionScope(): CoroutinePuzzleSolutionScope =
     object : CoroutinePuzzleSolutionScope {
         private val callIdCounter = AtomicLong(0)
         override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement {
             val callId = callIdCounter.incrementAndFetch()
             return try {
-                batched(CoroutinePuzzleBatchEntry(callId, CallSubmitted(descriptor, t)))
+                batched(WithCallId(callId, CallSubmitted(descriptor, t)))
             } catch (c: CancellationException) {
                 if (!currentCoroutineContext().isActive) {
                     importantCleanup {
-                        batched(CoroutinePuzzleBatchEntry(callId, SubmissionPayload.CallShouldCancel))
+                        batched(WithCallId(callId, CoroutinePuzzleSubmissionPayload.CallShouldCancel))
                     }
                 }
                 throw c
@@ -99,7 +99,7 @@ private fun AutoBatchedFunctionId<CoroutinePuzzleBatchEntry<SubmissionPayload>, 
 private suspend fun messageReceivingActor(
     batchOrCompletions: ReceiveChannel<CoroutinePuzzleExpectationBatchOrCompletion>,
     pending: ConcurrentHashMap<Long, GuardedContinuation<JsonElement>>,
-    onBatchReceived: suspend (List<CoroutinePuzzleBatchEntry<ExpectationPayload>>) -> Unit,
+    onBatchReceived: suspend (List<WithCallId<CoroutinePuzzleExpectationPayload>>) -> Unit,
 ): CoroutinePuzzleSolutionResult {
     for (batchOrCompletion in batchOrCompletions) {
         when (batchOrCompletion) {
@@ -117,15 +117,15 @@ private suspend fun messageReceivingActor(
     return CoroutinePuzzleSolutionResult.Success
 }
 
-private fun ExpectationPayload.toResult(): Result<JsonElement> = when (this) {
-    ExpectationPayload.CallCancellationCompleted -> Result.failure(CancellationAcrossRpc())
-    is ExpectationPayload.CallAnswered -> Result.success(result)
-    is ExpectationPayload.CallThrew -> Result.failure(ExceptionAcrossRpc(message))
+private fun CoroutinePuzzleExpectationPayload.toResult(): Result<JsonElement> = when (this) {
+    CoroutinePuzzleExpectationPayload.CallCancellationCompleted -> Result.failure(CancellationAcrossRpc())
+    is CoroutinePuzzleExpectationPayload.CallAnswered -> Result.success(result)
+    is CoroutinePuzzleExpectationPayload.CallThrew -> Result.failure(ExceptionAcrossRpc(message))
 }
 
 @Serializable sealed class CoroutinePuzzleExpectationBatchOrCompletion {
     @Serializable data class Batch(
-        val batch: CoroutinePuzzleBatch<ExpectationPayload>,
+        val batch: CoroutinePuzzleBatch<CoroutinePuzzleExpectationPayload>,
     ) : CoroutinePuzzleExpectationBatchOrCompletion()
     @Serializable data class Completion(
         val result: CoroutinePuzzleSolutionResult,
@@ -135,6 +135,6 @@ private fun ExpectationPayload.toResult(): Result<JsonElement> = when (this) {
 fun coroutinePuzzleCommunicationChannel(
     underlyingComms: suspend CoroutineScope.(
         fromExpectation: SendChannel<CoroutinePuzzleExpectationBatchOrCompletion>,
-        fromSubmission: ReceiveChannel<CoroutinePuzzleBatch<SubmissionPayload>>,
+        fromSubmission: ReceiveChannel<CoroutinePuzzleBatch<CoroutinePuzzleSubmissionPayload>>,
     ) -> Unit,
 ): Resource<CoroutinePuzzleProtocol> = communicationProtocol(underlyingComms)

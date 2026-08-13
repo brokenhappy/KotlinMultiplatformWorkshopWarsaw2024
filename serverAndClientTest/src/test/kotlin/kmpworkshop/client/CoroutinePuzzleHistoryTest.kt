@@ -2,9 +2,9 @@
 
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.WithCallId
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kotlinx.serialization.json.JsonNull
@@ -150,28 +150,28 @@ class CoroutinePuzzleHistoryRendererTest {
     private fun submitted(
         callId: Long,
         endPoint: CoroutinePuzzleEndPointDescriptor,
-    ) = CoroutinePuzzleBatchEntry<SubmissionPayload>(
+    ) = WithCallId<CoroutinePuzzleSubmissionPayload>(
         callId = callId,
-        payload = SubmissionPayload.CallSubmitted(endPoint, arg = JsonNull),
+        payload = CoroutinePuzzleSubmissionPayload.CallSubmitted(endPoint, arg = JsonNull),
     )
 
-    private fun cancellationRequested(callId: Long) = CoroutinePuzzleBatchEntry<SubmissionPayload>(
+    private fun cancellationRequested(callId: Long) = WithCallId<CoroutinePuzzleSubmissionPayload>(
         callId = callId,
-        payload = SubmissionPayload.CallShouldCancel,
+        payload = CoroutinePuzzleSubmissionPayload.CallShouldCancel,
     )
 
-    private fun answered(callId: Long) = CoroutinePuzzleBatchEntry<ExpectationPayload>(
+    private fun answered(callId: Long) = WithCallId<CoroutinePuzzleExpectationPayload>(
         callId = callId,
-        payload = ExpectationPayload.CallAnswered(JsonNull),
+        payload = CoroutinePuzzleExpectationPayload.CallAnswered(JsonNull),
     )
 
-    private fun threw(callId: Long) = CoroutinePuzzleBatchEntry<ExpectationPayload>(
+    private fun threw(callId: Long) = WithCallId<CoroutinePuzzleExpectationPayload>(
         callId = callId,
-        payload = ExpectationPayload.CallThrew("Boom"),
+        payload = CoroutinePuzzleExpectationPayload.CallThrew("Boom"),
     )
 
-    private fun cancellationCompleted(callId: Long) = CoroutinePuzzleBatchEntry<ExpectationPayload>(
+    private fun cancellationCompleted(callId: Long) = WithCallId<CoroutinePuzzleExpectationPayload>(
         callId = callId,
-        payload = ExpectationPayload.CallCancellationCompleted,
+        payload = CoroutinePuzzleExpectationPayload.CallCancellationCompleted,
     )
 }

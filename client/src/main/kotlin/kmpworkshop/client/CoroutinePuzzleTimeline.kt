@@ -1,7 +1,7 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kotlinx.serialization.json.JsonElement
@@ -27,11 +27,11 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
         when (batch) {
             is CoroutinePuzzleHistoryBatch.Submission -> batch.entries.forEach { (id, payload) ->
                 when (payload) {
-                    is SubmissionPayload.CallSubmitted -> if (!payload.endPoint.isHiddenFromHistory()) {
+                    is CoroutinePuzzleSubmissionPayload.CallSubmitted -> if (!payload.endPoint.isHiddenFromHistory()) {
                         check(id !in calls) { "Call $id was submitted more than once" }
                         calls[id] = CoroutineTimelineCall(id, payload.endPoint, payload.arg, batchIndex)
                     }
-                    SubmissionPayload.CallShouldCancel -> calls[id]?.let {
+                    CoroutinePuzzleSubmissionPayload.CallShouldCancel -> calls[id]?.let {
                         calls[id] = it.copy(cancellationRequestedBatch = batchIndex)
                     }
                 }
@@ -39,17 +39,17 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
             is CoroutinePuzzleHistoryBatch.Expectation -> batch.entries.forEach { (id, payload) ->
                 calls[id]?.let { call ->
                     calls[id] = when (payload) {
-                        is ExpectationPayload.CallAnswered -> call.copy(
+                        is CoroutinePuzzleExpectationPayload.CallAnswered -> call.copy(
                             endBatch = batchIndex,
                             completion = TimelineCompletion.RETURNED,
                             returnValue = payload.result,
                         )
-                        is ExpectationPayload.CallThrew -> call.copy(
+                        is CoroutinePuzzleExpectationPayload.CallThrew -> call.copy(
                             endBatch = batchIndex,
                             completion = TimelineCompletion.THREW,
                             exceptionMessage = payload.message,
                         )
-                        ExpectationPayload.CallCancellationCompleted -> call.copy(endBatch = batchIndex, completion = TimelineCompletion.CANCELLED)
+                        CoroutinePuzzleExpectationPayload.CallCancellationCompleted -> call.copy(endBatch = batchIndex, completion = TimelineCompletion.CANCELLED)
                     }
                 }
             }

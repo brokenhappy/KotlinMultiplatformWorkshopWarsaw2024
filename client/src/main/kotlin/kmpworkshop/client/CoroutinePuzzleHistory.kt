@@ -1,7 +1,7 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointDescriptor
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 
@@ -38,7 +38,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
             is CoroutinePuzzleHistoryBatch.Submission -> {
                 for ((callId, payload) in batch.entries) {
                     when (payload) {
-                        is SubmissionPayload.CallSubmitted -> {
+                        is CoroutinePuzzleSubmissionPayload.CallSubmitted -> {
                             require(callId !in calls) {
                                 "Call $callId was submitted more than once"
                             }
@@ -49,7 +49,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
                             )
                         }
 
-                        SubmissionPayload.CallShouldCancel -> {
+                        CoroutinePuzzleSubmissionPayload.CallShouldCancel -> {
                             // Cancellation can race with a normal response: the cancellation request may only be
                             // flushed after the response has already been added to the history.
                             val call = call(callId)
@@ -68,9 +68,9 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
                     val call = activeCall(callId)
 
                     when (payload) {
-                        is ExpectationPayload.CallAnswered -> call.finish(batchIndex, '✓')
-                        is ExpectationPayload.CallThrew -> call.finish(batchIndex, '!')
-                        ExpectationPayload.CallCancellationCompleted -> {
+                        is CoroutinePuzzleExpectationPayload.CallAnswered -> call.finish(batchIndex, '✓')
+                        is CoroutinePuzzleExpectationPayload.CallThrew -> call.finish(batchIndex, '!')
+                        CoroutinePuzzleExpectationPayload.CallCancellationCompleted -> {
                             require(call.cancelRequestedBatch != null) {
                                 "Cancellation completed without being requested for call $callId"
                             }

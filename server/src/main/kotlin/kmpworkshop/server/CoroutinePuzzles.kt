@@ -1,8 +1,8 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.ExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleBatchEntry.SubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure
 import kmpworkshop.common.CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure
 import kotlinx.coroutines.*
@@ -86,7 +86,7 @@ fun coroutinePuzzle(
 
                                                 var exception: Throwable? = null
                                                 val payload = try {
-                                                    ExpectationPayload.CallAnswered(
+                                                    CoroutinePuzzleExpectationPayload.CallAnswered(
                                                         Json.encodeToJsonElement(
                                                             rSerializer,
                                                             task.await().getOrThrow(),
@@ -94,13 +94,13 @@ fun coroutinePuzzle(
                                                     )
                                                 } catch (t: Throwable) {
                                                     exception = t
-                                                    if (task.isCancelled) ExpectationPayload.CallCancellationCompleted
-                                                    else ExpectationPayload.CallThrew(t.message ?: "Unknown exception")
+                                                    if (task.isCancelled) CoroutinePuzzleExpectationPayload.CallCancellationCompleted
+                                                    else CoroutinePuzzleExpectationPayload.CallThrew(t.message ?: "Unknown exception")
                                                 }
                                                 try {
                                                     coroutinePuzzleSubmissionFunction.batched(
                                                         InternalCoroutineExpectationMessage
-                                                            .BatchEntry(CoroutinePuzzleBatchEntry(callId, payload)),
+                                                            .BatchEntry(WithCallId(callId, payload)),
                                                     )
                                                 } catch (t: Throwable) {
                                                     exception?.addSuppressed(t) ?: throw t
@@ -151,15 +151,15 @@ fun coroutinePuzzle(
 
 private suspend fun puzzleStateActor(
     events: ReceiveChannel<InternalPuzzleEvent>,
-    emitBatch: suspend (CoroutinePuzzleBatch<ExpectationPayload>) -> Unit,
+    emitBatch: suspend (CoroutinePuzzleBatch<CoroutinePuzzleExpectationPayload>) -> Unit,
     runningTasks: ConcurrentHashMap<Long, Job>,
 ): CoroutinePuzzleSolutionResult {
     val accumulatedExpectations = mutableListOf<CoroutinePuzzleEndPointWaitingState>()
-    val accumulatedSubmissions = mutableListOf<CoroutinePuzzleBatchEntry<SubmissionPayload.CallSubmitted>>()
+    val accumulatedSubmissions = mutableListOf<WithCallId<CoroutinePuzzleSubmissionPayload.CallSubmitted>>()
     val quiescenceWaiters = mutableListOf<QuiescenceWaitingState>()
     var finishExpectationsWhenQuiescent = false
     val (firstExpectationAndResults, firstSubmission) = events.receiveFirstTwoEvents()
-    var submissionsAndCancellations: List<CoroutinePuzzleBatchEntry<SubmissionPayload>>? = firstSubmission
+    var submissionsAndCancellations: List<WithCallId<CoroutinePuzzleSubmissionPayload>>? = firstSubmission
     var expectationAndResults: List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>> = firstExpectationAndResults
 
     while (true) {
@@ -219,7 +219,7 @@ private suspend fun puzzleStateActor(
         val (newExpectations, results) = expectationAndResults.partitionExpectationsAndResults()
         expectationAndResults = expectationAndResults.filter { it.query !is InternalCoroutineExpectationMessage.Expectation }
         val (newSubmissions, cancellations) = submissionsAndCancellations.partitionSubmissionsAndCancellations()
-        submissionsAndCancellations = submissionsAndCancellations.filter { it.payload !is SubmissionPayload.CallSubmitted }
+        submissionsAndCancellations = submissionsAndCancellations.filter { it.payload !is CoroutinePuzzleSubmissionPayload.CallSubmitted }
         accumulatedExpectations.addAll(newExpectations)
         accumulatedSubmissions.addAll(newSubmissions)
 
@@ -275,7 +275,7 @@ private suspend fun puzzleStateActor(
                 }
             }   // Hmm sadly technically the following still has the race condition that runOnScopeThatTracksQuiescence tries to solve :(
                 ?: cancellations.forEach { cancelRunningTask(it.callId, runningTasks) }
-            submissionsAndCancellations = submissionsAndCancellations.filter { it.payload !is SubmissionPayload.CallShouldCancel }
+            submissionsAndCancellations = submissionsAndCancellations.filter { it.payload !is CoroutinePuzzleSubmissionPayload.CallShouldCancel }
 
             expectationAndResults = (events.receive() as InternalPuzzleEvent.ExpectationBatch).expectations
         } else {
@@ -296,14 +296,14 @@ private fun cancelRunningTask(callId: Long, runningTasks: Map<Long, Job>) {
     task.cancel(CancellationAcrossRpc())
 }
 
-private fun List<CoroutinePuzzleBatchEntry<SubmissionPayload>>.partitionSubmissionsAndCancellations(): Pair<
-    List<CoroutinePuzzleBatchEntry<SubmissionPayload.CallSubmitted>>,
-    List<CoroutinePuzzleBatchEntry<SubmissionPayload.CallShouldCancel>>,
+private fun List<WithCallId<CoroutinePuzzleSubmissionPayload>>.partitionSubmissionsAndCancellations(): Pair<
+    List<WithCallId<CoroutinePuzzleSubmissionPayload.CallSubmitted>>,
+    List<WithCallId<CoroutinePuzzleSubmissionPayload.CallShouldCancel>>,
 > {
     @Suppress("UNCHECKED_CAST")
-    return this.partition { it.payload is SubmissionPayload.CallSubmitted } as Pair<
-        List<CoroutinePuzzleBatchEntry<SubmissionPayload.CallSubmitted>>,
-        List<CoroutinePuzzleBatchEntry<SubmissionPayload.CallShouldCancel>>,
+    return this.partition { it.payload is CoroutinePuzzleSubmissionPayload.CallSubmitted } as Pair<
+        List<WithCallId<CoroutinePuzzleSubmissionPayload.CallSubmitted>>,
+        List<WithCallId<CoroutinePuzzleSubmissionPayload.CallShouldCancel>>,
     >
 }
 
@@ -327,7 +327,7 @@ private fun List<SuspendedBatchCall<InternalCoroutineExpectationMessage, Interna
 }
 
 private suspend fun ReceiveChannel<InternalPuzzleEvent>.receiveFirstTwoEvents(
-): Pair<List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>>, List<CoroutinePuzzleBatchEntry<SubmissionPayload>>?> {
+): Pair<List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>>, List<WithCallId<CoroutinePuzzleSubmissionPayload>>?> {
     val lhs = receive()
     val rhs = receive()
     return when (lhs) {
@@ -341,7 +341,7 @@ private suspend fun ReceiveChannel<InternalPuzzleEvent>.receiveFirstTwoEvents(
 
 private sealed class InternalCoroutineExpectationMessage {
     data class Expectation(val endPoint: CoroutinePuzzleEndPointDescriptor): InternalCoroutineExpectationMessage()
-    data class BatchEntry(val reply: CoroutinePuzzleBatchEntry<ExpectationPayload>): InternalCoroutineExpectationMessage()
+    data class BatchEntry(val reply: WithCallId<CoroutinePuzzleExpectationPayload>): InternalCoroutineExpectationMessage()
     data class AwaitQuiescence(val finishExpectations: Boolean) : InternalCoroutineExpectationMessage()
 }
 
@@ -355,7 +355,7 @@ private sealed class InternalCoroutineExpectationResult {
 private sealed class InternalPuzzleEvent {
     data class SubmissionBatch(
         /** Null means submissions are done */
-        val submissions: List<CoroutinePuzzleBatchEntry<SubmissionPayload>>?,
+        val submissions: List<WithCallId<CoroutinePuzzleSubmissionPayload>>?,
     ): InternalPuzzleEvent()
     data class ExpectationBatch(
         val expectations: List<SuspendedBatchCall<InternalCoroutineExpectationMessage, InternalCoroutineExpectationResult?>>,

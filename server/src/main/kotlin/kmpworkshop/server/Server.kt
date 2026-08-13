@@ -79,7 +79,7 @@ fun workshopService(
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
         puzzleId: String,
-        messages: Flow<List<CoroutinePuzzleBatchEntry<CoroutinePuzzleBatchEntry.SubmissionPayload>>>
+        messages: Flow<List<WithCallId<CoroutinePuzzleSubmissionPayload>>>
     ): Flow<CoroutinePuzzleExpectationBatchOrCompletion> =
         context(CoroutinePuzzleType) { doPuzzleAttempt(key, puzzleId, messages, onEvent) }
 }

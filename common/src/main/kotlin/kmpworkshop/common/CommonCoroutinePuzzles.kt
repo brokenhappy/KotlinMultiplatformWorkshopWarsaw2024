@@ -29,21 +29,22 @@ interface CoroutinePuzzleSolutionScope {
     suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement
 }
 
-typealias CoroutinePuzzleBatch<T> = List<CoroutinePuzzleBatchEntry<T>>
+typealias CoroutinePuzzleBatch<T> = List<WithCallId<T>>
 
-@Serializable data class CoroutinePuzzleBatchEntry<T>(val callId: Long, val payload: T) {
-    @Serializable sealed class SubmissionPayload {
-        @Serializable data class CallSubmitted(
-            val endPoint: CoroutinePuzzleEndPointDescriptor,
-            val arg: JsonElement,
-        ) : SubmissionPayload()
-        @Serializable data object CallShouldCancel : SubmissionPayload()
-    }
-    @Serializable sealed class ExpectationPayload {
-        @Serializable data class CallAnswered(val result: JsonElement) : ExpectationPayload()
-        @Serializable data class CallThrew(val message: String) : ExpectationPayload()
-        @Serializable data object CallCancellationCompleted : ExpectationPayload()
-    }
+@Serializable data class WithCallId<T>(val callId: Long, val payload: T)
+
+@Serializable sealed class CoroutinePuzzleSubmissionPayload {
+    @Serializable data class CallSubmitted(
+        val endPoint: CoroutinePuzzleEndPointDescriptor,
+        val arg: JsonElement,
+    ) : CoroutinePuzzleSubmissionPayload()
+    @Serializable data object CallShouldCancel : CoroutinePuzzleSubmissionPayload()
+}
+
+@Serializable sealed class CoroutinePuzzleExpectationPayload {
+    @Serializable data class CallAnswered(val result: JsonElement) : CoroutinePuzzleExpectationPayload()
+    @Serializable data class CallThrew(val message: String) : CoroutinePuzzleExpectationPayload()
+    @Serializable data object CallCancellationCompleted : CoroutinePuzzleExpectationPayload()
 }
 
 fun interface CoroutinePuzzle {
