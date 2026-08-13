@@ -8,9 +8,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import kotlin.time.ExperimentalTime
 
-@OptIn(ExperimentalTime::class)
 class CoroutineTrackingDispatcherTest {
     @Test
     suspend fun test() {

@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalTime::class)
-
 package kmpworkshop.server
 
 import kotlinx.coroutines.*
@@ -8,7 +6,6 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.*
 import workshop.adminaccess.*
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 suspend fun mainEventLoopWithCommittedStateChannelWritingTo(

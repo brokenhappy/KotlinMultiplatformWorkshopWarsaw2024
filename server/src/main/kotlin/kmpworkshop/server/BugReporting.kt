@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalTime::class)
-
 package kmpworkshop.server
 
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +7,6 @@ import kotlinx.serialization.json.Json
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.WorkshopEvent
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @Serializable

@@ -1,5 +1,4 @@
 @file:Suppress("ReplaceToWithInfixForm")
-@file:OptIn(ExperimentalTime::class)
 
 package kmpworkshop.server
 
@@ -16,7 +15,6 @@ import kotlinx.serialization.json.JsonElement
 import workshop.adminaccess.*
 import kotlin.random.Random
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 suspend fun main() {
     hostServer()

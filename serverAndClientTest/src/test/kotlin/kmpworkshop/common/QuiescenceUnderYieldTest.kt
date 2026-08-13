@@ -7,7 +7,6 @@ import kotlinx.coroutines.yield
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 
 /**
  * A coroutine that merely [yield]s is not idle - it hands the thread over but resumes itself immediately - so it
@@ -18,7 +17,6 @@ import kotlin.time.ExperimentalTime
  * This pins the guarantee down directly: three coroutines that each yield a few times before joining the batch must
  * all land in the *same* batch, across every shuffled interleaving [withRandomizedDispatchOrder] can produce.
  */
-@OptIn(ExperimentalTime::class)
 class QuiescenceUnderYieldTest {
     @Test
     fun `coroutines that yield before joining a batch stay active, so they still batch together`() {

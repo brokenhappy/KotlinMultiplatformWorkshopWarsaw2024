@@ -1,9 +1,6 @@
-@file:OptIn(ExperimentalTime::class)
-
 package workshop.adminaccess
 
 import kotlinx.serialization.Serializable
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @Serializable

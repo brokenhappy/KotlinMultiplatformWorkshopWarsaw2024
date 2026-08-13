@@ -8,7 +8,6 @@ import kotlinx.coroutines.*
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 
 /**
  * [autoBatchedOnQuiescence]'s tracking loop drives batch resumption through `collectLatest`, which restarts its
@@ -21,7 +20,6 @@ import kotlin.time.ExperimentalTime
  * dispatcher where dispatch/complete events (and therefore state emissions) genuinely race the resume - which is
  * exactly what real RPC traffic produces. Hence this deliberately runs off virtual time on [Dispatchers.Default].
  */
-@OptIn(ExperimentalTime::class)
 class AutoBatchedOnQuiescenceStressTest {
     @Test
     fun `every concurrent batched call is resumed exactly once under a real multithreaded dispatcher`() =

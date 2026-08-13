@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalTime::class, ExperimentalTestApi::class)
+@file:OptIn(ExperimentalTestApi::class)
 
 package com.kotlinworkshop.test
 
@@ -44,7 +44,6 @@ import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ServerState
 import kotlin.test.Test
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 class PuzzleUiQaTest {
     @Test

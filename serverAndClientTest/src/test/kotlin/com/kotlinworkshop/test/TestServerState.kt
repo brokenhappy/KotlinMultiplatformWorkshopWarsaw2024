@@ -4,9 +4,7 @@ import kmpworkshop.common.WorkshopStage
 import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ServerState
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
-@OptIn(ExperimentalTime::class)
 internal fun serverStateThatOpened(stage: WorkshopStage): ServerState = ServerState(
     currentStage = stage,
     puzzleStates = mapOf(

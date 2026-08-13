@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalTime::class, ExperimentalAtomicApi::class)
-
 package kmpworkshop.common
 
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload.CallSubmitted
@@ -14,7 +12,6 @@ import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.time.ExperimentalTime
 
 typealias CoroutinePuzzleProtocol =
     CommunicationProtocol<CoroutinePuzzleExpectationBatchOrCompletion, CoroutinePuzzleBatch<CoroutinePuzzleSubmissionPayload>>
@@ -76,6 +73,7 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
 class ExceptionAcrossRpc(message: String): Exception(message, null, false, false)
 class CancellationAcrossRpc: CancellationException(null)
 
+@OptIn(ExperimentalAtomicApi::class)
 private fun AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPayload>, JsonElement>.asSolutionScope(): CoroutinePuzzleSolutionScope =
     object : CoroutinePuzzleSolutionScope {
         private val callIdCounter = AtomicLong(0)

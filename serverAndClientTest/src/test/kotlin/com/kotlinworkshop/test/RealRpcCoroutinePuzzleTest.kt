@@ -18,7 +18,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import testWorkshopService
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 
 /**
  * The whole [WorkshopCoroutinePuzzlesTestBase] suite, but driven through a *real* kotlinx-rpc transport over a real (loopback)
@@ -48,7 +47,6 @@ class WorkshopCoroutinePuzzleTestWithRealRpcTransport : WorkshopCoroutinePuzzleT
     ): CoroutinePuzzleResultWithHistory = runRealRpcTestClient(stage, solution)
 }
 
-@OptIn(ExperimentalTime::class)
 internal suspend fun runRealRpcTestClient(
     stage: WorkshopStage.CoroutinePuzzleStage,
     solution: CoroutinePuzzleSolution,

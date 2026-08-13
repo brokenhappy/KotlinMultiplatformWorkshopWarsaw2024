@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalTime::class)
-
 package kmpworkshop.server
 
 import kotlinx.coroutines.*
@@ -16,7 +14,6 @@ import workshop.adminaccess.after
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 internal data class BackupRequest(/** null means we want to stop */ val backup: Backup?, val isLast: Boolean)

@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalTime::class)
-
 package workshop.adminaccess
 
 import kmpworkshop.common.*
@@ -7,7 +5,6 @@ import kotlinx.serialization.Serializable
 import kotlin.collections.plus
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @Serializable

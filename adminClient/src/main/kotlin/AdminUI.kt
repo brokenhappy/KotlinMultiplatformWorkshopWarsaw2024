@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalTime::class)
-
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -60,7 +58,6 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 
 fun main(): Unit = application {
     AdminApp(onExit = ::exitApplication)

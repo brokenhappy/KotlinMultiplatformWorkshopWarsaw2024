@@ -16,7 +16,6 @@ import kotlinx.serialization.serializer
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.map
 import kotlin.collections.plus
-import kotlin.time.ExperimentalTime
 
 interface CoroutinePuzzleBuilderScope {
     suspend fun <T, R> expectCallTo(
@@ -63,7 +62,6 @@ fun coroutinePuzzleWithMetadata(
                             }
                         },
                     ) {
-                        @OptIn(ExperimentalTime::class)
                         coroutinePuzzleSubmissionFunction.autoBatchedOnQuiescence {
                             var exceptionFromExpectation: Throwable? = null
                             try {

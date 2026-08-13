@@ -27,7 +27,6 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.CoroutineContext.Key
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /** Keeps the quiescence tracker alive while a coroutine is suspended waiting for an external coroutine. */
@@ -145,7 +144,6 @@ class AutoBatchedFunctionId<T, R>(
  */
 suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
     maximumBatchWaitTime: Duration = Duration.INFINITE,
-    @OptIn(ExperimentalTime::class)
     clock: Clock = Clock.System,
     block: suspend CoroutineScope.() -> U,
 ): U {
@@ -158,7 +156,6 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
     val isComplete = AtomicBoolean(false)
     val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 0, currentRequests = persistentListOf()))
     val parentQuiescenceTracker = currentCoroutineContext()[QuiescenceTracker]
-    @OptIn(ExperimentalTime::class)
     return withLaunched(taskThatMustOutliveUsage = {
         // Keep publication independent from the collectLatest flush body: that body can intentionally remain inside
         // importantCleanup while a batch resumer waits for its peer, but raw-idle transitions must still be visible.
@@ -321,7 +318,6 @@ suspend fun <T> withLaunched(
     }
 }
 
-@OptIn(ExperimentalTime::class)
 private suspend fun Clock.delayUntil(wakeup: Instant) {
     delay(wakeup - now())
 }
