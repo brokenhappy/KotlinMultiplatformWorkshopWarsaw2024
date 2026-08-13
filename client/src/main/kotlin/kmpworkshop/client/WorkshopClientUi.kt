@@ -348,12 +348,16 @@ internal fun CoroutineTimelineWithMetadata(
                             width = 250,
                         )
                         repeat(history.size) { batch ->
-                            val marker = markerAt(call, batch, history.lastIndex)
-                            TimelineMarkerCell(
-                                marker = marker,
-                                isUncompletedFailure = result != null && call.endBatch == null,
-                                isStart = batch == call.startBatch,
-                                isEnd = batch == call.endBatch || (call.endBatch == null && batch == history.lastIndex),
+                                val marker = markerAt(call, batch, history.lastIndex)
+                                TimelineMarkerCell(
+                                    marker = marker,
+                                    isUncompletedFailure = result != null && call.events.ifEmpty { listOf(call.asEvent()) }.any { it.endBatch == null },
+                                    isStart = batch == call.startBatch,
+                                    isEnd = if (call.events.isEmpty()) {
+                                        batch == call.endBatch || (call.endBatch == null && batch == history.lastIndex)
+                                    } else {
+                                        batch == call.events.maxOf { it.endBatch ?: history.lastIndex }
+                                    },
                                 testTag = "timeline-marker-${call.callId}-$batch",
                             )
                         }
@@ -373,23 +377,47 @@ internal fun CoroutineTimelineWithMetadata(
 
 private data class Marker(val text: String, val title: String? = null, val detail: String? = null)
 
-private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): Marker = when {
-    batch == call.endBatch -> when (call.completion) {
-        TimelineCompletion.RETURNED -> Marker("✓", "Returned", "Result: ${displayValue(call.returnValue)}")
-        TimelineCompletion.THREW -> Marker("!", "Threw", "Exception: ${call.exceptionMessage}")
+private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): Marker {
+    if (call.events.isNotEmpty()) {
+        val emission = call.events.firstOrNull { it.endBatch == batch }
+        if (emission != null) {
+            return when (emission.completion) {
+                TimelineCompletion.RETURNED -> Marker("✓", "Emission returned", "Result: ${displayValue(emission.returnValue)}")
+                TimelineCompletion.THREW -> Marker("!", "Threw", "Exception: ${emission.exceptionMessage}")
+                TimelineCompletion.CANCELLED -> Marker("⊘", "Cancellation completed", "The puzzle confirmed that this call was cancelled.")
+                null -> Marker("━", "Running")
+            }
+        }
+        val cancellation = call.events.firstOrNull { it.cancellationRequestedBatch == batch }
+        if (cancellation != null) return Marker("×", "Cancellation requested", "Your coroutine asked the puzzle to cancel this call.")
+        if (batch == call.startBatch) return Marker("●", "Started", "The flow collector started.")
+        val lastBatchForFlow = call.events.maxOf { it.endBatch ?: lastBatch }
+        if (batch in call.startBatch..lastBatchForFlow) return Marker("━", "Flow collector active")
+        return Marker("")
+    }
+    val event = call.events.firstOrNull { batch == it.endBatch || batch == it.cancellationRequestedBatch || batch == it.startBatch }
+        ?: call.events.lastOrNull { batch in it.startBatch..(it.endBatch ?: lastBatch) }
+        ?: call.asEvent()
+    return when {
+    batch == event.endBatch -> when (event.completion) {
+        TimelineCompletion.RETURNED -> Marker("✓", "Returned", "Result: ${displayValue(event.returnValue)}")
+        TimelineCompletion.THREW -> Marker("!", "Threw", "Exception: ${event.exceptionMessage}")
         TimelineCompletion.CANCELLED -> Marker("⊘", "Cancellation completed", "The puzzle confirmed that this call was cancelled.")
         null -> Marker("")
     }
-    batch == call.cancellationRequestedBatch -> Marker("×", "Cancellation requested", "Your coroutine asked the puzzle to cancel this call.")
-    batch == call.startBatch -> Marker(
+    batch == event.cancellationRequestedBatch -> Marker("×", "Cancellation requested", "Your coroutine asked the puzzle to cancel this call.")
+    batch == event.startBatch -> Marker(
         "●",
         "Started",
         if (call.argument.isUnitValue()) "This call has no argument." else "Argument: ${displayValue(call.argument)}",
     )
-    call.endBatch == null && batch == lastBatch -> Marker("…", "Still running", "The puzzle did not complete this call before the attempt ended.")
-    batch in call.startBatch..(call.endBatch ?: lastBatch) -> Marker("━", "Running", "This call was in progress during this exchange.")
+    event.endBatch == null && batch == lastBatch -> Marker("…", "Still running", "The puzzle did not complete this call before the attempt ended.")
+    batch in event.startBatch..(event.endBatch ?: lastBatch) -> Marker("━", "Running", "This call was in progress during this exchange.")
     else -> Marker("")
+    }
 }
+
+private fun CoroutineTimelineCall.asEvent() = CoroutineTimelineEvent(callId, startBatch, cancellationRequestedBatch, endBatch, completion, returnValue, exceptionMessage)
 
 private fun displayValue(value: JsonElement?): String = when {
     value == null -> "null"

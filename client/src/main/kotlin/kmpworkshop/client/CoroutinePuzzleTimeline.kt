@@ -4,8 +4,11 @@ import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
-import kotlinx.serialization.json.JsonElement
+import kmpworkshop.common.WithCallId
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 
 enum class TimelineCompletion { RETURNED, THREW, CANCELLED }
 
@@ -19,11 +22,23 @@ data class CoroutineTimelineCall(
     val completion: TimelineCompletion? = null,
     val returnValue: JsonElement? = null,
     val exceptionMessage: String? = null,
+    val events: List<CoroutineTimelineEvent> = emptyList(),
+)
+
+data class CoroutineTimelineEvent(
+    val callId: Long,
+    val startBatch: Int,
+    val cancellationRequestedBatch: Int? = null,
+    val endBatch: Int? = null,
+    val completion: TimelineCompletion? = null,
+    val returnValue: JsonElement? = null,
+    val exceptionMessage: String? = null,
 )
 
 context(clientMetadata: ClientMetadata)
 fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<CoroutineTimelineCall> {
     val calls = linkedMapOf<Long, CoroutineTimelineCall>()
+    val flowGroups = mutableMapOf<Long, String>()
     batches.forEachIndexed { batchIndex, batch ->
         when (batch) {
             is CoroutinePuzzleHistoryBatch.Submission -> batch.entries.forEach { (id, payload) ->
@@ -31,6 +46,9 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
                     is CoroutinePuzzleSubmissionPayload.CallSubmitted -> if (!payload.endPoint.isHiddenFromHistory()) {
                         check(id !in calls) { "Call $id was submitted more than once" }
                         calls[id] = CoroutineTimelineCall(id, payload.endPoint, payload.arg, batchIndex)
+                        if (clientMetadata.isFlowEndpoint(payload.endPoint)) {
+                            flowGroups[id] = "${payload.endPoint.stringValue}:${Json.decodeFromJsonElement<WithCallId<JsonElement>>(payload.arg).callId}"
+                        }
                     }
                     CoroutinePuzzleSubmissionPayload.CallShouldCancel -> calls[id]?.let {
                         calls[id] = it.copy(cancellationRequestedBatch = batchIndex)
@@ -56,7 +74,12 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
             }
         }
     }
-    return calls.values.toList()
+    return calls.values.groupBy { flowGroups[it.callId] ?: "call:${it.callId}" }.values.map { group ->
+        if (group.size == 1) group.single()
+        else group.first().copy(events = group.map { call ->
+            CoroutineTimelineEvent(call.callId, call.startBatch, call.cancellationRequestedBatch, call.endBatch, call.completion, call.returnValue, call.exceptionMessage)
+        })
+    }
 }
 
 internal fun JsonElement.isUnitValue(): Boolean = this is JsonObject && isEmpty()
