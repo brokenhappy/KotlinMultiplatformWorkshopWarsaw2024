@@ -5,87 +5,103 @@ description: Create, extend, review, and test server-driven coroutine puzzles in
 
 # Make Coroutine Puzzles
 
-Treat the evaluator as a temporal specification, not an example solution. Read `CoroutinePuzzles.kt`, the closest evaluator, and its tests before editing.
+Treat the evaluator as a temporal specification, not an example solution. Read `CoroutinePuzzles.kt`, the closest evaluator using the same protocol primitive, and its tests before editing.
 
 ## Change Workflow
 
-1. Find the stage and analogous puzzles with `rg -n "StageName|fun .*Puzzle" common server client serverAndClientTest`.
+1. Find analogous stages with `rg -n "StageName|fun .*Puzzle" common server client serverAndClientTest`.
 2. Read `server/src/main/kotlin/kmpworkshop/server/CoroutinePuzzles.kt`, the analogous evaluator, and `serverAndClientTest/src/test/kotlin/com/kotlinworkshop/test/WorkshopCoroutinePuzzlesTest.kt`.
-3. Route the stage through `WorkshopApiService.kt`, `CoroutinePuzzleType.kt`, and `runCoroutinePuzzleClient.kt`.
-4. Write separate tests for the intended solution, previous solution, and common mistakes.
-5. Run the focused tests through in-process, RPC-service, and real-RPC subclasses before broader tests.
+3. Implement and route the stage across the necessary modules.
+4. Add separate tests for the intended solution, previous solution, and common mistakes.
+5. Exercise every failure path and inspect its attendee-facing message.
+6. Run focused tests through in-process, RPC-service, and real-RPC transports before broader tests.
 
 | Concern | Location | Change when |
 | --- | --- | --- |
 | Stage enum and starter-file mapping | `common/.../WorkshopApiService.kt` | Adding a stage |
 | Evaluator and route | `server/.../*CoroutinePuzzles.kt`, `CoroutinePuzzleType.kt` | Adding a stage |
 | Participant route | `client/.../runCoroutinePuzzleClient.kt` | Adding a stage |
-| API and endpoints | `workshopApi`, `common/.../CoroutinePuzzleEndpoint.kt` | The exercise needs a new visible operation |
-| Hidden adaptation | `client` scaffolding and metadata | The evaluator needs instrumentation participants should not see |
-| Editable answer | `workshopSolutions` | Adding a new exercise family or starter file |
+| API and endpoints | `workshopApi`, `common/.../CoroutinePuzzleEndpoint.kt` | Adding a participant-visible operation |
+| Hidden adaptation | `client` scaffolding and metadata | Observing behavior without exposing harness controls |
+| Editable answer | `workshopSolutions` | Adding an exercise family or starter file |
 
-Vocabulary: an **ordinary call** is a non-Flow endpoint submission; **quiescence** means runnable work on both protocol sides has settled; **unmatched** calls have no installed expectation; **protocol-visible** waiting involves a submitted call or expectation rather than only a local coroutine primitive. A **hidden** endpoint still participates in matching but is omitted from participant history.
+## The Attendee Is King
 
-## Reason About Protocol Turns
+Evaluate the puzzle through the attendee's eyes. They see the editable API, starter code, stage description, call history, and failure message—not the evaluator's hidden machinery. Never make correctness depend on understanding scaffolding, transport details, unusual coroutine start modes, or one scheduler interleaving unless that is explicitly the lesson.
 
-Calls batch at quiescence: ordinary calls started before either side settles are observed together. Use `awaitQuiescenceAndVerifyUnmatchedSubmissions` for exact simultaneous calls or absence.
+Failure messages are a primary teaching surface, not finishing polish. For every intended failure:
 
-| Need to observe | Pattern |
-| --- | --- |
-| Simultaneous or absent ordinary calls | `awaitQuiescenceAndVerifyUnmatchedSubmissions(...)` |
-| Flow collection count/lifetime | Hidden ordinary lifetime endpoint |
-| Call cancellation | Install `expectCanceledCall` before its trigger |
+- run the realistic wrong solution;
+- inspect the rendered result as the attendee will see it;
+- explain the behavior currently observed;
+- describe the behavior required instead;
+- leave the exact operator, argument, or code change for the attendee to discover.
 
-- Flow endpoints are filtered from unmatched submissions. Count collections or cancellation with a hidden ordinary lifetime endpoint instead.
-- Local gates are protocol-invisible and can produce `FullyQuiescent`. Use structured concurrency; keep awaited facts protocol-visible.
-- Install `expectCanceledCall { awaitCancellation() }` before the cancelling lifecycle event, emit that event synchronously, then join lexically.
-- Try not to require `CoroutineStart.UNDISPATCHED` from the attendees unless it's a specific learning goal of the course.
+Give enough information to reason forward without giving away the answer. Use a generic protocol failure only when the evaluator cannot reliably observe a more specific behavioral mismatch.
 
-## Model Hidden Upstream Lifetimes
+## Protocol Model
 
-Keep collection instrumentation out of participant APIs. Wrap each cold-source collection with one hidden call:
+`coroutinePuzzle { ... }` runs expectations while the participant submits typed endpoint calls. `expectCall` answers a matching call and returns its argument. Its producer's exception reaches both sides; across RPC only `ExpectedCallException` messages survive intact. Participant cancellation throws a cancellation exception into the expectation.
 
-```kotlin
-val tracked = flow { coroutineScope {
-    val lifetime = launch { connectionLifetime.submitCall(Unit) }
-    try { upstream.collect { emit(it) } }
-    finally { lifetime.cancelAndJoin() }
-} }
-```
+Calls batch at quiescence: ordinary calls started before either side settles are observed together. `awaitQuiescenceAndGetUnmatchedSubmissions()` leaves submissions suspended and resumes only the evaluator.
 
-Register the endpoint with `isHiddenInHistory = true` in `ClientMetadata.kt`. Expect its cancellation in a sibling `launch` inside the `coroutineScope` that evaluates the collection; leaving that scope joins the expectation. Never give the wrapper scope to `shareIn`: its long-lived sharing job can block resource completion. Sharing belongs to the participant scope.
+Vocabulary:
+
+- An **ordinary call** is a non-Flow endpoint submission.
+- An **unmatched call** has no installed expectation.
+- **Protocol-visible** waiting involves a submitted call or expectation, not only a local coroutine primitive.
+- A **hidden endpoint** participates in matching but is omitted from attendee history.
+
+Use `awaitQuiescenceAndVerifyUnmatchedSubmissions(...)` for exact simultaneous ordinary calls or absence. Flow endpoints are filtered from unmatched submissions; observe Flow collection count or lifetime with a hidden ordinary endpoint instead.
+
+## Learnings from previous agents:
+
+### Avoid Quiescence and Cancellation Traps
+
+- A local `CompletableDeferred.await()` is invisible to the protocol. If both sides wait only on local gates, the actor may validly return `FullyQuiescent`. Prefer structured concurrency and keep the next required fact protocol-visible.
+- Install `expectCanceledCall { awaitCancellation() }` before triggering its cancellation. Trigger the event synchronously, then let the enclosing `coroutineScope` join the expectation.
+- Use `CompletableDeferred` only when a fact must cross genuinely independent lifetimes, not to impose evaluator ordering.
+- Do not require `CoroutineStart.UNDISPATCHED` from attendees unless it is the lesson. If an ordinary solution needs it to pass, the evaluator probably encodes a scheduler race.
+- When concurrent identical submissions can match either evaluator branch, do not infer identity from arrival order. Make branches interchangeable or carry identity in the protocol.
+
+When relevant work has no participant-visible call, instrument its lifetime in scaffolding with a hidden ordinary endpoint: submit it when work starts and cancel it in `finally`. Register it with `isHiddenInHistory = true` in `ClientMetadata.kt`. Expect its cancellation in a sibling child before evaluating the work:
 
 ```kotlin
 coroutineScope {
-    launch { connectionLifetime.expectCanceledCall { awaitCancellation() } }
-    evaluateCollection()
-} // joins the cancellation expectation
+    launch { callLifetime.expectCanceledCall { awaitCancellation() } }
+    evaluateWork()
+}
 ```
 
-## Specify Hot-Flow Lessons Observably
+Keep this instrumentation out of participant APIs and editable solutions.
 
-Drive lifecycle through domain flows, not exposed harness controls.
+## Things to consider
 
-- Visibility: emit `false`, verify no lifetime, then emit `true`; this distinguishes observing the Boolean from honoring it.
-- Sharing: activate both consumers, then count lifetime calls.
-- Replay: emit before activating the late consumer, then require its ordinary update call at quiescence.
-- Lazy startup: keep consumers inactive and require no lifetime.
-- While subscribed: install cancellation expectation, deactivate the last consumers, await quiescence, then require that expectation to be complete.
+ - Before you're done. Look at the other tests and other puzzles. Make sure you're in line with them
+ - Don't overuse `CompletableDeferred`s and other concurrency gates. Prefer to use puzzle APIs and lexically scoped structured concurrency.
 
-If collectors can match either evaluator branch, emit identical values; do not invent consumer identity from arrival order.
+## Design Progressive Stages
 
-## Design Progressive Stages and Errors
+Introduce one observable property per stage. The new evaluator should accept the previous correct solution except for the newly introduced requirement. Add separate test methods proving:
 
-Introduce one observable property per stage. Keep each intended, previous-stage, and mistake case in its own test method. At deliberate quiescence checks, describe observed behavior and required behavior; avoid naming the exact fix. Accept generic protocol failures only when no reliable observation exists.
+- the intended solution succeeds;
+- the immediately previous solution fails for the new reason;
+- each likely mistake reaches its intended message;
+- relevant values, cancellation, ordering, and extra-call constraints are enforced.
 
-## Verify Without Encoding One Scheduler
+Do not accidentally accept extra endpoints. Use exact quiescence checks when concurrency or absence is the lesson. Do not use `delay` as evidence of ordering or cancellation, and do not modify the core actor merely to force one puzzle through it.
 
-For randomized failures, reproduce one seed by temporarily narrowing `runTestWithRandomizedDispatchOrdering`, then restore `0L until 100L`. Distinguish protocol deadlock from the test's wall-clock timeout. If assertion rendering throws `MetadataNotFoundException`, inspect `CoroutinePuzzleResultWithHistory.result` before rendering; the solution often unexpectedly succeeded or returned another type.
+## Verify
 
-Run a named case across all three transports with:
+Randomized dispatch tests must accept every valid interleaving. Reproduce a failure by narrowing only the failing test to `seed..seed`, then restore `0L until 100L`. Distinguish protocol deadlock from wall-clock timeout.
+
+If assertion rendering throws `MetadataNotFoundException`, inspect `CoroutinePuzzleResultWithHistory.result` before rendering; the solution often unexpectedly succeeded or returned another result type.
+
+Run a focused case across all transports, then the affected suite:
 
 ```shell
-./gradlew :serverAndClientTest:test --tests '*late ETA card needs replay*' --no-daemon
+./gradlew :serverAndClientTest:test --tests '*descriptive test name*' --no-daemon
+./gradlew :serverAndClientTest:test --no-daemon
 ```
 
-Run the whole module with `./gradlew :serverAndClientTest:test --no-daemon`, then run `git diff --check`.
+Run `git diff --check`, keep endpoint serializers valid, and preserve unrelated worktree changes.
