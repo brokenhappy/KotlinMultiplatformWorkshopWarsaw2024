@@ -42,8 +42,12 @@ import com.woutwerkman.calltreevisualizer.coroutineintegration.trackingCallStack
 import com.woutwerkman.calltreevisualizer.globalScopeContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
@@ -194,7 +198,7 @@ private fun WorkshopClientContent(
                                     debuggerQuiescence.autoBatchedOnQuiescence {
                                         trackingCallStacks(
                                             block = {
-                                                globalScopeContext = this.coroutineContext
+                                                globalScopeContext = currentCoroutineContext() + SupervisorJob(currentCoroutineContext().job)
                                                 try {
                                                     withImportantCleanup { userSolution() }
                                                 } finally {
