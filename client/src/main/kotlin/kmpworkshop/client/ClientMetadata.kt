@@ -59,6 +59,10 @@ val defaultClientMetadata: ClientMetadata = clientMetadataOf(DefaultApis) {
     DefaultApis.callLifetime.register(isHiddenInHistory = true)
     DefaultApis.callIsDone.register(isHiddenInHistory = true)
     DefaultApis.emitNumber.register(isFlowEndpoint = true)
+    DefaultApis.shipmentTrackingUpdates.register(isFlowEndpoint = true)
+    DefaultApis.emitShouldMapBeVisible.register(isFlowEndpoint = true)
+    DefaultApis.emitShouldEtaCardBeVisible.register(isFlowEndpoint = true)
+    DefaultApis.shipmentTrackingConnectionLifetime.register(isHiddenInHistory = true)
     DefaultApis.emitFileToExpose.register(isFlowEndpoint = true)
     DefaultApis.emitNetworkStrength.register(isFlowEndpoint = true)
 }

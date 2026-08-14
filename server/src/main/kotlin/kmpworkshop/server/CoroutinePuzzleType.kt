@@ -20,6 +20,11 @@ import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyAp
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyApisStepThree
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyApisStepTwo
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SimpleFlow
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingIndependentViews
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingLateEtaCard
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingLazyConnection
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingSharedConnection
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingWhileSubscribed
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsFast
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsSlow
 import kmpworkshop.common.CoroutinePuzzleExpectationBatchOrCompletion as BatchOrCompletion
@@ -44,6 +49,11 @@ object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion,
         ExceptionCatchingWithCoroutines -> coroutineExceptionHandlingCoroutinePuzzle()
         SimpleFlow -> simpleFlowPuzzle()
         CollectLatest -> collectLatestPuzzle()
+        ShipmentTrackingIndependentViews -> shipmentTrackingIndependentViewsPuzzle()
+        ShipmentTrackingSharedConnection -> shipmentTrackingSharedConnectionPuzzle()
+        ShipmentTrackingLateEtaCard -> shipmentTrackingLateEtaCardPuzzle()
+        ShipmentTrackingLazyConnection -> shipmentTrackingLazyConnectionPuzzle()
+        ShipmentTrackingWhileSubscribed -> shipmentTrackingWhileSubscribedPuzzle()
         FileExposureStepOne -> fileExposureStepOnePuzzle()
         FileExposureStepTwo -> fileExposureStepTwoPuzzle()
         FileExposureStepThree -> fileExposureStepThreePuzzle()

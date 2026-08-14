@@ -20,6 +20,8 @@ import kmpworkshop.server.CoroutinePuzzleType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
@@ -60,6 +62,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         val emptySolutions = Solutions(
             sumSolution = {},
             collectSolution = {},
+            shipmentTrackingSolution = {},
             maximumAgeFindingTheSecondCoroutineSolution = {},
             mappingLegacyApiCoroutineSolution = {},
             exceptionHandlingSolution = {},
@@ -223,6 +226,149 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doSimpleCollectPuzzle { api ->
             api.numbers().collectLatest { api.submit(it) }
         }.assertIsOk()
+    }
+
+    @Test
+    fun `independent tracking views collect the cold source twice`(): Unit = runPuzzleTest {
+        doShipmentTrackingIndependentViewsPuzzle { api ->
+            collectVisibleTrackingWidgets(api, api.trackingUpdates())
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `independent tracking views must observe visibility flows`(): Unit = runPuzzleTest {
+        doShipmentTrackingIndependentViewsPuzzle { api ->
+            coroutineScope {
+                launch { api.trackingUpdates().collect(api::renderOnMap) }
+                launch { api.trackingUpdates().collect(api::updateEtaCard) }
+            }
+        }.assertIsNotOk()
+    }
+
+    @Test
+    fun `independent tracking views must not track while hidden`(): Unit = runPuzzleTest {
+        doShipmentTrackingIndependentViewsPuzzle { api ->
+            coroutineScope {
+                launch {
+                    api.shouldMapBeVisible().collectLatest {
+                        api.trackingUpdates().collect(api::renderOnMap)
+                    }
+                }
+                launch {
+                    api.shouldEtaCardBeVisible().collectLatest {
+                        api.trackingUpdates().collect(api::updateEtaCard)
+                    }
+                }
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.hiddenShipmentWidgetsStartedTracking())
+    }
+
+    @Test
+    fun `shared shipment connection serves both views from one collection`(): Unit = runPuzzleTest {
+        doShipmentTrackingSharedConnectionPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.Eagerly)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `late ETA card needs replay`(): Unit = runPuzzleTest {
+        doShipmentTrackingLateEtaCardPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.Eagerly, replay = 1)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `lazy tracking does not connect before the map opens`(): Unit = runPuzzleTest {
+        doShipmentTrackingLazyConnectionPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.Lazily, replay = 1)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `while subscribed tracking closes the connection with its views`(): Unit = runPuzzleTest {
+        doShipmentTrackingWhileSubscribedPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.WhileSubscribed(), replay = 1)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `shared tracking rejects the independent views solution`(): Unit = runPuzzleTest {
+        doShipmentTrackingSharedConnectionPuzzle { api ->
+            collectVisibleTrackingWidgets(api, api.trackingUpdates())
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.shipmentTrackingMustBeShared())
+    }
+
+    @Test
+    fun `late ETA card rejects sharing without replay`(): Unit = runPuzzleTest {
+        doShipmentTrackingLateEtaCardPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.Eagerly)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.shipmentTrackingNeedsReplay())
+    }
+
+    @Test
+    fun `lazy tracking rejects eager sharing`(): Unit = runPuzzleTest {
+        doShipmentTrackingLazyConnectionPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.Eagerly, replay = 1)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.shipmentTrackingStartedWhileHidden())
+    }
+
+    @Test
+    fun `while subscribed tracking rejects lazy sharing`(): Unit = runPuzzleTest {
+        doShipmentTrackingWhileSubscribedPuzzle { api ->
+            val updates = api.trackingUpdates().shareIn(this, SharingStarted.Lazily, replay = 1)
+            collectVisibleTrackingWidgets(api, updates)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.shipmentTrackingDidNotStop())
+    }
+
+    @Test
+    fun `collecting the cold tracking flow concurrently gives sharing guidance`(): Unit = runPuzzleTest {
+        doShipmentTrackingSharedConnectionPuzzle { api ->
+            collectVisibleTrackingWidgets(api, api.trackingUpdates())
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.shipmentTrackingMustBeShared())
+    }
+
+    @Test
+    fun `changing a shipment update gives data-flow guidance`(): Unit = runPuzzleTest {
+        lateinit var changed: ShipmentUpdate
+        lateinit var emitted: ShipmentUpdate
+        doShipmentTrackingIndependentViewsPuzzle { api ->
+            coroutineScope {
+                launch {
+                    api.shouldMapBeVisible().collectLatest { visible ->
+                        if (visible) api.trackingUpdates().collect { update ->
+                            emitted = update
+                            changed = update.copy(etaMinutes = update.etaMinutes + 1)
+                            api.renderOnMap(changed)
+                        }
+                    }
+                }
+                launch {
+                    api.shouldEtaCardBeVisible().collectLatest { visible ->
+                        if (visible) api.trackingUpdates().collect(api::updateEtaCard)
+                    }
+                }
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.wrongShipmentUpdate(changed, emitted))
     }
 
     @Test
@@ -556,6 +702,22 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
 }
 
 
+private suspend fun collectVisibleTrackingWidgets(
+    api: ShipmentTrackingApi,
+    updates: kotlinx.coroutines.flow.Flow<ShipmentUpdate>,
+) = coroutineScope {
+    launch {
+        api.shouldMapBeVisible().collectLatest { visible ->
+            if (visible) updates.collect(api::renderOnMap)
+        }
+    }
+    launch {
+        api.shouldEtaCardBeVisible().collectLatest { visible ->
+            if (visible) updates.collect(api::updateEtaCard)
+        }
+    }
+}
+
 abstract class WorkshopCoroutinePuzzlesTestBase {
     /**
      * How each transport-driven test body is run. Defaults to the virtual-time, randomized-dispatch harness, which
@@ -582,6 +744,16 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
         runCoroutinePuzzle(SimpleFlow, solutions(collectSolution = block))
     suspend fun doCollectLatestPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(CollectLatest, solutions(collectSolution = block))
+    suspend fun doShipmentTrackingIndependentViewsPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ShipmentTrackingIndependentViews, solutions(shipmentTrackingSolution = block))
+    suspend fun doShipmentTrackingSharedConnectionPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ShipmentTrackingSharedConnection, solutions(shipmentTrackingSolution = block))
+    suspend fun doShipmentTrackingLateEtaCardPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ShipmentTrackingLateEtaCard, solutions(shipmentTrackingSolution = block))
+    suspend fun doShipmentTrackingLazyConnectionPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ShipmentTrackingLazyConnection, solutions(shipmentTrackingSolution = block))
+    suspend fun doShipmentTrackingWhileSubscribedPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ShipmentTrackingWhileSubscribed, solutions(shipmentTrackingSolution = block))
     suspend fun doSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabase) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(FindMaximumAgeCoroutines, solutions(maximumAgeFindingTheSecondCoroutineSolution = block))
     suspend fun doTimedSimpleMaximumAgeFindingTheSecondCoroutinePuzzle(block: suspend CoroutineScope.(UserDatabase) -> Unit): ResultsWHistory =

@@ -15,6 +15,17 @@ interface NumberFlowAndSubmit {
     suspend fun submit(number: Int)
 }
 
+@Serializable
+data class ShipmentUpdate(val checkpoint: String, val etaMinutes: Int)
+
+interface ShipmentTrackingApi {
+    fun trackingUpdates(): Flow<ShipmentUpdate>
+    fun shouldMapBeVisible(): Flow<Boolean>
+    fun shouldEtaCardBeVisible(): Flow<Boolean>
+    suspend fun renderOnMap(update: ShipmentUpdate)
+    suspend fun updateEtaCard(update: ShipmentUpdate)
+}
+
 data class User(val name: String, val age: Int)
 
 interface UserDatabase {

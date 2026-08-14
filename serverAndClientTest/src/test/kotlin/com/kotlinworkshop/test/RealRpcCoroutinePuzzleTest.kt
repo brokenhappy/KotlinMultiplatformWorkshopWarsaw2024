@@ -86,6 +86,7 @@ internal suspend fun runRealRpcTestClient(
 internal fun solutions(
     sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
     collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit = { error("Unexpected puzzle tested") },
+    shipmentTrackingSolution: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit = { error("Unexpected puzzle tested") },
     maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit = { error("Unexpected puzzle tested") },
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
     exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
@@ -93,6 +94,7 @@ internal fun solutions(
 ) = CoroutinePuzzleWorkshopSolutions(
     sumSolution,
     collectSolution,
+    shipmentTrackingSolution,
     maximumAgeFindingTheSecondCoroutineSolution,
     mappingLegacyApiCoroutineSolution,
     exceptionHandlingSolution,

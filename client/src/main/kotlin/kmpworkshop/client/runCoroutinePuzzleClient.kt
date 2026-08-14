@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 data class CoroutinePuzzleWorkshopSolutions(
     val sumSolution: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit,
     val collectSolution: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit,
+    val shipmentTrackingSolution: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit,
     val maximumAgeFindingTheSecondCoroutineSolution: suspend CoroutineScope.(UserDatabase) -> Unit,
     val mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
     val exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit,
@@ -27,6 +28,11 @@ fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePu
         ExceptionCatchingWithCoroutines -> exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
         SimpleFlow,
         CollectLatest, -> flowScaffolding(collectSolution)
+        ShipmentTrackingIndependentViews,
+        ShipmentTrackingSharedConnection,
+        ShipmentTrackingLateEtaCard,
+        ShipmentTrackingLazyConnection,
+        ShipmentTrackingWhileSubscribed -> shipmentTrackingScaffolding(shipmentTrackingSolution)
         FileExposureStepOne,
         FileExposureStepTwo,
         FileExposureStepThree -> fileExposureScaffolding(fileExposureSolution)

@@ -1,5 +1,6 @@
 package kmpworkshop.server
 
+import kmpworkshop.api.ShipmentUpdate
 import kmpworkshop.common.CoroutinePuzzleEndPoint
 
 object CoroutinePuzzleErrorMessages {
@@ -22,6 +23,31 @@ object CoroutinePuzzleErrorMessages {
 
     fun wrongFlowValue(actual: Int, expected: Int): String =
         "You submitted $actual, but the flow emitted $expected. Submit the value received by the current collector invocation."
+
+    fun shipmentTrackingMustBeShared(): String =
+        "The map and ETA card each opened their own shipment-tracking connection. Both widgets should receive updates " +
+            "while only one connection is running."
+
+    fun shipmentTrackingNeedsReplay(): String = """
+        |The ETA card became visible after an update and stayed empty until another update arrived. It should show the
+        |most recently received tracking update as soon as it becomes visible.
+    """.trimMargin()
+
+    fun shipmentTrackingStartedWhileHidden(): String =
+        "The shipment-tracking connection opened while both widgets were hidden. It should remain closed until a widget " +
+            "actually starts observing tracking updates."
+
+    fun hiddenShipmentWidgetsStartedTracking(): String =
+        "The map and ETA card started receiving tracking updates while they were hidden. They should begin observing " +
+            "only while their visibility is true."
+
+    fun shipmentTrackingDidNotStop(): String =
+        "The shipment-tracking connection kept running after both widgets became hidden. It should close after the last " +
+            "widget stops observing tracking updates."
+
+    fun wrongShipmentUpdate(actual: ShipmentUpdate, expected: ShipmentUpdate): String =
+        "The tracking source reported $expected, but the widget displayed $actual. The widget should display the same " +
+            "checkpoint and ETA as the latest tracking update."
 
     fun exceptionCallsMustBeConcurrent(): String =
         "clearCaches() and refreshTokens() must start concurrently. Launch both inside the same coroutineScope so a child failure cancels its sibling and reaches the surrounding try/catch."

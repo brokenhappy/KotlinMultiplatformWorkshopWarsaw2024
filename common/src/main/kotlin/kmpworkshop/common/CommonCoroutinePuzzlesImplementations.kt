@@ -6,6 +6,11 @@ import kmpworkshop.common.DefaultApis.getNumber
 import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
 import kmpworkshop.common.DefaultApis.queryUserById
 import kmpworkshop.common.DefaultApis.submitNumber
+import kmpworkshop.common.DefaultApis.emitShouldMapBeVisible
+import kmpworkshop.common.DefaultApis.emitShouldEtaCardBeVisible
+import kmpworkshop.common.DefaultApis.renderShipmentOnMap
+import kmpworkshop.common.DefaultApis.shipmentTrackingUpdates
+import kmpworkshop.common.DefaultApis.updateShipmentEtaCard
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
@@ -24,6 +29,19 @@ context(solutionScope: CoroutinePuzzleSolutionScope)
 fun numberFlowAndSubmit(numbers: Flow<Int>): NumberFlowAndSubmit = object : NumberFlowAndSubmit {
     override fun numbers(): Flow<Int> = numbers
     override suspend fun submit(number: Int) { submitNumber.submitCall(number) }
+}
+
+context(solutionScope: CoroutinePuzzleSolutionScope)
+fun shipmentTrackingApi(
+    updates: Flow<ShipmentUpdate>,
+    mapVisibility: Flow<Boolean>,
+    etaVisibility: Flow<Boolean>,
+): ShipmentTrackingApi = object : ShipmentTrackingApi {
+    override fun trackingUpdates(): Flow<ShipmentUpdate> = updates
+    override fun shouldMapBeVisible(): Flow<Boolean> = mapVisibility
+    override fun shouldEtaCardBeVisible(): Flow<Boolean> = etaVisibility
+    override suspend fun renderOnMap(update: ShipmentUpdate) { renderShipmentOnMap.submitCall(update) }
+    override suspend fun updateEtaCard(update: ShipmentUpdate) { updateShipmentEtaCard.submitCall(update) }
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)

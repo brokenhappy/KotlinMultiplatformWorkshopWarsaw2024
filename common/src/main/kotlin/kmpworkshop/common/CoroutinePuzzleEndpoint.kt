@@ -2,6 +2,7 @@ package kmpworkshop.common
 
 import kmpworkshop.api.FakeFileId
 import kmpworkshop.api.NetworkStrength
+import kmpworkshop.api.ShipmentUpdate
 
 object DefaultApis : EndpointDescriptorRegistry() {
     val emitNumber by flowDescriptor<Unit, Int>("numbers()")
@@ -13,6 +14,12 @@ object DefaultApis : EndpointDescriptorRegistry() {
     val legacyCancellationCompletion by descriptor<Unit, Unit>("Wait for the legacy system to finish cancelling (Done in scaffolding)")
     val getNumber by descriptor<Unit, Int>("Call getNumber(): Int")
     val submitNumber by descriptor<Int, Unit>("Call submit(number: Int): Unit")
+    val shipmentTrackingUpdates by flowDescriptor<Unit, ShipmentUpdate>("trackingUpdates()")
+    val emitShouldMapBeVisible by flowDescriptor<Unit, Boolean>("shouldMapBeVisible()")
+    val emitShouldEtaCardBeVisible by flowDescriptor<Unit, Boolean>("shouldEtaCardBeVisible()")
+    val shipmentTrackingConnectionLifetime by descriptor<Unit, Unit>("Keep the shipment tracking connection open (scaffolding)")
+    val renderShipmentOnMap by descriptor<ShipmentUpdate, Unit>("Render a shipment update on the map")
+    val updateShipmentEtaCard by descriptor<ShipmentUpdate, Unit>("Update the shipment ETA card")
     val emitFileToExpose by flowDescriptor<Unit, FakeFileId>("currentFileToExpose()")
     val emitNetworkStrength by flowDescriptor<Unit, NetworkStrength>("networkStrength()")
     val openExposedFile by descriptor<FakeFileId, Unit>("Call FakeFile.open()")

@@ -57,6 +57,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 public val workshopSolutions: CoroutinePuzzleWorkshopSolutions = CoroutinePuzzleWorkshopSolutions(
     sumSolution = { numberSummer(it) },
     collectSolution = { showingHowItsFlowing(it) },
+    shipmentTrackingSolution = { shareShipmentTracking(it) },
     maximumAgeFindingTheSecondCoroutineSolution = { maximumAgeFindingWithCoroutines(it) },
     mappingLegacyApiCoroutineSolution = { mapFromLegacyApi(it) },
     exceptionHandlingSolution = { exceptionHandlingPuzzle(it) },

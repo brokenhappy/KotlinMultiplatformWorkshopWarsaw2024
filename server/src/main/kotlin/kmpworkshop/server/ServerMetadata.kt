@@ -6,6 +6,9 @@ import kmpworkshop.common.DefaultApis
 import kmpworkshop.common.DefaultApis.emitFileToExpose
 import kmpworkshop.common.DefaultApis.emitNetworkStrength
 import kmpworkshop.common.DefaultApis.emitNumber
+import kmpworkshop.common.DefaultApis.shipmentTrackingUpdates
+import kmpworkshop.common.DefaultApis.emitShouldMapBeVisible
+import kmpworkshop.common.DefaultApis.emitShouldEtaCardBeVisible
 import kmpworkshop.common.EndpointDescriptorRegistry
 
 data class EndpointRegistration(
@@ -46,6 +49,9 @@ fun serverMetadataOf(
 
 val defaultServerMetadata = serverMetadataOf(DefaultApis) {
     emitNumber.register(flowFunctionCall = "numbers()")
+    shipmentTrackingUpdates.register(flowFunctionCall = "trackingUpdates()")
+    emitShouldMapBeVisible.register(flowFunctionCall = "shouldMapBeVisible()")
+    emitShouldEtaCardBeVisible.register(flowFunctionCall = "shouldEtaCardBeVisible()")
     emitFileToExpose.register(flowFunctionCall = "currentFileToExpose()")
     emitNetworkStrength.register(flowFunctionCall = "networkStrength()")
 }
