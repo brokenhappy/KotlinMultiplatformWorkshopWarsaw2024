@@ -1,1 +1,2 @@
-You submitted 41, but 12 + 30 = 42. Submit the sum of the values returned by getNumber().
+You submitted 41, but 12 + 30 = 42.
+Submit the sum of the values returned by getNumber().

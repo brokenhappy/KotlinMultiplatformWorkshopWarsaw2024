@@ -1,1 +1,2 @@
-Both getNumber() calls must be in progress at the same time. Start them in separate child coroutines (for example with async), then await both results before submitting their sum.
+Both getNumber() calls must be in progress at the same time. Start them in separate child coroutines
+(for example with async), then await both results before submitting their sum.

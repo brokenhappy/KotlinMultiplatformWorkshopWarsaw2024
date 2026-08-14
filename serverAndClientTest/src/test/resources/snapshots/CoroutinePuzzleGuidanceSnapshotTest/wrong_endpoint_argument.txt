@@ -1,1 +1,2 @@
-This call used file-1, but the currently active file is file-2. Use the file received by the current collector invocation.
+This call used file-1, but the currently active file is file-2.
+Use the file received by the current collector invocation.

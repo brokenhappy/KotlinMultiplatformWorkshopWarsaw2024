@@ -1,1 +1,2 @@
-clearCaches() and refreshTokens() must start concurrently. Launch both inside the same coroutineScope so a child failure cancels its sibling and reaches the surrounding try/catch.
+clearCaches() and refreshTokens() must start concurrently. Launch both inside the same coroutineScope so a child
+failure cancels its sibling and reaches the surrounding try/catch.

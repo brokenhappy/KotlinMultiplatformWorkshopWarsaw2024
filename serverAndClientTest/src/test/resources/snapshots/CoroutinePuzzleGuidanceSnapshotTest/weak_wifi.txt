@@ -1,1 +1,2 @@
-The WiFi is weak, but file exposure already started. Wait for a strong-network emission before downloading or advertising the file.
+The WiFi is weak, but file exposure already started. Wait for a strong-network emission before downloading or
+advertising the file.

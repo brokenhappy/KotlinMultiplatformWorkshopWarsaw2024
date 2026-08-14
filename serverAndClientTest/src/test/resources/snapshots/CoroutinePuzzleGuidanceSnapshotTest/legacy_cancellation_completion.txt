@@ -1,1 +1,2 @@
-The legacy query reported cancellation, but your suspending wrapper completed before the legacy cancellation callback finished. Suspend until onCancellationFinished is called.
+The legacy query reported cancellation, but your suspending wrapper completed before the legacy cancellation
+callback finished. Suspend until onCancellationFinished is called.
