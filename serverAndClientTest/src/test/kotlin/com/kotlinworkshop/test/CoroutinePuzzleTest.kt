@@ -2,6 +2,7 @@ package com.kotlinworkshop.test
 
 import kmpworkshop.client.toMessage
 import kmpworkshop.client.clientMetadataOf
+import kmpworkshop.client.defaultClientMetadata
 import kmpworkshop.client.asFlows
 import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages
 import kmpworkshop.common.*
@@ -66,7 +67,11 @@ private fun CoroutinePuzzleSolutionResult.renderClientMessage(): String =
     context(testClientMetadata) { toMessage() }
 
 private fun ResultsWHistory.renderClientMessage(): String =
-    context(testClientMetadata) { toMessage() }
+    try {
+        context(testClientMetadata) { toMessage() }
+    } catch (_: MetadataNotFoundException) {
+        context(defaultClientMetadata) { toMessage() }
+    }
 
 class CoroutinePuzzleTest {
     @Test

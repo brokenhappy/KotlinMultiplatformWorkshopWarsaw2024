@@ -76,6 +76,9 @@ sealed interface WorkshopStage {
     @Serializable enum class CoroutinePuzzleStage(override val kotlinFile: String): WorkshopStage {
         SumOfTwoIntsSlow("NumSumFun.kt"),
         SumOfTwoIntsFast("NumSumFun.kt"),
+        SumOfTwoIntsCancellation("NumSumFun.kt"),
+        SumOfTwoIntsException("NumSumFun.kt"),
+        SumOfTwoIntsExceptionAfterCancellation("NumSumFun.kt"),
         FindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
         FastFindMaximumAgeCoroutines("MaximumAgeFindingWithCoroutines.kt"),
         MappingFromLegacyApisStepOne("MappingFromLegacyApis.kt"),

@@ -14,6 +14,21 @@ object CoroutinePuzzleErrorMessages {
         (for example with async), then await both results before submitting their sum.
     """.trimIndent()
 
+    fun sumCancellationMustCancelBothCalls(): String = """
+        Your function was cancelled while getNumber() calls were still running. Cancel every in-flight call too, so no
+        work remains after your function stops.
+    """.trimIndent()
+
+    fun sumExceptionMustCancelOtherCall(): String = """
+        A getNumber() call failed, but another call was left running. Cancel the other in-flight call, then let the
+        original error escape from your function.
+    """.trimIndent()
+
+    fun sumCancellationMustFinishBeforeExceptionEscapes(): String = """
+        Your function reported the failure before the other getNumber() call finished cancelling. Wait for cancellation
+        to complete before letting the original error escape.
+    """.trimIndent()
+
     fun wrongOldestAge(actual: Int, expected: Int): String = """
         |You submitted $actual, but the oldest returned user is $expected.
         |Query every returned id and submit the maximum age.

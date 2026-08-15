@@ -19,6 +19,14 @@ fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePu
     when (stage) {
         SumOfTwoIntsSlow,
         SumOfTwoIntsFast, -> sumSolution(getNumberAndSubmit())
+        SumOfTwoIntsCancellation, -> sumWithLifecycleScaffolding(sumSolution)
+        SumOfTwoIntsException,
+        SumOfTwoIntsExceptionAfterCancellation -> sumWithLifecycleScaffolding(
+            sumSolution,
+            reportEscapedCancellation = true,
+            cancelWhenLifetimeEnds = false,
+            reportCancellationCompletion = true,
+        )
         FindMaximumAgeCoroutines,
         FastFindMaximumAgeCoroutines, -> maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
         MappingFromLegacyApisStepOne -> mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))

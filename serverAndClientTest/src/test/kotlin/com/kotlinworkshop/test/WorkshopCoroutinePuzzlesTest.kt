@@ -3,6 +3,7 @@ package com.kotlinworkshop.test
 import com.woutwerkman.calltreevisualizer.StackTrackingContext
 import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
 import kmpworkshop.client.runCoroutinePuzzleClient
+import kmpworkshop.client.sumWithLifecycleScaffolding
 import kmpworkshop.client.workshopSolutions
 import kmpworkshop.api.*
 import kmpworkshop.client.asSolution
@@ -459,6 +460,19 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
+    fun `concurrent sum accepts the injected workshop GlobalScope`(): Unit = runPuzzleTest {
+        doConcurrentSumPuzzle { api ->
+            val context = currentCoroutineContext()
+            val supervisor = SupervisorJob(context.job)
+            try {
+                sumWithGlobalScopeWithoutCleanup(api, CoroutineScope(context + supervisor))
+            } finally {
+                supervisor.cancel()
+            }
+        }.assertIsOk()
+    }
+
+    @Test
     fun `sequential sum solution fails`(): Unit = runPuzzleTest {
         doConcurrentSumPuzzle { api ->
             api.submit(api.getNumber() + api.getNumber())
@@ -466,6 +480,48 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
             .message
             .assertEquals(CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent())
+    }
+
+    @Test
+    fun `global scope sum cancels both calls when cancelled`(): Unit = runPuzzleTest {
+        doCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeCancellationWithoutJoin(api, globalScope) }
+            .assertIsOk()
+    }
+
+    @Test
+    fun `global scope sum rethrows after cancelling its sibling`(): Unit = runPuzzleTest {
+        doExceptionSumPuzzle { api, globalScope -> sumWithGlobalScopeCancellationWithoutJoin(api, globalScope) }
+            .assertIsOk()
+    }
+
+    @Test
+    fun `global scope sum waits for sibling cancellation before rethrowing`(): Unit = runPuzzleTest {
+        doExceptionAfterCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeAndCleanup(api, globalScope) }
+            .assertIsOk()
+    }
+
+    @Test
+    fun `parallel global scope sum does not cancel work when its function is cancelled`(): Unit = runPuzzleTest {
+        doCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeWithoutCleanup(api, globalScope) }
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.sumCancellationMustCancelBothCalls())
+    }
+
+    @Test
+    fun `cancelling due to an exception is required before rethrowing it`(): Unit = runPuzzleTest {
+        doExceptionSumPuzzle { api, globalScope -> sumWithGlobalScopeWithoutCleanup(api, globalScope) }
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.sumExceptionMustCancelOtherCall())
+    }
+
+    @Test
+    fun `exception cancellation must finish before it escapes`(): Unit = runPuzzleTest {
+        doExceptionAfterCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeCancellationWithoutJoin(api, globalScope) }
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.sumCancellationMustFinishBeforeExceptionEscapes())
     }
 
     @Test
@@ -718,6 +774,45 @@ private suspend fun collectVisibleTrackingWidgets(
     }
 }
 
+private suspend fun sumWithGlobalScopeWithoutCleanup(
+    api: GetNumberAndSubmit,
+    globalScope: CoroutineScope,
+) {
+    val first = globalScope.async { api.getNumber() }
+    val second = globalScope.async { api.getNumber() }
+    api.submit(awaitAll(first, second).sum())
+}
+
+private suspend fun sumWithGlobalScopeCancellationWithoutJoin(
+    api: GetNumberAndSubmit,
+    globalScope: CoroutineScope,
+) {
+    val first = globalScope.async { api.getNumber() }
+    val second = globalScope.async { api.getNumber() }
+    try {
+        api.submit(awaitAll(first, second).sum())
+    } finally {
+        first.cancel()
+        second.cancel()
+    }
+}
+
+private suspend fun sumWithGlobalScopeAndCleanup(
+    api: GetNumberAndSubmit,
+    globalScope: CoroutineScope,
+) = coroutineScope {
+    val first = globalScope.async { api.getNumber() }
+    val second = globalScope.async { api.getNumber() }
+    try {
+        api.submit(awaitAll(first, second).sum())
+    } finally {
+        coroutineScope {
+            launch { first.cancelAndJoin() }
+            launch { second.cancelAndJoin() }
+        }
+    }
+}
+
 abstract class WorkshopCoroutinePuzzlesTestBase {
     /**
      * How each transport-driven test body is run. Defaults to the virtual-time, randomized-dispatch harness, which
@@ -740,6 +835,12 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
         runCoroutinePuzzle(SumOfTwoIntsSlow, solutions(sumSolution = block))
     suspend fun doConcurrentSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SumOfTwoIntsFast, solutions(sumSolution = block))
+    suspend fun doCancellationSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit, CoroutineScope) -> Unit): ResultsWHistory =
+        doLifecycleSumPuzzle(SumOfTwoIntsCancellation, block)
+    suspend fun doExceptionSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit, CoroutineScope) -> Unit): ResultsWHistory =
+        doLifecycleSumPuzzle(SumOfTwoIntsException, block)
+    suspend fun doExceptionAfterCancellationSumPuzzle(block: suspend CoroutineScope.(GetNumberAndSubmit, CoroutineScope) -> Unit): ResultsWHistory =
+        doLifecycleSumPuzzle(SumOfTwoIntsExceptionAfterCancellation, block)
     suspend fun doSimpleCollectPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(SimpleFlow, solutions(collectSolution = block))
     suspend fun doCollectLatestPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
@@ -774,7 +875,22 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
         runCoroutinePuzzle(FileExposureStepTwo, solutions(fileExposureSolution = block))
     suspend fun doFileExposureStepThree(block: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(FileExposureStepThree, solutions(fileExposureSolution = block))
+
+    private suspend fun doLifecycleSumPuzzle(
+        stage: CoroutinePuzzleStage,
+        block: suspend CoroutineScope.(GetNumberAndSubmit, CoroutineScope) -> Unit,
+    ): ResultsWHistory = runCoroutinePuzzle(stage) {
+        val outerContext = currentCoroutineContext()
+        val fakeGlobalScope = CoroutineScope(outerContext + SupervisorJob(outerContext.job))
+        sumWithLifecycleScaffolding(
+            sumNumbers = { api -> block(api, fakeGlobalScope) },
+            reportEscapedCancellation = stage != SumOfTwoIntsCancellation,
+            cancelWhenLifetimeEnds = stage == SumOfTwoIntsCancellation,
+            reportCancellationCompletion = stage != SumOfTwoIntsCancellation,
+        )
+    }
 }
+
 
 /**
  * Runs [block] once per seed in [seeds], each time under [withRandomizedDispatchOrder], so races between

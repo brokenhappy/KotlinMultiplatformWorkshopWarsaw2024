@@ -26,6 +26,9 @@ import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingLaz
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingSharedConnection
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingWhileSubscribed
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsFast
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsCancellation
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsException
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsExceptionAfterCancellation
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsSlow
 import kmpworkshop.common.CoroutinePuzzleExpectationBatchOrCompletion as BatchOrCompletion
 
@@ -40,6 +43,9 @@ object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion,
     override fun findPuzzleFor(stage: CoroutinePuzzleStage): Resource<CoroutinePuzzleProtocol> = when (stage) {
         SumOfTwoIntsSlow -> simpleSumPuzzle()
         SumOfTwoIntsFast -> concurrentSumPuzzle()
+        SumOfTwoIntsCancellation -> cancellationSumPuzzle()
+        SumOfTwoIntsException -> exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes = false)
+        SumOfTwoIntsExceptionAfterCancellation -> exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes = true)
         FindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false)
         FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true)
         MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()
