@@ -789,17 +789,18 @@ private fun StageTopBar(stage: WorkshopStage, onEvent: OnEvent) {
             Text("WORKSHOP STAGE", color = AdminMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             var expanded by remember { mutableStateOf(false) }
             ClickableText(
-                text = AnnotatedString(stage.kotlinFile),
+                text = AnnotatedString(stage.adminDisplayName()),
                 style = MaterialTheme.typography.h5.copy(color = AdminInk),
                 onClick = { expanded = true }
             )
+            Text("Go to file: ${stage.kotlinFile}", color = AdminMuted, fontSize = 12.sp)
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
             ) {
                 workshopStages.forEach {
                     DropdownMenuItem(onClick = { expanded = false; onEvent.schedule(StageChangeEvent(it)) }) {
-                        Text(it.kotlinFile)
+                        Text(it.adminDisplayName())
                     }
                 }
             }
@@ -832,6 +833,36 @@ private fun MoveStageButton(
 
 private fun WorkshopStage.moving(offset: Int): WorkshopStage? =
     workshopStages.getOrNull(workshopStages.indexOf(this) + offset)
+
+private fun WorkshopStage.adminDisplayName(): String = when (this) {
+    WorkshopStage.Registration -> "Registration"
+    is WorkshopStage.KotlinBasicsPuzzleStage -> name
+    is WorkshopStage.CoroutinePuzzleStage -> when (this) {
+        WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsSlow -> "Sum Of Two Ints · Slow"
+        WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsFast -> "Sum Of Two Ints · Fast"
+        WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsCancellation -> "Sum Of Two Ints · Cancellation"
+        WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsException -> "Sum Of Two Ints · Exception"
+        WorkshopStage.CoroutinePuzzleStage.SumOfTwoIntsExceptionAfterCancellation ->
+            "Sum Of Two Ints · Exception After Cancellation"
+        WorkshopStage.CoroutinePuzzleStage.FindMaximumAgeCoroutines -> "Find Maximum Age · Coroutines"
+        WorkshopStage.CoroutinePuzzleStage.FastFindMaximumAgeCoroutines -> "Find Maximum Age · Fast Coroutines"
+        WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyApisStepOne -> "Mapping From Legacy APIs · Step One"
+        WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyApisStepTwo -> "Mapping From Legacy APIs · Step Two"
+        WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyApisStepThree -> "Mapping From Legacy APIs · Step Three"
+        WorkshopStage.CoroutinePuzzleStage.MappingFromLegacyApisStepFour -> "Mapping From Legacy APIs · Step Four"
+        WorkshopStage.CoroutinePuzzleStage.ExceptionCatchingWithCoroutines -> "Exception Catching With Coroutines"
+        WorkshopStage.CoroutinePuzzleStage.SimpleFlow -> "Simple Flow"
+        WorkshopStage.CoroutinePuzzleStage.CollectLatest -> "Collect Latest"
+        WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingIndependentViews -> "Shipment Tracking · Independent Views"
+        WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingSharedConnection -> "Shipment Tracking · Shared Connection"
+        WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingLateEtaCard -> "Shipment Tracking · Late ETA Card"
+        WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingLazyConnection -> "Shipment Tracking · Lazy Connection"
+        WorkshopStage.CoroutinePuzzleStage.ShipmentTrackingWhileSubscribed -> "Shipment Tracking · During Subscription"
+        WorkshopStage.CoroutinePuzzleStage.FileExposureStepOne -> "File Exposure · Step One"
+        WorkshopStage.CoroutinePuzzleStage.FileExposureStepTwo -> "File Exposure · Step Two"
+        WorkshopStage.CoroutinePuzzleStage.FileExposureStepThree -> "File Exposure · Step Three"
+    }
+}
 
 private enum class RegistrationViewMode {
     ParticipantRegistration, TableSetup,
