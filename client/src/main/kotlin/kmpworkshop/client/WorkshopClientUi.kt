@@ -94,7 +94,9 @@ private fun WorkshopClientContent(
     kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions,
 ) {
     val stage by remember(server) { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
-    var reloadVersion by remember { mutableStateOf(0L) }
+    var hotReloadVersion by remember { mutableStateOf(0L) }
+    var lastRunHotReloadVersion by remember(stage) { mutableStateOf<Long?>(null) }
+    val hasHotReloadSinceLastRun = lastRunHotReloadVersion != hotReloadVersion
     val history = remember(stage) { mutableStateListOf<CoroutinePuzzleHistoryBatch>() }
     var result by remember(stage) { mutableStateOf<CoroutinePuzzleSolutionResult?>(null) }
     var kotlinBasicsResult by remember(stage) { mutableStateOf<KotlinBasicsPuzzleResult?>(null) }
@@ -117,31 +119,15 @@ private fun WorkshopClientContent(
         debuggerBatchBoundaries?.close()
         debuggerBatchBoundaries = null
         debuggerBatchController = null
-        reloadVersion++
+        hotReloadVersion++
     }
 
-    LaunchedEffect(stage, reloadVersion) {
+    LaunchedEffect(stage, hotReloadVersion) {
         attemptVersion++
         history.clear()
         result = null
         kotlinBasicsResult = null
         status = null
-        (stage as? WorkshopStage.KotlinBasicsPuzzleStage)?.let { stage ->
-            status = "Running test…"
-            status = try {
-                kotlinBasicsResult = runKotlinBasicsPuzzle(server, stage, kotlinBasicsSolutions)
-                when (val puzzleResult = kotlinBasicsResult) {
-                    KotlinBasicsPuzzleResult.Success -> "Test finished. Edit the solution and hot reload to run it again."
-                    is KotlinBasicsPuzzleResult.Failed -> "Test failed for input ${puzzleResult.input}: got ${puzzleResult.actual}, expected ${puzzleResult.expected}."
-                    is KotlinBasicsPuzzleResult.CustomFailure -> "Test failed: ${puzzleResult.message}"
-                    null -> "Test finished."
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                "Test failed: ${failure.message ?: failure::class.simpleName}"
-            }
-        }
     }
 
     DisposableEffect(stage) {
@@ -156,10 +142,44 @@ private fun WorkshopClientContent(
         }
     }
 
+    fun recordRun() {
+        lastRunHotReloadVersion = hotReloadVersion
+    }
+
+    fun startKotlinBasicsRun(stage: WorkshopStage.KotlinBasicsPuzzleStage) {
+        recordRun()
+        kotlinBasicsResult = null
+        status = "Running test…"
+        val run = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                kotlinBasicsResult = runKotlinBasicsPuzzle(server, stage, kotlinBasicsSolutions)
+                status = when (val puzzleResult = kotlinBasicsResult) {
+                    KotlinBasicsPuzzleResult.Success -> "Test finished."
+                    is KotlinBasicsPuzzleResult.Failed -> "Test failed for input ${puzzleResult.input}: got ${puzzleResult.actual}, expected ${puzzleResult.expected}."
+                    is KotlinBasicsPuzzleResult.CustomFailure -> "Test failed: ${puzzleResult.message}"
+                    null -> "Test finished."
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                status = "Test failed: ${failure.message ?: failure::class.simpleName}"
+            } finally {
+                if (activeRun === coroutineContext[Job]) activeRun = null
+            }
+        }
+        activeRun = run
+        run.start()
+    }
+
     Surface(Modifier.fillMaxSize()) {
         when (val stage = stage) {
             WorkshopStage.Registration -> RegistrationWaiting()
             is WorkshopStage.KotlinBasicsPuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
+                PuzzleRunButton(
+                    hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
+                    activeRun = activeRun,
+                    onClick = { startKotlinBasicsRun(stage) },
+                )
                 Text(
                     status ?: "Preparing test…",
                     modifier = Modifier.testTag("puzzle-status"),
@@ -168,6 +188,7 @@ private fun WorkshopClientContent(
             }
             is WorkshopStage.CoroutinePuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
                 fun startRun(stepped: Boolean) {
+                    recordRun()
                     history.clear()
                     result = null
                     debuggerEvents?.close()
@@ -235,16 +256,18 @@ private fun WorkshopClientContent(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        modifier = Modifier.testTag("puzzle-run-button"),
-                        enabled = activeRun == null,
+                    PuzzleRunButton(
+                        hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
+                        activeRun = activeRun,
                         onClick = { startRun(stepped = false) },
-                    ) { Text("Run Test") }
-                    Button(
-                        modifier = Modifier.testTag("puzzle-run-stepped-button"),
-                        enabled = activeRun == null,
+                    )
+                    PuzzleRunButton(
+                        hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
+                        activeRun = activeRun,
+                        testTag = "puzzle-run-stepped-button",
+                        text = "Run Stepped",
                         onClick = { startRun(stepped = true) },
-                    ) { Text("Run Stepped") }
+                    )
                 }
 
                 status?.let { Text(it, modifier = Modifier.testTag("puzzle-status"), color = resultColor(result)) }
@@ -278,12 +301,38 @@ private fun RegistrationWaiting() = Box(Modifier.fillMaxSize().padding(32.dp), c
 }
 
 @Composable
+private fun PuzzleRunButton(
+    hasHotReloadSinceLastRun: Boolean,
+    activeRun: Job?,
+    modifier: Modifier = Modifier,
+    testTag: String = "puzzle-run-button",
+    text: String = "Run Test",
+    onClick: () -> Unit,
+) {
+    InstantTooltip(
+        title = if (hasHotReloadSinceLastRun) {
+            "A hot reload has happened since the last run."
+        } else {
+            "No hot reload has happened since the last run."
+        },
+        modifier = modifier,
+    ) {
+        Button(
+            modifier = Modifier.testTag(testTag),
+            enabled = activeRun == null,
+            colors = puzzleRunButtonColors(hasHotReloadSinceLastRun),
+            onClick = onClick,
+        ) { Text(text) }
+    }
+}
+
+@Composable
 private fun StagePage(stage: WorkshopStage, openError: String?, onOpen: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(stage.displayName().humanize(), style = MaterialTheme.typography.h5, fontWeight = FontWeight.SemiBold)
-                Text("Edit the solution, then run one attempt to see exactly how its coroutines behaved.", color = Color(0xFF5F6368))
+                Text("Edit the solution, then run an attempt to see exactly how its coroutines behaved.", color = Color(0xFF5F6368))
             }
             OutlinedButton(onClick = onOpen) { Text("Open solution") }
         }
@@ -483,6 +532,15 @@ private fun InstantTooltip(title: String, modifier: Modifier = Modifier, detail:
 }
 
 private fun String.humanize(): String = replace(Regex("(?<=[a-z0-9])(?=[A-Z])"), " ")
+
+@Composable
+private fun puzzleRunButtonColors(hasHotReloadSinceLastRun: Boolean): ButtonColors = ButtonDefaults.buttonColors(
+    backgroundColor = if (hasHotReloadSinceLastRun) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.primary.copy(alpha = 0.72f)
+    },
+)
 
 private fun resultColor(result: CoroutinePuzzleSolutionResult?): Color = when (result) {
     null -> Color.Unspecified

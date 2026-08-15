@@ -177,9 +177,10 @@ class PuzzleUiQaTest {
             }
         }
 
-        waitUntil(timeoutMillis = 10_000) {
-            receivedStage != null
-        }
+        onNodeWithTag("puzzle-run-button").assertIsDisplayed().assertIsEnabled()
+        assert(receivedStage == null)
+        onNodeWithTag("puzzle-run-button").performClick()
+        waitUntil(timeoutMillis = 10_000) { receivedStage != null }
         waitForIdle()
         assert(receivedStage == KotlinBasicsPuzzleStage.PalindromeCheckTask)
         onNodeWithTag("puzzle-status").assertIsDisplayed()
@@ -211,6 +212,7 @@ class PuzzleUiQaTest {
             }
         }
 
+        onNodeWithTag("puzzle-run-button").assertIsDisplayed().performClick()
         waitUntil(timeoutMillis = 10_000) {
             runCatching {
                 onNodeWithTag("puzzle-status").assertTextContains("Test failed: code runner failed")
