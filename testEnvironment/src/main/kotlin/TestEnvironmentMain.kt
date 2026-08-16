@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.application
 import kmpworkshop.client.ClientEntryPoint
+import kmpworkshop.client.ClientSettings
 import kmpworkshop.client.defaultClientMetadata
 import kmpworkshop.common.*
 import kmpworkshop.server.mainEventLoopWritingTo
@@ -157,13 +158,19 @@ fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: OnEve
                 initialOffsetX = 1000f + index % 4 * 386f,
                 initialOffsetY = index / 4 * 484f
             ) {
-                FunctionUnderTest(server)
+                FunctionUnderTest(server, participant.apiKey.stringRepresentation)
             }
         }
     }
 }
 
 @Composable
-fun FunctionUnderTest(server: WorkshopServer) {
-    ClientEntryPoint(server, clientMetadata = defaultClientMetadata)
+fun FunctionUnderTest(server: WorkshopServer, clientApiKey: String) {
+    val clientSettings = remember { MutableStateFlow(ClientSettings()) }
+    ClientEntryPoint(
+        server,
+        clientMetadata = defaultClientMetadata,
+        clientSettings = clientSettings,
+        onClientSettingsChange = { newSettings -> clientSettings.value = newSettings },
+    )
 }

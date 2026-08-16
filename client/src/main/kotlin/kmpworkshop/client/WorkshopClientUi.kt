@@ -12,6 +12,7 @@ import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,9 +28,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import kmpworkshop.common.*
@@ -42,11 +57,12 @@ import com.woutwerkman.calltreevisualizer.coroutineintegration.trackingCallStack
 import com.woutwerkman.calltreevisualizer.globalScopeContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,9 +96,17 @@ fun WorkshopClient(
     solutions: CoroutinePuzzleWorkshopSolutions = workshopSolutions,
     kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions = kotlinBasicsPuzzleSolutions,
     clientMetadata: ClientMetadata,
+    clientSettings: Flow<ClientSettings> = flowOf(ClientSettings()),
+    onClientSettingsChange: (ClientSettings) -> Unit = {},
 ) {
     context(clientMetadata) {
-        WorkshopClientContent(server, solutions, kotlinBasicsSolutions)
+        WorkshopClientContent(
+            server,
+            solutions,
+            kotlinBasicsSolutions,
+            clientSettings,
+            onClientSettingsChange,
+        )
     }
 }
 
@@ -92,7 +116,22 @@ private fun WorkshopClientContent(
     server: WorkshopServer,
     solutions: CoroutinePuzzleWorkshopSolutions,
     kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions,
+    clientSettings: Flow<ClientSettings>,
+    onClientSettingsChange: (ClientSettings) -> Unit,
 ) {
+    val settings by clientSettings.collectAsState(initial = ClientSettings())
+    var settingsIsOpen by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val baseDensity = LocalDensity.current
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    fun ClientSettings.applyZoom(change: (Float) -> Float): ClientSettings =
+        copy(zoom = change(zoom).coerceIn(MinClientZoom, MaxClientZoom))
+
+    val zoomShortcutModifier = remember { clientShortcutModifier() }
     val stage by remember(server) { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
     var hotReloadVersion by remember { mutableStateOf(0L) }
     var lastRunHotReloadVersion by remember(stage) { mutableStateOf<Long?>(null) }
@@ -171,124 +210,209 @@ private fun WorkshopClientContent(
         run.start()
     }
 
-    Surface(Modifier.fillMaxSize()) {
-        when (val stage = stage) {
-            WorkshopStage.Registration -> RegistrationWaiting()
-            is WorkshopStage.KotlinBasicsPuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
-                PuzzleRunButton(
-                    hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
-                    activeRun = activeRun,
-                    onClick = { startKotlinBasicsRun(stage) },
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = baseDensity.density * settings.zoom,
+            fontScale = baseDensity.fontScale * settings.zoom,
+        ),
+    ) {
+        Surface(
+            Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) {
+                        return@onPreviewKeyEvent false
+                    }
+                    if (event.key == Key.Escape && settingsIsOpen) {
+                        settingsIsOpen = false
+                        return@onPreviewKeyEvent true
+                    }
+                    if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
+                    when {
+                        event.key == Key.Comma -> {
+                            settingsIsOpen = true
+                            true
+                        }
+                        event.key == Key.Plus || (event.key == Key.Equals && event.isShiftPressed) -> {
+                            onClientSettingsChange(settings.applyZoom { it + ClientZoomStep })
+                            true
+                        }
+                        event.key == Key.Minus -> {
+                            onClientSettingsChange(settings.applyZoom { it - ClientZoomStep })
+                            true
+                        }
+                        event.key == Key.Zero -> {
+                            onClientSettingsChange(settings.applyZoom { DefaultClientZoom })
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                .focusable(),
+        ) {
+            if (settingsIsOpen) {
+                ClientSettingsPage(
+                    settings = settings,
+                    shortcutModifier = zoomShortcutModifier,
+                    onSettingsChange = onClientSettingsChange,
+                    onDismiss = { settingsIsOpen = false },
                 )
-                Text(
-                    status ?: "Preparing test…",
-                    modifier = Modifier.testTag("puzzle-status"),
-                    color = kotlinBasicsResultColor(kotlinBasicsResult),
-                )
-            }
-            is WorkshopStage.CoroutinePuzzleStage -> StagePage(stage, openError, { openError = openStageFile(stage) }) {
-                fun startRun(stepped: Boolean) {
-                    recordRun()
-                    history.clear()
-                    result = null
-                    debuggerEvents?.close()
-                    debuggerEvents = null
-                    debuggerBatchBoundaries?.close()
-                    debuggerBatchBoundaries = null
-                    attemptVersion++
-                    status = "Running test…"
-                    val trackedEvents = if (stepped) Channel<CallStackTrackEvent>(Channel.RENDEZVOUS) else null
-                    val batchBoundaries = if (stepped) Channel<Unit>(Channel.CONFLATED) else null
-                    val batchController = CoroutineDebuggerBatchController()
-                    debuggerEvents = trackedEvents
-                    debuggerBatchBoundaries = batchBoundaries
-                    debuggerBatchController = batchController
-                    val run = scope.launch(start = CoroutineStart.LAZY) {
-                        try {
-                            server.coroutinePuzzle(stage).solveAsFlow {
-                                val userSolution = solutions.asSolution(stage)
-                                if (trackedEvents == null) {
-                                    withContext(NoOpStackTracker) {
-                                        withImportantCleanup { userSolution() }
-                                    }
-                                } else {
-                                    val debuggerQuiescence = AutoBatchedFunctionId<Unit, Unit> { batch ->
-                                        check(batch.isEmpty()) { "Debugger quiescence must never receive batched calls" }
-                                        batchController.onEmptyBatch(requireNotNull(batchBoundaries))
-                                    }
-                                    debuggerQuiescence.autoBatchedOnQuiescence {
-                                        trackingCallStacks(
-                                            block = {
-                                                globalScopeContext = currentCoroutineContext() + SupervisorJob(currentCoroutineContext().job)
-                                                try {
-                                                    withImportantCleanup { userSolution() }
-                                                } finally {
-                                                    globalScopeContext = EmptyCoroutineContext
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        OutlinedButton(onClick = { settingsIsOpen = true }) { Text("Settings") }
+                    }
+                    Box(Modifier.fillMaxWidth().weight(1f)) {
+                        when (val stage = stage) {
+                            WorkshopStage.Registration -> RegistrationWaiting()
+                            is WorkshopStage.KotlinBasicsPuzzleStage -> StagePage(
+                                stage,
+                                openError,
+                                { openError = openStageFile(stage) },
+                            ) {
+                                PuzzleRunButton(
+                                    hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
+                                    activeRun = activeRun,
+                                    onClick = { startKotlinBasicsRun(stage) },
+                                )
+                                Text(
+                                    status ?: "Preparing test…",
+                                    modifier = Modifier.testTag("puzzle-status"),
+                                    color = kotlinBasicsResultColor(kotlinBasicsResult),
+                                )
+                            }
+                            is WorkshopStage.CoroutinePuzzleStage -> StagePage(
+                                stage,
+                                openError,
+                                { openError = openStageFile(stage) },
+                            ) {
+                                fun startRun(stepped: Boolean) {
+                                    recordRun()
+                                    history.clear()
+                                    result = null
+                                    debuggerEvents?.close()
+                                    debuggerEvents = null
+                                    debuggerBatchBoundaries?.close()
+                                    debuggerBatchBoundaries = null
+                                    attemptVersion++
+                                    status = "Running test…"
+                                    val trackedEvents =
+                                        if (stepped) Channel<CallStackTrackEvent>(Channel.RENDEZVOUS) else null
+                                    val batchBoundaries = if (stepped) Channel<Unit>(Channel.CONFLATED) else null
+                                    val batchController = CoroutineDebuggerBatchController()
+                                    debuggerEvents = trackedEvents
+                                    debuggerBatchBoundaries = batchBoundaries
+                                    debuggerBatchController = batchController
+                                    val run = scope.launch(start = CoroutineStart.LAZY) {
+                                        try {
+                                            server.coroutinePuzzle(stage).solveAsFlow {
+                                                val userSolution = solutions.asSolution(stage)
+                                                if (trackedEvents == null) {
+                                                    withContext(NoOpStackTracker) {
+                                                        withImportantCleanup { userSolution() }
+                                                    }
+                                                } else {
+                                                    val debuggerQuiescence =
+                                                        AutoBatchedFunctionId<Unit, Unit> { batch ->
+                                                            check(batch.isEmpty()) { "Debugger quiescence must never receive batched calls" }
+                                                            batchController.onEmptyBatch(requireNotNull(batchBoundaries))
+                                                        }
+                                                    debuggerQuiescence.autoBatchedOnQuiescence {
+                                                        trackingCallStacks(
+                                                            block = {
+                                                                globalScopeContext =
+                                                                    currentCoroutineContext() + SupervisorJob(
+                                                                        currentCoroutineContext().job,
+                                                                    )
+                                                                try {
+                                                                    withImportantCleanup { userSolution() }
+                                                                } finally {
+                                                                    globalScopeContext = EmptyCoroutineContext
+                                                                }
+                                                            },
+                                                            emit = { event ->
+                                                                assumeNotQuiescent {
+                                                                    trackedEvents.send(
+                                                                        event,
+                                                                    )
+                                                                }
+                                                            },
+                                                        )
+                                                    }
                                                 }
-                                            },
-                                            emit = { event -> assumeNotQuiescent { trackedEvents.send(event) } },
+                                            }.collect { state ->
+                                                when (state) {
+                                                    is CoroutinePuzzleSolveState.Running -> {
+                                                        history.add(state.batch)
+                                                        status = "Running test…"
+                                                    }
+                                                    is CoroutinePuzzleSolveState.Completed -> {
+                                                        result = state.result
+                                                        status = state.result.toMessage()
+                                                    }
+                                                }
+                                            }
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (failure: Throwable) {
+                                            status = "Test failed: ${failure.message ?: failure::class.simpleName}"
+                                        } finally {
+                                            trackedEvents?.close()
+                                            if (activeRun === coroutineContext[Job]) activeRun = null
+                                        }
+                                    }
+                                    activeRun = run
+                                    run.start()
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PuzzleRunButton(
+                                        hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
+                                        activeRun = activeRun,
+                                        onClick = { startRun(stepped = false) },
+                                    )
+                                    PuzzleRunButton(
+                                        hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
+                                        activeRun = activeRun,
+                                        testTag = "puzzle-run-stepped-button",
+                                        text = "Run Stepped",
+                                        onClick = { startRun(stepped = true) },
+                                    )
+                                }
+
+                                status?.let {
+                                    Text(
+                                        it,
+                                        modifier = Modifier.testTag("puzzle-status"),
+                                        color = resultColor(result),
+                                    )
+                                }
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    debuggerEvents?.let { events ->
+                                        CoroutineDebuggerPanel(
+                                            events = events,
+                                            batchBoundaries = debuggerBatchBoundaries,
+                                            batchController = requireNotNull(debuggerBatchController),
+                                            enabled = activeRun != null,
                                         )
                                     }
-                                }
-                            }.collect { state ->
-                                when (state) {
-                                    is CoroutinePuzzleSolveState.Running -> {
-                                        history.add(state.batch)
-                                        status = "Running test…"
-                                    }
-                                    is CoroutinePuzzleSolveState.Completed -> {
-                                        result = state.result
-                                        status = state.result.toMessage()
-                                    }
+                                    CoroutineTimelineWithMetadata(
+                                        history = history,
+                                        result = result,
+                                        attemptVersion = attemptVersion,
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                    )
                                 }
                             }
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (failure: Throwable) {
-                            status = "Test failed: ${failure.message ?: failure::class.simpleName}"
-                        } finally {
-                            trackedEvents?.close()
-                            if (activeRun === coroutineContext[Job]) activeRun = null
                         }
                     }
-                    activeRun = run
-                    run.start()
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PuzzleRunButton(
-                        hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
-                        activeRun = activeRun,
-                        onClick = { startRun(stepped = false) },
-                    )
-                    PuzzleRunButton(
-                        hasHotReloadSinceLastRun = hasHotReloadSinceLastRun,
-                        activeRun = activeRun,
-                        testTag = "puzzle-run-stepped-button",
-                        text = "Run Stepped",
-                        onClick = { startRun(stepped = true) },
-                    )
-                }
-
-                status?.let { Text(it, modifier = Modifier.testTag("puzzle-status"), color = resultColor(result)) }
-                Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    debuggerEvents?.let { events ->
-                        CoroutineDebuggerPanel(
-                            events = events,
-                            batchBoundaries = debuggerBatchBoundaries,
-                            batchController = requireNotNull(debuggerBatchController),
-                            enabled = activeRun != null,
-                        )
-                    }
-                    CoroutineTimelineWithMetadata(
-                        history = history,
-                        result = result,
-                        attemptVersion = attemptVersion,
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                    )
                 }
             }
         }
@@ -299,6 +423,83 @@ private fun WorkshopClientContent(
 private fun RegistrationWaiting() = Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
     Text("The workshop is in registration. Waiting for the host to open a puzzle…")
 }
+
+@Composable
+private fun ClientSettingsPage(
+    settings: ClientSettings,
+    shortcutModifier: String,
+    onSettingsChange: (ClientSettings) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    var copied by remember(clientApiKey) { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Settings", style = MaterialTheme.typography.h4, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(onClick = onDismiss) { Text("Done") }
+        }
+        Divider(color = Color(0xFFE4E7EB))
+
+        Text("Display", style = MaterialTheme.typography.h6, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Zoom", fontWeight = FontWeight.SemiBold)
+                Text("Adjust the size of the workshop client UI.", color = Color(0xFF5F6368))
+            }
+            Text("${(settings.zoom * 100).toInt()}%", modifier = Modifier.padding(start = 16.dp))
+        }
+        Slider(
+            value = settings.zoom,
+            onValueChange = { onSettingsChange(settings.copy(zoom = it.coerceIn(MinClientZoom, MaxClientZoom))) },
+            valueRange = MinClientZoom..MaxClientZoom,
+            steps = 14,
+            modifier = Modifier.fillMaxWidth().testTag("client-zoom-slider"),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { onSettingsChange(settings.copy(zoom = DefaultClientZoom)) },
+                enabled = settings.zoom != DefaultClientZoom,
+            ) { Text("Reset zoom") }
+            Text(
+                "$shortcutModifier + / - to zoom, $shortcutModifier + 0 to reset",
+                modifier = Modifier.align(Alignment.CenterVertically),
+                color = Color(0xFF5F6368),
+            )
+        }
+
+        Divider(color = Color(0xFFE4E7EB))
+        Text("API key", style = MaterialTheme.typography.h6, fontWeight = FontWeight.SemiBold)
+        Text(
+            clientApiKey ?: "No API key is available for this client.",
+            color = Color(0xFF5F6368),
+        )
+        OutlinedButton(
+            enabled = clientApiKey != null,
+            onClick = {
+                clientApiKey?.let {
+                    clipboard.setText(AnnotatedString(it))
+                    copied = true
+                }
+            },
+            modifier = Modifier.testTag("copy-api-key-button"),
+        ) { Text("Copy API key") }
+        if (copied) {
+            Text("API key copied.", color = Color(0xFF2E7D32))
+        }
+    }
+}
+
+private fun clientShortcutModifier(): String =
+    if (System.getProperty("os.name").contains("mac", ignoreCase = true)) "⌘" else "Ctrl"
 
 @Composable
 private fun PuzzleRunButton(

@@ -7,6 +7,8 @@ import io.ktor.client.*
 import io.ktor.http.*
 import kmpworkshop.common.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
@@ -66,7 +68,11 @@ internal fun defaultWorkshopProtocol(host: String): URLProtocol =
     if (host == "localhost" || host == "127.0.0.1" || host == "::1") URLProtocol.WS else URLProtocol.WSS
 
 @Composable
-fun ClientEntryPoint(clientMetadata: ClientMetadata) {
+fun ClientEntryPoint(
+    clientMetadata: ClientMetadata,
+    clientSettings: Flow<ClientSettings>,
+    onClientSettingsChange: (ClientSettings) -> Unit,
+) {
     val key = clientApiKey
     if (key == null) {
         Text("Finish registration first, then restart WorkshopClient.")
@@ -74,11 +80,23 @@ fun ClientEntryPoint(clientMetadata: ClientMetadata) {
         ClientEntryPoint(
             server = remember { context(clientMetadata) { workshopService.asServer(ApiKey(key)) } },
             clientMetadata = clientMetadata,
+            clientSettings = clientSettings,
+            onClientSettingsChange = onClientSettingsChange,
         )
     }
 }
 
 @Composable
-fun ClientEntryPoint(server: WorkshopServer, clientMetadata: ClientMetadata) {
-    WorkshopClient(server, clientMetadata = clientMetadata)
+fun ClientEntryPoint(
+    server: WorkshopServer,
+    clientMetadata: ClientMetadata,
+    clientSettings: Flow<ClientSettings>,
+    onClientSettingsChange: (ClientSettings) -> Unit,
+) {
+    WorkshopClient(
+        server,
+        clientMetadata = clientMetadata,
+        clientSettings = clientSettings,
+        onClientSettingsChange = onClientSettingsChange,
+    )
 }
