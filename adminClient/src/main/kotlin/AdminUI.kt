@@ -15,10 +15,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +73,12 @@ fun main(): Unit = application {
 }
 
 private val adminPassword = System.getenv("ADMIN_PASSWORD") ?: superSecretFallbackPassword()
+private val isMacOs = System.getProperty("os.name").contains("mac", ignoreCase = true)
+private val adminSettingsShortcut = KeyShortcut(
+    Key.Comma,
+    ctrl = !isMacOs,
+    meta = isMacOs,
+)
 
 private val workshopStages: List<WorkshopStage> = listOf(WorkshopStage.Registration) +
     WorkshopStage.KotlinBasicsPuzzleStage.entries + WorkshopStage.CoroutinePuzzleStage.entries
@@ -247,7 +262,7 @@ fun WorkshopWindow(
         var settingsIsOpen by remember { mutableStateOf(false) }
         MenuBar {
             Menu("Edit") {
-                Item("Settings", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { settingsIsOpen = true })
+                Item("Settings", shortcut = adminSettingsShortcut, onClick = { settingsIsOpen = true })
             }
         }
         if (settingsIsOpen) {
@@ -279,6 +294,11 @@ fun WorkshopWindow(
 internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onSettingsChange: (ServerSettings) -> Unit) {
     var currentSettings by remember(settings) { mutableStateOf(settings) }
     var autoSave by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     LaunchedEffect(currentSettings, autoSave) {
         if (autoSave && currentSettings != settings) {
@@ -289,6 +309,16 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                        onDismiss()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .focusable()
                 .clip(RoundedCornerShape(4.dp))
                 .border(
                     2.dp,
@@ -654,10 +684,37 @@ fun Color.transitionTo(other: Color, ratio: Float): Color = Color(
 
 @Composable
 fun AdminUi(state: ServerState, onEvent: OnEvent) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
     CompositionLocalProvider(
         LocalDensity provides Density(LocalDensity.current.density * state.settings.zoom)
     ) {
-        Column(Modifier.fillMaxSize().background(AdminBackground)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown || (!event.isCtrlPressed && !event.isMetaPressed)) {
+                        return@onPreviewKeyEvent false
+                    }
+                    val updatedZoom = when {
+                        event.key == Key.Plus || (event.key == Key.Equals && event.isShiftPressed) -> {
+                            state.settings.zoom.adjustAdminZoom(AdminZoomStep)
+                        }
+                        event.key == Key.Minus -> state.settings.zoom.adjustAdminZoom(-AdminZoomStep)
+                        event.key == Key.Zero -> DefaultAdminZoom
+                        else -> return@onPreviewKeyEvent false
+                    }
+                    onEvent.schedule(SettingsChangeEvent(state.settings.copy(zoom = updatedZoom)))
+                    true
+                }
+                .focusable()
+                .background(AdminBackground)
+        ) {
             // TODO: Start first pressive tick event when switching to Pressive game!
             StageTopBar(state.currentStage, onEvent)
             when (val stage = state.currentStage) {
@@ -668,6 +725,14 @@ fun AdminUi(state: ServerState, onEvent: OnEvent) {
         }
     }
 }
+
+private const val AdminZoomStep = 0.1f
+private const val MinAdminZoom = 0.1f
+private const val MaxAdminZoom = 3.0f
+private const val DefaultAdminZoom = 1.0f
+
+private fun Float.adjustAdminZoom(delta: Float): Float =
+    (this + delta).coerceIn(MinAdminZoom, MaxAdminZoom)
 
 @Composable
 private fun Puzzle(state: ServerState, puzzleName: String, onEvent: OnEvent) {
