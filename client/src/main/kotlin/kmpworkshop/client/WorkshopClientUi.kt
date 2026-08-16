@@ -124,8 +124,12 @@ private fun WorkshopClientContent(
     val focusRequester = remember { FocusRequester() }
     val baseDensity = LocalDensity.current
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    LaunchedEffect(settingsIsOpen) {
+        if (!settingsIsOpen) {
+            // Done disposes the focused settings button; wait for that disposal before reclaiming focus.
+            withFrameNanos { }
+            focusRequester.requestFocus()
+        }
     }
 
     fun ClientSettings.applyZoom(change: (Float) -> Float): ClientSettings =
@@ -210,55 +214,48 @@ private fun WorkshopClientContent(
         run.start()
     }
 
-    CompositionLocalProvider(
-        LocalDensity provides Density(
-            density = baseDensity.density * settings.zoom,
-            fontScale = baseDensity.fontScale * settings.zoom,
-        ),
-    ) {
-        Surface(
-            Modifier
-                .fillMaxSize()
-                .focusRequester(focusRequester)
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) {
-                        return@onPreviewKeyEvent false
-                    }
-                    if (event.key == Key.Escape && settingsIsOpen) {
-                        settingsIsOpen = false
-                        return@onPreviewKeyEvent true
-                    }
-                    if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
-                    when {
-                        event.key == Key.Comma -> {
-                            settingsIsOpen = true
-                            true
-                        }
-                        event.key == Key.Plus || (event.key == Key.Equals && event.isShiftPressed) -> {
-                            onClientSettingsChange(settings.applyZoom { it + ClientZoomStep })
-                            true
-                        }
-                        event.key == Key.Minus -> {
-                            onClientSettingsChange(settings.applyZoom { it - ClientZoomStep })
-                            true
-                        }
-                        event.key == Key.Zero -> {
-                            onClientSettingsChange(settings.applyZoom { DefaultClientZoom })
-                            true
-                        }
-                        else -> false
-                    }
+    Surface(
+        Modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    return@onPreviewKeyEvent false
                 }
-                .focusable(),
-        ) {
-            if (settingsIsOpen) {
-                ClientSettingsPage(
-                    settings = settings,
-                    shortcutModifier = zoomShortcutModifier,
-                    onSettingsChange = onClientSettingsChange,
-                    onDismiss = { settingsIsOpen = false },
-                )
-            } else {
+                if (event.key == Key.Escape && settingsIsOpen) {
+                    settingsIsOpen = false
+                    return@onPreviewKeyEvent true
+                }
+                if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
+                when {
+                    event.key == Key.Comma -> {
+                        settingsIsOpen = true
+                        true
+                    }
+                    event.key == Key.Plus || (event.key == Key.Equals && event.isShiftPressed) -> {
+                        onClientSettingsChange(settings.applyZoom { it + ClientZoomStep })
+                        true
+                    }
+                    event.key == Key.Minus -> {
+                        onClientSettingsChange(settings.applyZoom { it - ClientZoomStep })
+                        true
+                    }
+                    event.key == Key.Zero -> {
+                        onClientSettingsChange(settings.applyZoom { DefaultClientZoom })
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .focusable(),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = baseDensity.density * settings.zoom,
+                    fontScale = baseDensity.fontScale * settings.zoom,
+                ),
+            ) {
                 Column(Modifier.fillMaxSize()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -415,6 +412,29 @@ private fun WorkshopClientContent(
                     }
                 }
             }
+
+            if (settingsIsOpen) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.24f))
+                        .padding(24.dp),
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = 8.dp,
+                        color = MaterialTheme.colors.surface.copy(alpha = 0.96f),
+                    ) {
+                        ClientSettingsPage(
+                            settings = settings,
+                            shortcutModifier = zoomShortcutModifier,
+                            onSettingsChange = onClientSettingsChange,
+                            onDismiss = { settingsIsOpen = false },
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -434,6 +454,7 @@ private fun ClientSettingsPage(
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     var copied by remember(clientApiKey) { mutableStateOf(false) }
+    var apiKeyIsVisible by remember(clientApiKey) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -457,13 +478,6 @@ private fun ClientSettingsPage(
             }
             Text("${(settings.zoom * 100).toInt()}%", modifier = Modifier.padding(start = 16.dp))
         }
-        Slider(
-            value = settings.zoom,
-            onValueChange = { onSettingsChange(settings.copy(zoom = it.coerceIn(MinClientZoom, MaxClientZoom))) },
-            valueRange = MinClientZoom..MaxClientZoom,
-            steps = 14,
-            modifier = Modifier.fillMaxWidth().testTag("client-zoom-slider"),
-        )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(
                 onClick = { onSettingsChange(settings.copy(zoom = DefaultClientZoom)) },
@@ -478,10 +492,20 @@ private fun ClientSettingsPage(
 
         Divider(color = Color(0xFFE4E7EB))
         Text("API key", style = MaterialTheme.typography.h6, fontWeight = FontWeight.SemiBold)
-        Text(
-            clientApiKey ?: "No API key is available for this client.",
-            color = Color(0xFF5F6368),
-        )
+        if (clientApiKey == null) {
+            Text("No API key is available for this client.", color = Color(0xFF5F6368))
+        } else {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (apiKeyIsVisible) clientApiKey!! else "••••••••",
+                    modifier = Modifier.weight(1f),
+                    color = Color(0xFF5F6368),
+                )
+                TextButton(onClick = { apiKeyIsVisible = !apiKeyIsVisible }) {
+                    Text(if (apiKeyIsVisible) "Hide" else "Show")
+                }
+            }
+        }
         OutlinedButton(
             enabled = clientApiKey != null,
             onClick = {
