@@ -58,6 +58,7 @@ import com.woutwerkman.calltreevisualizer.globalScopeContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
@@ -98,6 +99,11 @@ fun WorkshopClient(
     clientMetadata: ClientMetadata,
     clientSettings: Flow<ClientSettings> = flowOf(ClientSettings()),
     onClientSettingsChange: (ClientSettings) -> Unit = {},
+    submitBugReport: suspend (ClientBugReport) -> ClientBugReportSubmissionResult = {
+        ClientBugReportSubmissionResult.Rejected("Bug reporting is not connected.")
+    },
+    openReportBug: Boolean = false,
+    onReportBugClosed: () -> Unit = {},
 ) {
     context(clientMetadata) {
         WorkshopClientContent(
@@ -106,6 +112,9 @@ fun WorkshopClient(
             kotlinBasicsSolutions,
             clientSettings,
             onClientSettingsChange,
+            submitBugReport,
+            openReportBug,
+            onReportBugClosed,
         )
     }
 }
@@ -118,9 +127,15 @@ private fun WorkshopClientContent(
     kotlinBasicsSolutions: KotlinBasicsPuzzleSolutions,
     clientSettings: Flow<ClientSettings>,
     onClientSettingsChange: (ClientSettings) -> Unit,
+    submitBugReport: suspend (ClientBugReport) -> ClientBugReportSubmissionResult,
+    openReportBug: Boolean,
+    onReportBugClosed: () -> Unit,
 ) {
     val settings by clientSettings.collectAsState(initial = ClientSettings())
     var settingsIsOpen by remember { mutableStateOf(false) }
+    var reportIsOpen by remember { mutableStateOf(false) }
+    val reportDraftStore = remember { ClientBugDraftStore() }
+    var reportDraft by remember { mutableStateOf(reportDraftStore.load()) }
     val focusRequester = remember { FocusRequester() }
     val baseDensity = LocalDensity.current
 
@@ -153,6 +168,13 @@ private fun WorkshopClientContent(
     val scope = rememberCoroutineScope()
     val latestActiveRun = rememberUpdatedState(activeRun)
     val latestDebuggerEvents = rememberUpdatedState(debuggerEvents)
+
+    LaunchedEffect(reportDraft) {
+        withContext(Dispatchers.IO) { reportDraftStore.save(reportDraft) }
+    }
+    LaunchedEffect(openReportBug) {
+        if (openReportBug) reportIsOpen = true
+    }
 
     AfterHotReloadEffect {
         latestActiveRun.value?.cancel()
@@ -224,6 +246,11 @@ private fun WorkshopClientContent(
                 }
                 if (event.key == Key.Escape && settingsIsOpen) {
                     settingsIsOpen = false
+                    return@onPreviewKeyEvent true
+                }
+                if (event.key == Key.Escape && reportIsOpen) {
+                    reportIsOpen = false
+                    onReportBugClosed()
                     return@onPreviewKeyEvent true
                 }
                 if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
@@ -431,6 +458,37 @@ private fun WorkshopClientContent(
                             shortcutModifier = zoomShortcutModifier,
                             onSettingsChange = onClientSettingsChange,
                             onDismiss = { settingsIsOpen = false },
+                        )
+                    }
+                }
+            }
+
+            if (reportIsOpen) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.24f))
+                        .padding(24.dp),
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = 8.dp,
+                        color = MaterialTheme.colors.surface.copy(alpha = 0.96f),
+                    ) {
+                        ClientBugReportPage(
+                            draft = reportDraft,
+                            settings = settings,
+                            onDraftChange = { reportDraft = it },
+                            onSubmit = submitBugReport,
+                            onDismiss = {
+                                reportIsOpen = false
+                                onReportBugClosed()
+                            },
+                            onReset = {
+                                reportDraftStore.clear()
+                                reportDraft = ClientBugReportDraft()
+                            },
                         )
                     }
                 }

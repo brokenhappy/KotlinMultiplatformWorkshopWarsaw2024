@@ -68,8 +68,12 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-fun main(): Unit = application {
-    AdminApp(onExit = ::exitApplication)
+fun main() {
+    require(System.getenv("BUG_DIRECTORY") != null) { "BUG_DIRECTORY env is not set up" }
+
+    application {
+        AdminApp(onExit = ::exitApplication)
+    }
 }
 
 private val adminPassword = System.getenv("ADMIN_PASSWORD") ?: superSecretFallbackPassword()
@@ -173,6 +177,14 @@ fun AdminApp(onExit: () -> Unit) {
                             serverState.drop(2).conflate().collect {
                                 backupDir.resolve("adminLocalBackup").writeText(Json.encodeToString(it))
                             }
+                        }
+                    }
+                    launch {
+                        adminAccess.clientBugReports(adminPassword).collect { report ->
+                            runCatching { persistClientBugReportLocally(report) }
+                                .onFailure { failure ->
+                                    System.err.println("Could not store client bug report: ${failure.message}")
+                                }
                         }
                     }
                     launch {

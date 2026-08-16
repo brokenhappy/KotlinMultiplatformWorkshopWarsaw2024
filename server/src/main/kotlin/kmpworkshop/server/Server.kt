@@ -24,13 +24,27 @@ suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     val soundEvents = MutableSharedFlow<SoundPlayEvent>()
+    val clientBugReports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 8)
     val onSoundEvent: (SoundPlayEvent) -> Unit = {
         launch { soundEvents.emit(it) }
     }
     launch {
         serve(
-            rpcService { workshopService(serverState, onEvent = { eventBus.trySend(it) }) },
-            rpcService { adminAccess(serverState, onEvent = { eventBus.trySend(it) }, soundEvents) },
+            rpcService {
+                workshopService(
+                    serverState,
+                    onEvent = { eventBus.trySend(it) },
+                    clientBugReports = clientBugReports,
+                )
+            },
+            rpcService {
+                adminAccess(
+                    serverState,
+                    onEvent = { eventBus.trySend(it) },
+                    sounds = soundEvents,
+                    clientBugReports = clientBugReports,
+                )
+            },
         )
     }
     coroutineScope {
@@ -59,12 +73,23 @@ suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
 fun workshopService(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
+    clientBugReports: MutableSharedFlow<StoredClientBugReport> = MutableSharedFlow(extraBufferCapacity = 8),
 ): WorkshopApiService = object : WorkshopApiService {
     override suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult =
         onEvent.fire(RegistrationStartEvent(name, Random.nextLong()))
 
     override suspend fun verifyRegistration(key: ApiKey): NameVerificationResult =
         onEvent.fire(RegistrationVerificationEvent(key))
+
+    override suspend fun submitClientBugReport(
+        key: ApiKey,
+        report: ClientBugReport,
+    ): ClientBugReportSubmissionResult = submitClientBugReport(
+        key,
+        report,
+        serverState.first(),
+        clientBugReports,
+    )
 
     override fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
 

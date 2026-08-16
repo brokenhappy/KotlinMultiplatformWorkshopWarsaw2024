@@ -1,6 +1,5 @@
 package kmpworkshop.common
 
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +26,7 @@ fun interface KotlinBasicsPuzzleProvider {
 @Rpc interface WorkshopApiService {
     suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult
     suspend fun verifyRegistration(key: ApiKey): NameVerificationResult
+    suspend fun submitClientBugReport(key: ApiKey, report: ClientBugReport): ClientBugReportSubmissionResult
     fun currentStage(): Flow<WorkshopStage>
     fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,

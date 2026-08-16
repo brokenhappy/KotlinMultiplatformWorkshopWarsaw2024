@@ -72,6 +72,8 @@ fun ClientEntryPoint(
     clientMetadata: ClientMetadata,
     clientSettings: Flow<ClientSettings>,
     onClientSettingsChange: (ClientSettings) -> Unit,
+    openReportBug: Boolean,
+    onReportBugClosed: () -> Unit,
 ) {
     val key = clientApiKey
     if (key == null) {
@@ -79,9 +81,12 @@ fun ClientEntryPoint(
     } else {
         ClientEntryPoint(
             server = remember { context(clientMetadata) { workshopService.asServer(ApiKey(key)) } },
+            submitBugReport = { report -> workshopService.submitClientBugReport(ApiKey(key), report) },
             clientMetadata = clientMetadata,
             clientSettings = clientSettings,
             onClientSettingsChange = onClientSettingsChange,
+            openReportBug = openReportBug,
+            onReportBugClosed = onReportBugClosed,
         )
     }
 }
@@ -89,14 +94,20 @@ fun ClientEntryPoint(
 @Composable
 fun ClientEntryPoint(
     server: WorkshopServer,
+    submitBugReport: suspend (ClientBugReport) -> ClientBugReportSubmissionResult,
     clientMetadata: ClientMetadata,
     clientSettings: Flow<ClientSettings>,
     onClientSettingsChange: (ClientSettings) -> Unit,
+    openReportBug: Boolean,
+    onReportBugClosed: () -> Unit,
 ) {
     WorkshopClient(
         server,
         clientMetadata = clientMetadata,
         clientSettings = clientSettings,
         onClientSettingsChange = onClientSettingsChange,
+        submitBugReport = submitBugReport,
+        openReportBug = openReportBug,
+        onReportBugClosed = onReportBugClosed,
     )
 }

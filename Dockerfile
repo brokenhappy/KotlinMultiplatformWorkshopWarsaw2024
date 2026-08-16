@@ -6,6 +6,7 @@ WORKDIR /home/gradle/src
 COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY gradlew ./
 COPY gradle ./gradle
+COPY .git .git
 
 # Make the Gradle wrapper executable
 RUN chmod +x ./gradlew # <-- ADDED THIS LINE to ensure permissions are correct

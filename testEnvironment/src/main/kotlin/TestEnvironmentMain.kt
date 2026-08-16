@@ -158,19 +158,22 @@ fun CanvasScreen(state: ServerState, service: WorkshopApiService, onEvent: OnEve
                 initialOffsetX = 1000f + index % 4 * 386f,
                 initialOffsetY = index / 4 * 484f
             ) {
-                FunctionUnderTest(server, participant.apiKey.stringRepresentation)
+                FunctionUnderTest(server)
             }
         }
     }
 }
 
 @Composable
-fun FunctionUnderTest(server: WorkshopServer, clientApiKey: String) {
+fun FunctionUnderTest(server: WorkshopServer) {
     val clientSettings = remember { MutableStateFlow(ClientSettings()) }
     ClientEntryPoint(
         server,
         clientMetadata = defaultClientMetadata,
         clientSettings = clientSettings,
         onClientSettingsChange = { newSettings -> clientSettings.value = newSettings },
+        submitBugReport = { throw NotImplementedError() },
+        openReportBug = false,
+        onReportBugClosed = {},
     )
 }

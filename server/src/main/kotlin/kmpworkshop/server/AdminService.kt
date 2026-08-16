@@ -8,6 +8,7 @@ import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.OnEvent
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.SoundPlayEvent
+import workshop.adminaccess.StoredClientBugReport
 import workshop.adminaccess.WorkshopEvent
 import workshop.adminaccess.WorkshopEventWithResult
 import workshop.adminaccess.fire
@@ -19,12 +20,17 @@ fun adminAccess(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
     sounds: Flow<SoundPlayEvent>,
+    clientBugReports: Flow<StoredClientBugReport>,
 ): AdminAccess = object : AdminAccess {
     override fun serverState(password: String): Flow<ServerState> = serverState.also { _ ->
         if (password != adminAccessPassword) error("Incorrect password")
     }
 
     override fun soundEvents(password: String): Flow<SoundPlayEvent> = sounds.also { _ ->
+        if (password != adminAccessPassword) error("Incorrect password")
+    }
+
+    override fun clientBugReports(password: String): Flow<StoredClientBugReport> = clientBugReports.also { _ ->
         if (password != adminAccessPassword) error("Incorrect password")
     }
 
