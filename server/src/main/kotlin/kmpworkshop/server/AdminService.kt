@@ -14,14 +14,14 @@ import workshop.adminaccess.WorkshopEventWithResult
 import workshop.adminaccess.fire
 import workshop.adminaccess.schedule
 
-private val adminAccessPassword = System.getenv("admin_access_password") ?: superSecretFallbackPassword()
-
 fun adminAccess(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
     sounds: Flow<SoundPlayEvent>,
     clientBugReports: Flow<StoredClientBugReport>,
 ): AdminAccess = object : AdminAccess {
+    private val adminAccessPassword = System.getenv("admin_access_password") ?: superSecretFallbackPassword()
+
     override fun serverState(password: String): Flow<ServerState> = serverState.also { _ ->
         if (password != adminAccessPassword) error("Incorrect password")
     }
