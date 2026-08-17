@@ -337,7 +337,15 @@ private fun WorkshopClientContent(
                                                 val userSolution = solutions.asSolution(stage)
                                                 if (trackedEvents == null) {
                                                     withContext(NoOpStackTracker) {
-                                                        withImportantCleanup { userSolution() }
+                                                        globalScopeContext =
+                                                            currentCoroutineContext() + SupervisorJob(
+                                                                currentCoroutineContext().job,
+                                                            )
+                                                        try {
+                                                            withImportantCleanup { userSolution() }
+                                                        } finally {
+                                                            globalScopeContext = EmptyCoroutineContext
+                                                        }
                                                     }
                                                 } else {
                                                     val debuggerQuiescence =
