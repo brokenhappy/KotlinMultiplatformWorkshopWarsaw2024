@@ -160,6 +160,7 @@ private fun WorkshopClientContent(
     val history = remember(stage) { mutableStateListOf<CoroutinePuzzleHistoryBatch>() }
     var result by remember(stage) { mutableStateOf<CoroutinePuzzleSolutionResult?>(null) }
     var kotlinBasicsResult by remember(stage) { mutableStateOf<KotlinBasicsPuzzleResult?>(null) }
+    var runFailed by remember(stage) { mutableStateOf(false) }
     var status by remember(stage) { mutableStateOf<String?>(null) }
     var openError by remember(stage) { mutableStateOf<String?>(null) }
     var attemptVersion by remember(stage) { mutableStateOf(0L) }
@@ -194,6 +195,7 @@ private fun WorkshopClientContent(
         history.clear()
         result = null
         kotlinBasicsResult = null
+        runFailed = false
         status = null
     }
 
@@ -216,6 +218,7 @@ private fun WorkshopClientContent(
     fun startKotlinBasicsRun(stage: WorkshopStage.KotlinBasicsPuzzleStage) {
         recordRun()
         kotlinBasicsResult = null
+        runFailed = false
         status = "Running test…"
         val run = scope.launch(start = CoroutineStart.LAZY) {
             try {
@@ -229,6 +232,8 @@ private fun WorkshopClientContent(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
+                runFailed = true
+                failure.printStackTrace()
                 status = "Test failed: ${failure.message ?: failure::class.simpleName}"
             } finally {
                 if (activeRun === coroutineContext[Job]) activeRun = null
@@ -308,7 +313,7 @@ private fun WorkshopClientContent(
                                 Text(
                                     status ?: "Preparing test…",
                                     modifier = Modifier.testTag("puzzle-status"),
-                                    color = kotlinBasicsResultColor(kotlinBasicsResult),
+                                    color = kotlinBasicsResultColor(kotlinBasicsResult, runFailed),
                                 )
                             }
                             is WorkshopStage.CoroutinePuzzleStage -> StagePage(
@@ -320,6 +325,7 @@ private fun WorkshopClientContent(
                                     recordRun()
                                     history.clear()
                                     result = null
+                                    runFailed = false
                                     debuggerEvents?.close()
                                     debuggerEvents = null
                                     debuggerBatchBoundaries?.close()
@@ -379,6 +385,8 @@ private fun WorkshopClientContent(
                                         } catch (cancelled: CancellationException) {
                                             throw cancelled
                                         } catch (failure: Throwable) {
+                                            runFailed = true
+                                            failure.printStackTrace()
                                             status = "Test failed: ${failure.message ?: failure::class.simpleName}"
                                         } finally {
                                             trackedEvents?.close()
@@ -408,7 +416,7 @@ private fun WorkshopClientContent(
                                     Text(
                                         it,
                                         modifier = Modifier.testTag("puzzle-status"),
-                                        color = resultColor(result),
+                                        color = resultColor(result, runFailed),
                                     )
                                 }
                                 Column(
@@ -831,16 +839,18 @@ private fun puzzleRunButtonColors(hasHotReloadSinceLastRun: Boolean): ButtonColo
     },
 )
 
-private fun resultColor(result: CoroutinePuzzleSolutionResult?): Color = when (result) {
-    null -> Color.Unspecified
-    is CoroutinePuzzleSolutionResult.Success -> Color(0xFF2E7D32)
+private fun resultColor(result: CoroutinePuzzleSolutionResult?, runFailed: Boolean): Color = when {
+    runFailed -> Color(0xFFC62828)
+    result == null -> Color.Unspecified
+    result is CoroutinePuzzleSolutionResult.Success -> Color(0xFF2E7D32)
     else -> Color(0xFFC62828)
 }
 
-private fun kotlinBasicsResultColor(result: KotlinBasicsPuzzleResult?): Color = when (result) {
-    KotlinBasicsPuzzleResult.Success -> Color(0xFF2E7D32)
-    is KotlinBasicsPuzzleResult.Failed, is KotlinBasicsPuzzleResult.CustomFailure -> Color(0xFFC62828)
-    null -> Color.Unspecified
+private fun kotlinBasicsResultColor(result: KotlinBasicsPuzzleResult?, runFailed: Boolean): Color = when {
+    runFailed -> Color(0xFFC62828)
+    result == KotlinBasicsPuzzleResult.Success -> Color(0xFF2E7D32)
+    result is KotlinBasicsPuzzleResult.Failed || result is KotlinBasicsPuzzleResult.CustomFailure -> Color(0xFFC62828)
+    else -> Color.Unspecified
 }
 
 @TestOnly
