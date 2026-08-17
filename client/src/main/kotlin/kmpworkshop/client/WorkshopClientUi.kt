@@ -57,10 +57,12 @@ import com.woutwerkman.calltreevisualizer.coroutineintegration.trackingCallStack
 import com.woutwerkman.calltreevisualizer.globalScopeContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -337,14 +339,8 @@ private fun WorkshopClientContent(
                                                 val userSolution = solutions.asSolution(stage)
                                                 if (trackedEvents == null) {
                                                     withContext(NoOpStackTracker) {
-                                                        globalScopeContext =
-                                                            currentCoroutineContext() + SupervisorJob(
-                                                                currentCoroutineContext().job,
-                                                            )
-                                                        try {
-                                                            withImportantCleanup { userSolution() }
-                                                        } finally {
-                                                            globalScopeContext = EmptyCoroutineContext
+                                                        withImportantCleanupAndOverriddenGlobalScope {
+                                                            userSolution()
                                                         }
                                                     }
                                                 } else {
@@ -356,21 +352,13 @@ private fun WorkshopClientContent(
                                                     debuggerQuiescence.autoBatchedOnQuiescence {
                                                         trackingCallStacks(
                                                             block = {
-                                                                globalScopeContext =
-                                                                    currentCoroutineContext() + SupervisorJob(
-                                                                        currentCoroutineContext().job,
-                                                                    )
-                                                                try {
-                                                                    withImportantCleanup { userSolution() }
-                                                                } finally {
-                                                                    globalScopeContext = EmptyCoroutineContext
+                                                                withImportantCleanupAndOverriddenGlobalScope {
+                                                                    userSolution()
                                                                 }
                                                             },
                                                             emit = { event ->
                                                                 assumeNotQuiescent {
-                                                                    trackedEvents.send(
-                                                                        event,
-                                                                    )
+                                                                    trackedEvents.send(event)
                                                                 }
                                                             },
                                                         )
@@ -504,6 +492,16 @@ private fun WorkshopClientContent(
         }
     }
 }
+
+private suspend fun <T> withImportantCleanupAndOverriddenGlobalScope(block: suspend CoroutineScope.() -> T): T =
+    withImportantCleanup {
+        globalScopeContext = currentCoroutineContext() + SupervisorJob(currentCoroutineContext().job)
+        try {
+            coroutineScope { block() }
+        } finally {
+            globalScopeContext = EmptyCoroutineContext
+        }
+    }
 
 @Composable
 private fun RegistrationWaiting() = Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
