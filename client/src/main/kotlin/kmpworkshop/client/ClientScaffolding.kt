@@ -4,17 +4,19 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import io.ktor.client.*
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.http.*
 import kmpworkshop.common.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
-import kotlinx.rpc.krpc.ktor.client.installKrpc
+import kotlinx.rpc.krpc.ktor.client.Krpc
 import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
+import kotlin.time.Duration.Companion.seconds
 
 // This is a hacky solution just so I can keep things simple for the scope of the workshop.
 // Please don't use global state like this yourself.
@@ -23,15 +25,25 @@ import kotlinx.rpc.withService
 private var _workshopService: WorkshopApiService? = null
 val workshopService: WorkshopApiService get() = _workshopService ?: createWorkshopService().also { _workshopService = it }
 
+internal val workshopRpcPingIntervalMillis = 20.seconds.inWholeMilliseconds
+
+/** Keeps the long-lived workshop RPC WebSocket from being discarded by an idle network intermediary. */
+internal fun HttpClientConfig<*>.installWorkshopRpc() {
+    install(WebSockets) {
+        pingIntervalMillis = workshopRpcPingIntervalMillis
+    }
+    install(Krpc) {
+        connector { }
+    }
+}
+
 /**
  * Connects to the workshop server and returns a [WorkshopApiService] over a real kotlinx-rpc transport, owning the
  * lifetime of the underlying ktor client for the rest of the process (as befits the app's singleton service).
  */
 fun createWorkshopService(): WorkshopApiService = runBlocking {
     HttpClient {
-        installKrpc {
-            connector { }
-        }
+        installWorkshopRpc()
     }.connectWorkshopService()
 }
 
