@@ -45,6 +45,10 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.ktor.client.cio.jvm)
+    testImplementation(libs.kotlinx.rpc.krpc.client)
+    testImplementation(libs.kotlinx.rpc.krpc.ktor.client)
+    testImplementation(libs.kotlinx.rpc.krpc.serialization.json)
 }
 
 tasks.test {

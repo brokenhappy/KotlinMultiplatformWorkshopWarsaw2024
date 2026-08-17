@@ -40,7 +40,6 @@ fun testWorkshopService(initialState: ServerState): Resource<WorkshopServiceAndE
         mainEventLoopWritingTo(
             serverState,
             eventBus,
-            onCommittedState = { },
             onSoundEvent = { },
             onEvent = eventBus::trySend,
         )

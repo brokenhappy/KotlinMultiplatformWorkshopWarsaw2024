@@ -6,7 +6,6 @@ import kmpworkshop.common.*
 import kmpworkshop.common.DefaultApis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
@@ -47,27 +46,12 @@ suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
             },
         )
     }
-    coroutineScope {
-        mainEventLoopWithCommittedStateChannelWritingTo(
-            serverState,
-            eventBus,
-            onSoundEvent = onSoundEvent,
-            onEvent = { launch { eventBus.send(it) } },
-        ) { initialState, channel ->
-            withBackupLoop(initialState, channel, onSoundEvent) { backupRequests, trailingBackup ->
-                val flow = backupRequests.consumeAsFlow()
-                    .shareIn(this, started = SharingStarted.Eagerly, replay = 10)
-                val channelCopy = Channel<BackupRequest>()
-                launch {
-                    flow.collect { event ->
-                        channelCopy.send(event)
-                    }
-                }
-
-                store(channelCopy)
-            }
-        }
-    }
+    mainEventLoopWritingTo(
+        serverState,
+        eventBus,
+        onSoundEvent = onSoundEvent,
+        onEvent = { launch { eventBus.send(it) } },
+    )
 }
 
 fun workshopService(

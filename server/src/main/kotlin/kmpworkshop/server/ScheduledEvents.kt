@@ -8,37 +8,9 @@ import workshop.adminaccess.*
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-suspend fun mainEventLoopWithCommittedStateChannelWritingTo(
-    serverState: MutableStateFlow<ServerState>,
-    eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
-    onSoundEvent: (SoundPlayEvent) -> Unit,
-    onEvent: OnEvent,
-    block: suspend CoroutineScope.(initial: ServerState, Channel<CommittedState>) -> Unit,
-): Nothing = coroutineScope {
-    val events = Channel<CommittedState>()
-    launch {
-        val initial = try {
-            loadInitialStateFromDatabase()
-        } catch (t: Exception) {
-            t.printStackTrace()
-            ServerState()
-        }
-        if (initial != ServerState()) serverState.value = initial
-        block(initial, events)
-    }
-    mainEventLoopWritingTo(
-        serverState,
-        eventBus,
-        onCommittedState = { launch { events.send(it) } },
-        onEvent = onEvent,
-        onSoundEvent = onSoundEvent,
-    )
-}
-
 suspend fun mainEventLoopWritingTo(
     serverState: MutableStateFlow<ServerState>,
     eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
-    onCommittedState: (CommittedState) -> Unit = {},
     onSoundEvent: (SoundPlayEvent) -> Unit,
     onEvent: OnEvent,
 ): Nothing = coroutineScope {
@@ -46,19 +18,12 @@ suspend fun mainEventLoopWritingTo(
         for (scheduledEvent in eventBus) {
             when (scheduledEvent) {
                 is ScheduledWorkshopEvent.AwaitingResult<*> -> {
-                    serverState.applyEventWithResult(applicationScope = this, scheduledEvent, onCommittedState)
+                    serverState.applyEventWithResult(applicationScope = this, scheduledEvent)
                 }
                 is ScheduledWorkshopEvent.IgnoringResult -> {
-                    var persistedState: CommittedState? = null
                     serverState.update { oldState ->
                         try {
-                            oldState.after(scheduledEvent.event, onSoundEvent).also { newState ->
-                                persistedState = CommittedState(
-                                    oldState,
-                                    TimedEvent(Clock.System.now(), scheduledEvent.event),
-                                    newState,
-                                )
-                            }
+                            oldState.after(scheduledEvent.event, onSoundEvent)
                         } catch (c: CancellationException) {
                             throw c
                         } catch (t: Throwable) {
@@ -66,7 +31,6 @@ suspend fun mainEventLoopWritingTo(
                             oldState
                         }
                     }
-                    persistedState?.let(onCommittedState)
                 }
             }
         }
@@ -92,11 +56,9 @@ suspend fun mainEventLoopWritingTo(
 private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
     applicationScope: CoroutineScope,
     scheduledEvent: ScheduledWorkshopEvent.AwaitingResult<T>,
-    onCommittedState: (CommittedState) -> Unit,
 ): Result<T> {
     val result = runCatching {
         var result: T? = null
-        var persistedState: CommittedState? = null
         this@applyEventWithResult.updateAndGet { oldState ->
             val (nextState, value) = try {
                 scheduledEvent.event.applyWithResultTo(oldState)
@@ -107,15 +69,9 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
                 throw t
             }
             result = value
-            persistedState = CommittedState(
-                oldState,
-                TimedEvent(Clock.System.now(), scheduledEvent.event),
-                nextState,
-            )
             scheduledEvent.continuation.context.ensureActive() // Don't apply the change if the request got canceled.
             nextState
         }
-        persistedState?.let(onCommittedState)
 
         result as T
     }
@@ -123,8 +79,6 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
     applicationScope.launch { scheduledEvent.continuation.resumeWith(result) }
     return result
 }
-
-data class CommittedState(val old: ServerState, val event: TimedEvent, val new: ServerState)
 
 private suspend fun delayUntil(time: Instant) {
     (time - Clock.System.now())

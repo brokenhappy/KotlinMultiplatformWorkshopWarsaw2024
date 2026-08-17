@@ -250,7 +250,6 @@ fun AdminApp(state: ServerState, onEvent: OnEvent, onExit: () -> Unit) {
             }
         },
         onEvent = onEvent,
-        recentBackups = emptyList(),
         whileTimeLineOpen = { awaitCancellation() },
         onTimeLineSelectionChange = { },
         adminUi = { state, onEvent -> AdminUi(state, onEvent) },
@@ -264,7 +263,6 @@ fun WorkshopWindow(
     title: String,
     onCloseRequest: () -> Unit,
     onEvent: OnEvent,
-    recentBackups: List<Backup> = emptyList(),
     whileTimeLineOpen: suspend () -> Nothing = ::awaitCancellation,
     onTimeLineSelectionChange: (ServerState?) -> Unit = {},
     onTimeLineAccept: () -> Unit = {},
