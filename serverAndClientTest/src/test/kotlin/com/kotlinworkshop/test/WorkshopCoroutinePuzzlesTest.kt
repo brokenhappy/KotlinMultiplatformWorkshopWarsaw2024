@@ -252,7 +252,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `a mutex is sufficient to serialize chat messages in the rendezvous stage`(): Unit = runPuzzleTest {
+    fun `a mutex also serializes chat writes in the first chat stage`(): Unit = runPuzzleTest {
         doChatMessagesRendezvous { api ->
             solveChatMessagesWithMutex(api)
         }.assertIsOk()
@@ -300,7 +300,16 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `typing status without drop oldest renders stale intermediate states`(): Unit = runPuzzleTest {
+    fun `previous buffered-message solution cannot keep typing status current`(): Unit = runPuzzleTest {
+        doChatTypingStatusDropOldest { api ->
+            solveChatMessages(api, messageCapacity = 2)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.chatTypingStatusMustKeepCollecting())
+    }
+
+    @Test
+    fun `a one-element typing queue keeps an older pending state`(): Unit = runPuzzleTest {
         doChatTypingStatusDropOldest { api ->
             solveChatMessagesAndTypingStatusWithoutDropOldest(api)
         }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
@@ -980,7 +989,7 @@ private suspend fun solveChatMessagesAndTypingStatusWithoutDropOldest(api: ChatA
         for (message in messages) api.appendToTranscript(message)
     }
 
-    val typingStatuses = Channel<TypingStatus>()
+    val typingStatuses = Channel<TypingStatus>(capacity = 1)
     launch {
         api.typingStatusUpdates().collect { typingStatuses.send(it) }
         typingStatuses.close()

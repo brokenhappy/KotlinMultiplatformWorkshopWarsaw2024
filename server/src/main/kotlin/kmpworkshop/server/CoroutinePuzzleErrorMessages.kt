@@ -48,23 +48,28 @@ object CoroutinePuzzleErrorMessages {
     """.trimMargin()
 
     fun chatTranscriptCallsMustBeSerialized(): String = """
-        |Incoming and sent chat messages were appended to the transcript concurrently.
-        |Forward both message flows to one channel and let one consumer call appendToTranscript.
+        |Two chat-message collectors started appending to the transcript at once.
+        |The transcript must have one active writer: do not start another append while one is still running.
     """.trimMargin()
 
     fun chatMessageCollectorsMustNotWaitForTranscript(): String = """
-        |A chat-message collector is waiting for appendToTranscript() to finish before accepting another message.
-        |Give the message channel a buffer so producers can hand off queued messages while the transcript is being written.
+        |A chat-message collector stopped accepting messages while a transcript write was in progress.
+        |Message sources must continue accepting new messages while the single transcript writer is busy.
     """.trimMargin()
 
     fun chatTypingUpdatesMustNotBeCanceled(): String = """
-        |This puzzle's updateCurrentTypingStatus() operation cannot be cancelled once a status update has started.
-        |Do not use collectLatest to cancel an in-progress update; keep it running and replace only stale queued state.
+        |A newer typing status cancelled an update that was already in progress.
+        |Once applying a status has started, let it finish; only waiting status may be replaced.
+    """.trimMargin()
+
+    fun chatTypingStatusMustKeepCollecting(): String = """
+        |A newer typing status could not be accepted while the current status was being applied.
+        |Let the current update finish, while retaining the most recent status that arrives in the meantime.
     """.trimMargin()
 
     fun chatTypingStatusMustDropStaleValues(): String = """
-        |The typing-status channel processed an outdated pending status.
-        |Typing status is replaceable state: keep a one-element buffer and drop the oldest pending value.
+        |A newer typing status was stuck behind an older pending status.
+        |Typing status is current state: after the active update finishes, apply only the newest pending status.
     """.trimMargin()
 
     fun shipmentTrackingMustBeShared(): String = """
