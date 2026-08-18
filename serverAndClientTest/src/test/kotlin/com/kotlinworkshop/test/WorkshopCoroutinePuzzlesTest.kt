@@ -8,6 +8,7 @@ import kmpworkshop.client.workshopSolutions
 import kmpworkshop.api.*
 import kmpworkshop.client.asSolution
 import kmpworkshop.solutions.allowPeopleToDownloadExposedFile
+import kmpworkshop.solutions.writeChatUpdatesDirectly
 import kmpworkshop.common.*
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.DefaultApis.closeExposedFile
@@ -19,10 +20,15 @@ import kmpworkshop.common.asServer
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
 import kmpworkshop.server.CoroutinePuzzleType
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
@@ -227,6 +233,79 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doSimpleCollectPuzzle { api ->
             api.numbers().collectLatest { api.submit(it) }
         }.assertIsOk()
+    }
+
+    @Test
+    fun `chat messages are serialized through a rendezvous channel`(): Unit = runPuzzleTest {
+        doChatMessagesRendezvous { api ->
+            solveChatMessages(api, messageCapacity = Channel.RENDEZVOUS)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `chat messages cannot be written concurrently`(): Unit = runPuzzleTest {
+        doChatMessagesRendezvous { api ->
+            writeChatUpdatesDirectly(api)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.chatTranscriptCallsMustBeSerialized())
+    }
+
+    @Test
+    fun `a mutex is sufficient to serialize chat messages in the rendezvous stage`(): Unit = runPuzzleTest {
+        doChatMessagesRendezvous { api ->
+            solveChatMessagesWithMutex(api)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `buffered chat messages let both collectors continue while the writer is busy`(): Unit = runPuzzleTest {
+        doChatMessagesBuffered { api ->
+            solveChatMessages(api, messageCapacity = 2)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `rendezvous chat messages leave a source collector waiting for the writer`(): Unit = runPuzzleTest {
+        doChatMessagesBuffered { api ->
+            solveChatMessages(api, messageCapacity = Channel.RENDEZVOUS)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.chatMessageCollectorsMustNotWaitForTranscript())
+    }
+
+    @Test
+    fun `a mutex serializes chat writes but still blocks a source collector`(): Unit = runPuzzleTest {
+        doChatMessagesBuffered { api ->
+            solveChatMessagesWithMutex(api)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.chatMessageCollectorsMustNotWaitForTranscript())
+    }
+
+    @Test
+    fun `typing status keeps only the latest pending state`(): Unit = runPuzzleTest {
+        doChatTypingStatusDropOldest { api ->
+            solveChatMessagesAndTypingStatus(api)
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `typing status does not use collectLatest for a non-cancellable update`(): Unit = runPuzzleTest {
+        doChatTypingStatusDropOldest { api ->
+            solveChatMessagesAndCollectLatestTypingStatus(api)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.chatTypingUpdatesMustNotBeCanceled())
+    }
+
+    @Test
+    fun `typing status without drop oldest renders stale intermediate states`(): Unit = runPuzzleTest {
+        doChatTypingStatusDropOldest { api ->
+            solveChatMessagesAndTypingStatusWithoutDropOldest(api)
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.chatTypingStatusMustDropStaleValues())
     }
 
     @Test
@@ -829,6 +908,101 @@ private suspend fun collectVisibleTrackingWidgets(
     }
 }
 
+private suspend fun solveChatMessages(
+    api: ChatApi,
+    messageCapacity: Int,
+) = coroutineScope {
+    val messages = Channel<ChatMessage>(messageCapacity)
+    launch {
+        coroutineScope {
+            launch { api.incomingMessages().collect { messages.send(it) } }
+            api.sentMessages().collect { messages.send(it) }
+        }
+        messages.close()
+    }
+    launch {
+        for (message in messages) {
+            api.appendToTranscript(message)
+        }
+    }
+    api.typingStatusUpdates().collect { api.updateCurrentTypingStatus(it) }
+}
+
+private suspend fun solveChatMessagesAndTypingStatus(api: ChatApi) = coroutineScope {
+    val messages = Channel<ChatMessage>(capacity = 2)
+    launch {
+        coroutineScope {
+            launch { api.incomingMessages().collect { messages.send(it) } }
+            api.sentMessages().collect { messages.send(it) }
+        }
+        messages.close()
+    }
+    launch {
+        for (message in messages) api.appendToTranscript(message)
+    }
+
+    val latestTypingStatus = Channel<TypingStatus>(
+        capacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    launch {
+        api.typingStatusUpdates().collect { latestTypingStatus.send(it) }
+        latestTypingStatus.close()
+    }
+    for (status in latestTypingStatus) api.updateCurrentTypingStatus(status)
+}
+
+private suspend fun solveChatMessagesWithMutex(api: ChatApi) = coroutineScope {
+    val mutex = Mutex()
+    launch {
+        api.incomingMessages().collect {
+            mutex.withLock { api.appendToTranscript(it) }
+        }
+    }
+    launch {
+        api.sentMessages().collect {
+            mutex.withLock { api.appendToTranscript(it) }
+        }
+    }
+    api.typingStatusUpdates().collect { api.updateCurrentTypingStatus(it) }
+}
+
+private suspend fun solveChatMessagesAndTypingStatusWithoutDropOldest(api: ChatApi) = coroutineScope {
+    val messages = Channel<ChatMessage>(capacity = 2)
+    launch {
+        coroutineScope {
+            launch { api.sentMessages().collect { messages.send(it) } }
+            api.incomingMessages().collect { messages.send(it) }
+        }
+        messages.close()
+    }
+    launch {
+        for (message in messages) api.appendToTranscript(message)
+    }
+
+    val typingStatuses = Channel<TypingStatus>()
+    launch {
+        api.typingStatusUpdates().collect { typingStatuses.send(it) }
+        typingStatuses.close()
+    }
+    for (status in typingStatuses) api.updateCurrentTypingStatus(status)
+}
+
+private suspend fun solveChatMessagesAndCollectLatestTypingStatus(api: ChatApi) = coroutineScope {
+    val messages = Channel<ChatMessage>(capacity = 2)
+    launch {
+        coroutineScope {
+            launch { api.incomingMessages().collect { messages.send(it) } }
+            api.sentMessages().collect { messages.send(it) }
+        }
+        messages.close()
+    }
+    launch {
+        for (message in messages) api.appendToTranscript(message)
+    }
+    api.typingStatusUpdates().collectLatest { api.updateCurrentTypingStatus(it) }
+}
+
 private suspend fun sumWithGlobalScopeWithoutCleanup(api: GetNumberAndSubmit, globalScope: CoroutineScope) {
     val first = globalScope.async { api.getNumber() }
     val second = globalScope.async { api.getNumber() }
@@ -980,6 +1154,12 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
         runCoroutinePuzzle(SimpleFlow, solutions(collectSolution = block))
     suspend fun doCollectLatestPuzzle(block: suspend CoroutineScope.(NumberFlowAndSubmit) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(CollectLatest, solutions(collectSolution = block))
+    suspend fun doChatMessagesRendezvous(block: suspend CoroutineScope.(ChatApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ChatMessagesRendezvous, solutions(chatSolution = block))
+    suspend fun doChatMessagesBuffered(block: suspend CoroutineScope.(ChatApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ChatMessagesBuffered, solutions(chatSolution = block))
+    suspend fun doChatTypingStatusDropOldest(block: suspend CoroutineScope.(ChatApi) -> Unit): ResultsWHistory =
+        runCoroutinePuzzle(ChatTypingStatusDropOldest, solutions(chatSolution = block))
     suspend fun doShipmentTrackingIndependentViewsPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =
         runCoroutinePuzzle(ShipmentTrackingIndependentViews, solutions(shipmentTrackingSolution = block))
     suspend fun doShipmentTrackingSharedConnectionPuzzle(block: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit): ResultsWHistory =

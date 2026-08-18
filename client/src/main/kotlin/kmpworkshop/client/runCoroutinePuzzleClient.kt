@@ -13,6 +13,7 @@ data class CoroutinePuzzleWorkshopSolutions(
     val mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit,
     val exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit,
     val fileExposureSolution: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit,
+    val chatSolution: suspend CoroutineScope.(ChatApi) -> Unit = { error("Unexpected chat puzzle tested") },
 )
 
 fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePuzzleStage): CoroutinePuzzleSolution = {
@@ -36,6 +37,9 @@ fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePu
         ExceptionCatchingWithCoroutines -> exceptionsInCoroutineHandlingScaffolding(exceptionHandlingSolution)
         SimpleFlow,
         CollectLatest, -> flowScaffolding(collectSolution)
+        ChatMessagesRendezvous,
+        ChatMessagesBuffered,
+        ChatTypingStatusDropOldest -> chatChannelsScaffolding(chatSolution)
         ShipmentTrackingIndependentViews,
         ShipmentTrackingSharedConnection,
         ShipmentTrackingLateEtaCard,

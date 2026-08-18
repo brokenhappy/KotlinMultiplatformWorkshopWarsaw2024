@@ -16,6 +16,23 @@ interface NumberFlowAndSubmit {
 }
 
 @Serializable
+data class ChatMessage(val sender: String, val text: String)
+
+@Serializable
+enum class TypingStatus {
+    Typing,
+    Idle,
+}
+
+interface ChatApi {
+    fun incomingMessages(): Flow<ChatMessage>
+    fun sentMessages(): Flow<ChatMessage>
+    fun typingStatusUpdates(): Flow<TypingStatus>
+    suspend fun appendToTranscript(message: ChatMessage)
+    suspend fun updateCurrentTypingStatus(status: TypingStatus)
+}
+
+@Serializable
 data class ShipmentUpdate(val checkpoint: String, val etaMinutes: Int)
 
 interface ShipmentTrackingApi {

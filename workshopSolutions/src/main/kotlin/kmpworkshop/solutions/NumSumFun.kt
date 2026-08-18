@@ -1,8 +1,14 @@
 package kmpworkshop.solutions
 
 import kmpworkshop.api.GetNumberAndSubmit
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 suspend fun numberSummer(api: GetNumberAndSubmit) {
-    val number = api.getNumber()
-    api.submit(number + number)
+    val sum = coroutineScope {
+        val number1 = async { api.getNumber() }
+        api.getNumber() + number1.await()
+    }
+    api.submit(sum)
 }
+

@@ -91,6 +91,7 @@ internal fun solutions(
     mappingLegacyApiCoroutineSolution: suspend CoroutineScope.(UserDatabaseWithLegacyQueryUser) -> Unit = { error("Unexpected puzzle tested") },
     exceptionHandlingSolution: suspend CoroutineScope.(ExceptionalApi) -> Unit = { error("Unexpected puzzle tested") },
     fileExposureSolution: suspend CoroutineScope.(FileToInternetExposingApi) -> Unit = { error("Unexpected puzzle tested") },
+    chatSolution: suspend CoroutineScope.(ChatApi) -> Unit = { error("Unexpected puzzle tested") },
 ) = CoroutinePuzzleWorkshopSolutions(
     sumSolution,
     collectSolution,
@@ -99,4 +100,5 @@ internal fun solutions(
     mappingLegacyApiCoroutineSolution,
     exceptionHandlingSolution,
     fileExposureSolution,
+    chatSolution,
 )

@@ -9,6 +9,9 @@ import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.Resource
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.CollectLatest
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ChatMessagesBuffered
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ChatMessagesRendezvous
+import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ChatTypingStatusDropOldest
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.ExceptionCatchingWithCoroutines
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.FastFindMaximumAgeCoroutines
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.FileExposureStepOne
@@ -55,6 +58,9 @@ object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion,
         ExceptionCatchingWithCoroutines -> coroutineExceptionHandlingCoroutinePuzzle()
         SimpleFlow -> simpleFlowPuzzle()
         CollectLatest -> collectLatestPuzzle()
+        ChatMessagesRendezvous,
+        ChatMessagesBuffered,
+        ChatTypingStatusDropOldest -> error("Chat channel puzzle evaluators are intentionally not implemented yet")
         ShipmentTrackingIndependentViews -> shipmentTrackingIndependentViewsPuzzle()
         ShipmentTrackingSharedConnection -> shipmentTrackingSharedConnectionPuzzle()
         ShipmentTrackingLateEtaCard -> shipmentTrackingLateEtaCardPuzzle()

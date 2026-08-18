@@ -47,6 +47,26 @@ object CoroutinePuzzleErrorMessages {
         |Submit the value received by the current collector invocation.
     """.trimMargin()
 
+    fun chatTranscriptCallsMustBeSerialized(): String = """
+        |Incoming and sent chat messages were appended to the transcript concurrently.
+        |Forward both message flows to one channel and let one consumer call appendToTranscript.
+    """.trimMargin()
+
+    fun chatMessageCollectorsMustNotWaitForTranscript(): String = """
+        |A chat-message collector is waiting for appendToTranscript() to finish before accepting another message.
+        |Give the message channel a buffer so producers can hand off queued messages while the transcript is being written.
+    """.trimMargin()
+
+    fun chatTypingUpdatesMustNotBeCanceled(): String = """
+        |This puzzle's updateCurrentTypingStatus() operation cannot be cancelled once a status update has started.
+        |Do not use collectLatest to cancel an in-progress update; keep it running and replace only stale queued state.
+    """.trimMargin()
+
+    fun chatTypingStatusMustDropStaleValues(): String = """
+        |The typing-status channel processed an outdated pending status.
+        |Typing status is replaceable state: keep a one-element buffer and drop the oldest pending value.
+    """.trimMargin()
+
     fun shipmentTrackingMustBeShared(): String = """
         The map and ETA card each opened their own shipment-tracking connection. Both widgets should receive updates
         while only one connection is running.

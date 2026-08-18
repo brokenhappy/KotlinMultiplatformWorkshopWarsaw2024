@@ -3,9 +3,16 @@ package kmpworkshop.common
 import kmpworkshop.api.FakeFileId
 import kmpworkshop.api.NetworkStrength
 import kmpworkshop.api.ShipmentUpdate
+import kmpworkshop.api.ChatMessage
+import kmpworkshop.api.TypingStatus
 
 object DefaultApis : EndpointDescriptorRegistry() {
     val emitNumber by flowDescriptor<Unit, Int>("numbers()")
+    val emitIncomingChatMessage by flowDescriptor<Unit, ChatMessage>("incomingMessages()")
+    val emitSentChatMessage by flowDescriptor<Unit, ChatMessage>("sentMessages()")
+    val emitTypingStatus by flowDescriptor<Unit, TypingStatus>("typingStatusUpdates()")
+    val appendChatMessageToTranscript by descriptor<ChatMessage, Unit>("Append a message to the chat transcript")
+    val updateCurrentTypingStatus by descriptor<TypingStatus, Unit>("Update the current typing status")
     val getAllUserIds by descriptor<Unit, List<Int>>("Call getAllUserIds(): List<Int>")
     val queryUserById by descriptor<Int, SerializableUser>("Call queryUserById(id: Int): User")
     val queryExceptionThrown by descriptor<Unit, Unit>("Throw the exception given by queryUserWithCallback!")

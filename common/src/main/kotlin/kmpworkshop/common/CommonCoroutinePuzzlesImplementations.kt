@@ -32,6 +32,23 @@ fun numberFlowAndSubmit(numbers: Flow<Int>): NumberFlowAndSubmit = object : Numb
 }
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
+fun chatApi(
+    incomingMessages: Flow<ChatMessage>,
+    sentMessages: Flow<ChatMessage>,
+    typingStatusUpdates: Flow<TypingStatus>,
+): ChatApi = object : ChatApi {
+    override fun incomingMessages(): Flow<ChatMessage> = incomingMessages
+    override fun sentMessages(): Flow<ChatMessage> = sentMessages
+    override fun typingStatusUpdates(): Flow<TypingStatus> = typingStatusUpdates
+    override suspend fun appendToTranscript(message: ChatMessage) {
+        DefaultApis.appendChatMessageToTranscript.submitCall(message)
+    }
+    override suspend fun updateCurrentTypingStatus(status: TypingStatus) {
+        DefaultApis.updateCurrentTypingStatus.submitCall(status)
+    }
+}
+
+context(solutionScope: CoroutinePuzzleSolutionScope)
 fun shipmentTrackingApi(
     updates: Flow<ShipmentUpdate>,
     mapVisibility: Flow<Boolean>,

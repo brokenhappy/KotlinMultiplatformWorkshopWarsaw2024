@@ -49,6 +49,9 @@ fun serverMetadataOf(
 
 val defaultServerMetadata = serverMetadataOf(DefaultApis) {
     emitNumber.register(flowFunctionCall = "numbers()")
+    DefaultApis.emitIncomingChatMessage.register(flowFunctionCall = "incomingMessages()")
+    DefaultApis.emitSentChatMessage.register(flowFunctionCall = "sentMessages()")
+    DefaultApis.emitTypingStatus.register(flowFunctionCall = "typingStatusUpdates()")
     shipmentTrackingUpdates.register(flowFunctionCall = "trackingUpdates()")
     emitShouldMapBeVisible.register(flowFunctionCall = "shouldMapBeVisible()")
     emitShouldEtaCardBeVisible.register(flowFunctionCall = "shouldEtaCardBeVisible()")

@@ -85,6 +85,7 @@ public val workshopSolutions: CoroutinePuzzleWorkshopSolutions = CoroutinePuzzle
     mappingLegacyApiCoroutineSolution = { mapFromLegacyApi(it) },
     exceptionHandlingSolution = { exceptionHandlingPuzzle(it) },
     fileExposureSolution = { allowPeopleToDownloadExposedFile(it) },
+    chatSolution = { writeChatUpdatesDirectly(it) },
 )
 
 public val kotlinBasicsPuzzleSolutions: KotlinBasicsPuzzleSolutions = KotlinBasicsPuzzleSolutions(
