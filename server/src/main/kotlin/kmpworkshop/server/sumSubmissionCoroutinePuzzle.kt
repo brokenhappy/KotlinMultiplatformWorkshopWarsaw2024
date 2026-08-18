@@ -64,7 +64,7 @@ fun exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes: Boolean): Reso
     val exceptionMessage = "getNumber() could not provide a number"
 
     launch { callIsDone.expectCall(Unit) }
-    launch { getNumber.expectCanceledCall { awaitCancellation() } }
+    val cancellation = launch { getNumber.expectCanceledCall { awaitCancellation() } }
     awaitQuiescenceAndVerifyUnmatchedSubmissions(callLifetime, getNumber)
     launch { callLifetime.expectCall(Unit) }
     getNumber.expectThrowingCall(exceptionMessage)
@@ -75,10 +75,13 @@ fun exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes: Boolean): Reso
         }
         legacyCancellationCompletion.expectCall(Unit)
     } else {
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(legacyCancellationCompletion, queryExceptionThrown) {
+        // Cancellation is the lesson here; its cleanup marker may arrive in a later protocol batch.
+        launch { legacyCancellationCompletion.expectCall(Unit) }
+        launch { queryExceptionThrown.expectCall(Unit) }
+        cancellation.join()
+        verify(!cancellation.isCancelled) {
             CoroutinePuzzleErrorMessages.sumExceptionMustCancelOtherCall()
         }
-        launch { legacyCancellationCompletion.expectCall(Unit) }
     }
-    queryExceptionThrown.expectCall(Unit)
+    if (waitForCancellationBeforeExceptionEscapes) queryExceptionThrown.expectCall(Unit)
 }
