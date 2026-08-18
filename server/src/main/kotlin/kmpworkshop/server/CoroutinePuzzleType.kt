@@ -58,9 +58,9 @@ object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion,
         ExceptionCatchingWithCoroutines -> coroutineExceptionHandlingCoroutinePuzzle()
         SimpleFlow -> simpleFlowPuzzle()
         CollectLatest -> collectLatestPuzzle()
-        ChatMessagesRendezvous,
-        ChatMessagesBuffered,
-        ChatTypingStatusDropOldest -> error("Chat channel puzzle evaluators are intentionally not implemented yet")
+        ChatMessagesRendezvous -> chatMessagesRendezvousPuzzle()
+        ChatMessagesBuffered -> chatMessagesBufferedPuzzle()
+        ChatTypingStatusDropOldest -> chatTypingStatusDropOldestPuzzle()
         ShipmentTrackingIndependentViews -> shipmentTrackingIndependentViewsPuzzle()
         ShipmentTrackingSharedConnection -> shipmentTrackingSharedConnectionPuzzle()
         ShipmentTrackingLateEtaCard -> shipmentTrackingLateEtaCardPuzzle()

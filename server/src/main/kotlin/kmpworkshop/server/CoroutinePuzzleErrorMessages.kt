@@ -1,6 +1,8 @@
 package kmpworkshop.server
 
+import kmpworkshop.api.ChatMessage
 import kmpworkshop.api.ShipmentUpdate
+import kmpworkshop.api.TypingStatus
 import kmpworkshop.common.CoroutinePuzzleEndPoint
 
 object CoroutinePuzzleErrorMessages {
@@ -70,6 +72,16 @@ object CoroutinePuzzleErrorMessages {
     fun chatTypingStatusMustDropStaleValues(): String = """
         |A newer typing status was stuck behind an older pending status.
         |Typing status is current state: after the active update finishes, apply only the newest pending status.
+    """.trimMargin()
+
+    fun wrongChatMessage(actual: ChatMessage, expected: ChatMessage): String = """
+        |The transcript appended $actual, but the next accepted message was $expected.
+        |Forward every accepted chat message to the single transcript writer without changing it.
+    """.trimMargin()
+
+    fun wrongTypingStatus(actual: TypingStatus, expected: TypingStatus): String = """
+        |The current typing status was updated to $actual, but the newest pending status was $expected.
+        |Apply the active update completely, then apply only the most recent status received while it was running.
     """.trimMargin()
 
     fun shipmentTrackingMustBeShared(): String = """

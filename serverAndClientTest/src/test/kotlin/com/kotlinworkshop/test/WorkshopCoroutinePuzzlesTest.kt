@@ -73,7 +73,8 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             maximumAgeFindingTheSecondCoroutineSolution = {},
             mappingLegacyApiCoroutineSolution = {},
             exceptionHandlingSolution = {},
-            fileExposureSolution = {}
+            fileExposureSolution = {},
+            chatSolution = {},
         )
         CoroutinePuzzleStage.entries.forEach { stage ->
             runCoroutinePuzzle(stage, emptySolutions.asSolution(stage)).assertIsNotOk()

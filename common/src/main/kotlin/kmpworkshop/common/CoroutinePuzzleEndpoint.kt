@@ -11,6 +11,8 @@ object DefaultApis : EndpointDescriptorRegistry() {
     val emitIncomingChatMessage by flowDescriptor<Unit, ChatMessage>("incomingMessages()")
     val emitSentChatMessage by flowDescriptor<Unit, ChatMessage>("sentMessages()")
     val emitTypingStatus by flowDescriptor<Unit, TypingStatus>("typingStatusUpdates()")
+    val chatMessageAccepted by descriptor<ChatMessage, Unit>("Accept a chat message from its source (scaffolding)")
+    val chatTypingStatusAccepted by descriptor<TypingStatus, Unit>("Accept a typing status from its source (scaffolding)")
     val appendChatMessageToTranscript by descriptor<ChatMessage, Unit>("Append a message to the chat transcript")
     val updateCurrentTypingStatus by descriptor<TypingStatus, Unit>("Update the current typing status")
     val getAllUserIds by descriptor<Unit, List<Int>>("Call getAllUserIds(): List<Int>")
