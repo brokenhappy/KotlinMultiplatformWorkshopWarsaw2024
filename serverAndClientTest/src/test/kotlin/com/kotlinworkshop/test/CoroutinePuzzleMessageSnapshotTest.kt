@@ -141,10 +141,20 @@ class CoroutinePuzzleMessageSnapshotTest {
     @Test
     fun `UnexpectedSubmissions with multiple expectations and multiple unexpected submissions`() {
         CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
-            unexpectedSubmissions = listOf(baz, foo),
+            unexpectedSubmissions = listOf(numbers, baz),
             expectations = listOf(CoroutinePuzzleExpectedFollowup(foo), CoroutinePuzzleExpectedFollowup(bar)),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_multiple_expectations_and_multiple_unexpected_submissions.txt",
+        )
+    }
+
+    @Test
+    fun `UnexpectedSubmissions describes a Flow request`() {
+        CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+            unexpectedSubmissions = listOf(numbers),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(foo)),
+        ).renderClientMessage().assertMatchesSnapshot(
+            "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_describes_a_Flow_request.txt",
         )
     }
 

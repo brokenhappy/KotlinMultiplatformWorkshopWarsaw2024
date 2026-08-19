@@ -99,10 +99,17 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
                     "  - No new requests were made to the server.\n\n" +
                     "In other words, it was waiting for a server response."
             } else {
-                "But instead you were doing " +
-                    formatCallAttemptsWithMargins(
-                        unexpectedSubmissions.map(clientMetadata::descriptionFor).distinct(),
-                        concurrentActions = true,
+                "But instead, your solution made " +
+                    formatUnexpectedRequests(
+                        unexpectedSubmissions.map { endpoint ->
+                            clientMetadata.descriptionFor(endpoint).let { description ->
+                                if (clientMetadata.isFlowEndpoint(endpoint)) {
+                                    "Request the next element from $description"
+                                } else {
+                                    description
+                                }
+                            }
+                        }.distinct(),
                     ) + "."
             }
     }
@@ -120,6 +127,11 @@ private fun formatCallAttemptsWithMargins(
     1 -> attempts.single()
     else -> "all of these${if (concurrentActions) " actions" else ""} at the same time:\n" +
         attempts.joinToString("\n") { "  - $it" }
+}
+
+private fun formatUnexpectedRequests(requests: List<String>): String = when (requests.size) {
+    1 -> "this request: ${requests.single()}"
+    else -> "these requests at the same time:\n" + requests.joinToString("\n") { "  - $it" }
 }
 
 /** Describes a set of calls where any single one of them would have been an acceptable next step. */
