@@ -9,16 +9,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import kmpworkshop.common.WithCallId
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
@@ -55,7 +59,9 @@ class CoroutineTimelineUiTest {
                     context(testMetadata) {
                         CoroutineTimelineWithMetadata(
                             sampleHistory(),
-                            CoroutinePuzzleSolutionResult.CustomFailure("Incomplete call"),
+                            CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(
+                                expectedFollowups = listOf(CoroutinePuzzleExpectedFollowup(UiTestApis.callNumber.id)),
+                            ),
                         )
                     }
                 }
@@ -64,8 +70,14 @@ class CoroutineTimelineUiTest {
 
         saveScreenshot("coroutine-timeline.png")
 
-        onNodeWithTag("timeline-marker-3-4").performMouseInput { moveTo(center) }
+        onNodeWithText("Expected").assertIsDisplayed()
+        onAllNodesWithText("…").assertCountEquals(0)
+        onAllNodesWithText("?").assertCountEquals(0)
+        onNodeWithTag("timeline-expected-marker-0").assertIsDisplayed()
+        onNodeWithTag("timeline-marker-3-2").performMouseInput { moveTo(center) }
         waitForIdle()
+        onNodeWithText("Unmatched request").assertIsDisplayed()
+        onNodeWithText("The puzzle did not match this request before the attempt failed.").assertIsDisplayed()
         saveScreenshot("coroutine-timeline-highlighted.png")
         saveScreenshot("coroutine-timeline-tooltip.png", rootIndex = 1)
     }
@@ -95,6 +107,111 @@ class CoroutineTimelineUiTest {
     }
 
     @Test
+    fun `shows open expected calls when the solution made no calls`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(700.dp, 420.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = emptyList(),
+                            result = CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(
+                                expectedFollowups = listOf(CoroutinePuzzleExpectedFollowup(UiTestApis.callNumber.id)),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithText("Expected: call number").assertIsDisplayed()
+        onNodeWithTag("timeline-expected-marker-0").assertIsDisplayed()
+    }
+
+    @Test
+    fun `aligns an expected flow emission with its collector ID`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(700.dp, 420.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = flowHistory(),
+                            result = CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(
+                                expectedFollowups = listOf(
+                                    CoroutinePuzzleExpectedFollowup(
+                                        UiTestApis.numbers.id,
+                                        collectorArgument(42),
+                                    ),
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithTag("timeline-expected-marker-1").assertIsDisplayed()
+        onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
+        onNodeWithTag("timeline-expected-marker-1").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Expected request for a new emission").assertIsDisplayed()
+        onNodeWithText("The puzzle expected this collector to request a new emission, but no submission matched it before the attempt failed.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `aligns an expected emission with its collector when the same flow has two collectors`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(700.dp, 420.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = twoCollectorFlowHistory(),
+                            result = CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(
+                                expectedFollowups = listOf(
+                                    CoroutinePuzzleExpectedFollowup(
+                                        UiTestApis.numbers.id,
+                                        collectorArgument(43),
+                                    ),
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
+        onNodeWithTag("timeline-expected-marker-2").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Expected request for a new emission").assertIsDisplayed()
+    }
+
+    @Test
+    fun `aligns an expected flow emission after an unexpected submission`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(700.dp, 420.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = flowHistory(),
+                            result = CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+                                unexpectedSubmissions = listOf(UiTestApis.callNumber.id),
+                                expectations = listOf(
+                                    CoroutinePuzzleExpectedFollowup(UiTestApis.numbers.id, collectorArgument(42)),
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
+        onNodeWithTag("timeline-expected-marker-1").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Expected request for a new emission").assertIsDisplayed()
+    }
+
+    @Test
     fun `shows when a flow collector requests its next element`() = runComposeUiTest {
         setContent {
             MaterialTheme {
@@ -106,7 +223,6 @@ class CoroutineTimelineUiTest {
 
         onNodeWithTag("timeline-marker-1-0").assertIsDisplayed()
         onNodeWithText("↗").assertIsDisplayed()
-        onNodeWithText("━").assertIsDisplayed()
     }
 
     private fun androidx.compose.ui.test.ComposeUiTest.saveScreenshot(name: String, rootIndex: Int = 0) {
@@ -157,6 +273,22 @@ class CoroutineTimelineUiTest {
             )),
         )
     }
+
+    private fun twoCollectorFlowHistory(): List<CoroutinePuzzleHistoryBatch> = listOf(
+        CoroutinePuzzleHistoryBatch.Submission(listOf(
+            entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.numbers.id, collectorArgument(42))),
+            entry(2, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.numbers.id, collectorArgument(43))),
+        )),
+        CoroutinePuzzleHistoryBatch.Expectation(listOf(
+            entry(1, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive(7))),
+            entry(2, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive(8))),
+        )),
+    )
+
+    private fun collectorArgument(id: Long) = JsonObject(mapOf(
+        "callId" to JsonPrimitive(id),
+        "payload" to JsonObject(emptyMap()),
+    ))
 
     private fun <T> entry(id: Long, payload: T) = WithCallId(id, payload)
 }

@@ -661,7 +661,9 @@ internal fun CoroutineTimelineWithMetadata(
     modifier: Modifier = Modifier,
 ) {
     val calls = remember(attemptVersion, history.size) { coroutineTimeline(history) }
-    if (history.isEmpty()) {
+    val expectedCalls = remember(result) { expectedTimelineCalls(result) }
+    val expectedCallPlacement = placeExpectedCalls(calls, expectedCalls)
+    if (history.isEmpty() && expectedCalls.isEmpty()) {
         Card(modifier = modifier, backgroundColor = Color(0xFFF7F8FA), elevation = 0.dp) {
             Text("The timeline will appear here as soon as your solution makes its first call.", Modifier.padding(20.dp), color = Color(0xFF5F6368))
         }
@@ -691,8 +693,20 @@ internal fun CoroutineTimelineWithMetadata(
                 Row(Modifier.background(Color(0xFFF4F6F8))) {
                     TimelineCell("Call", "The function call made by your solution.", width = 250, isHeader = true)
                     repeat(history.size) { TimelineCell("${it + 1}", "Exchange ${it + 1} in this attempt.", width = 48, isHeader = true) }
+                    TimelineCell(
+                        text = "Expected",
+                        tooltip = "Unmatched expectations",
+                        tooltipDetail = "This column shows what the puzzle expected to happen when it failed",
+                        width = 112,
+                        isHeader = true,
+                    )
                 }
                 calls.forEach { call ->
+                    val unmatchedRequestBatch = result?.let { call.lastUnmatchedRequestBatch() }
+                    val alignedExpectedCall = expectedCallPlacement.alignedByCallId[call.callId]
+                    val expectedCallContinuesFlow = alignedExpectedCall != null &&
+                        clientMetadata.isFlowEndpoint(call.endpoint) &&
+                        call.flowEndBatch() == null
                     Row {
                         TimelineCell(
                             clientMetadata.descriptionFor(call.endpoint),
@@ -700,19 +714,88 @@ internal fun CoroutineTimelineWithMetadata(
                             width = 250,
                         )
                         repeat(history.size) { batch ->
-                                val marker = markerAt(call, batch, history.lastIndex)
-                                TimelineMarkerCell(
-                                    marker = marker,
-                                    isUncompletedFailure = result != null && call.isUncompleted(),
-                                    isStart = batch == call.startBatch,
-                                    isEnd = if (call.events.isEmpty()) {
-                                        batch == call.endBatch || (call.endBatch == null && batch == history.lastIndex)
-                                    } else {
-                                        batch == call.flowEndBatch()
-                                    },
+                            val marker = markerAt(call, batch, history.lastIndex)
+                            TimelineMarkerCell(
+                                marker = if (batch == unmatchedRequestBatch) marker.asUnmatchedRequest() else marker,
+                                isUnmatchedFailure = batch == unmatchedRequestBatch,
+                                isStart = batch == call.startBatch,
+                                isEnd = if (call.events.isEmpty()) {
+                                    batch == call.endBatch || (call.endBatch == null && batch == history.lastIndex)
+                                } else {
+                                    batch == call.flowEndBatch()
+                                },
                                 testTag = "timeline-marker-${call.callId}-$batch",
                             )
                         }
+                        TimelineMarkerCell(
+                            marker = when {
+                                alignedExpectedCall != null -> if (clientMetadata.isFlowEndpoint(call.endpoint)) {
+                                    Marker(
+                                        "↗",
+                                        "Expected request for a new emission",
+                                        "The puzzle expected this collector to request a new emission, but no submission matched it before the attempt failed.",
+                                    )
+                                } else {
+                                    Marker(
+                                        "●",
+                                        "Unmatched expected call",
+                                        "The puzzle expected another call with this argument, but no submission matched it before the attempt failed.",
+                                    )
+                                }
+                                else -> Marker("")
+                            },
+                            isUnmatchedFailure = alignedExpectedCall != null,
+                            isStart = !expectedCallContinuesFlow,
+                            isEnd = true,
+                            testTag = "timeline-expected-marker-${call.callId}",
+                            width = 112,
+                        )
+                    }
+                    Divider(color = Color(0xFFF0F1F2))
+                }
+                expectedCallPlacement.unaligned.forEachIndexed { index, expectedCall ->
+                    val isFlowEndpoint = clientMetadata.isFlowEndpoint(expectedCall.endpoint)
+                    val expectsNewFlowCollector = isFlowEndpoint && expectedCall.expectedArgument == null
+                    val expectsFlowEmission = isFlowEndpoint && expectedCall.expectedArgument != null
+                    val expectedMarker = if (expectsFlowEmission) "↗" else "●"
+                    val expectedTitle = when {
+                        expectsFlowEmission -> "Expected request for a new emission"
+                        expectsNewFlowCollector -> "Unmatched expected flow collector"
+                        else -> "Unmatched expected call"
+                    }
+                    val expectedDetail = when {
+                        expectsFlowEmission -> "The puzzle was waiting for a collector to request a new emission, but no submission matched it before the attempt ended."
+                        expectsNewFlowCollector -> "The puzzle was waiting for a new collector of this flow to start, but no submission matched it before the attempt ended."
+                        else -> "The puzzle was waiting for this call, but no submission matched it before the attempt ended."
+                    }
+                    Row {
+                        TimelineCell(
+                            text = "Expected: ${clientMetadata.descriptionFor(expectedCall.endpoint)}",
+                            tooltip = expectedTitle,
+                            tooltipDetail = expectedDetail,
+                            width = 250,
+                        )
+                        repeat(history.size) { batch ->
+                            TimelineMarkerCell(
+                                marker = Marker(""),
+                                isUnmatchedFailure = false,
+                                isStart = false,
+                                isEnd = false,
+                                testTag = "timeline-expected-marker-$index-$batch",
+                            )
+                        }
+                        TimelineMarkerCell(
+                            marker = Marker(
+                                expectedMarker,
+                                expectedTitle,
+                                expectedDetail,
+                            ),
+                            isUnmatchedFailure = true,
+                            isStart = true,
+                            isEnd = true,
+                            testTag = "timeline-expected-marker-$index",
+                            width = 112,
+                        )
                     }
                     Divider(color = Color(0xFFF0F1F2))
                 }
@@ -720,14 +803,19 @@ internal fun CoroutineTimelineWithMetadata(
             VerticalScrollbar(rememberScrollbarAdapter(vertical), Modifier.align(Alignment.CenterEnd).fillMaxHeight())
             HorizontalScrollbar(rememberScrollbarAdapter(horizontal), Modifier.align(Alignment.BottomStart).fillMaxWidth())
         }
-        Text("● started   ↗ requested next element   ✓ returned   ! threw   × cancellation requested   ⊘ cancelled   … still running", style = MaterialTheme.typography.caption, color = Color(0xFF5F6368))
-        if (result != null && calls.any { it.isUncompleted() }) {
-            Text("Red rows are calls the puzzle never completed; start there when debugging this attempt.", style = MaterialTheme.typography.caption, color = Color(0xFFB3261E))
+        Column {
+            Text("● started   ↗ requested next element   ✓ returned   ! threw   × cancellation requested   ⊘ cancelled", style = MaterialTheme.typography.caption, color = Color(0xFF5F6368))
         }
     }
 }
 
 private data class Marker(val text: String, val title: String? = null, val detail: String? = null)
+
+private fun Marker.asUnmatchedRequest(): Marker = Marker(
+    text = text,
+    title = "Unmatched request",
+    detail = "The puzzle did not match this request before the attempt failed.",
+)
 
 private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): Marker {
     if (call.events.isNotEmpty()) {
@@ -774,14 +862,48 @@ private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): M
             "Started",
             if (call.argument.isUnitValue()) "This call has no argument." else "Argument: ${displayValue(call.argument)}",
         )
-        event.endBatch == null && batch == lastBatch -> Marker("…", "Still running", "The puzzle did not complete this call before the attempt ended.")
+        event.endBatch == null && batch == lastBatch -> Marker("━", "Running", "This call was still in progress when the attempt ended.")
         batch in event.startBatch..(event.endBatch ?: lastBatch) -> Marker("━", "Running", "This call was in progress during this exchange.")
         else -> Marker("")
     }
 }
 
-private fun CoroutineTimelineCall.isUncompleted(): Boolean =
-    if (events.isEmpty()) endBatch == null else flowEndBatch() == null
+private fun CoroutineTimelineCall.lastUnmatchedRequestBatch(): Int? = when {
+    events.isEmpty() && endBatch == null -> cancellationRequestedBatch ?: startBatch
+    events.isNotEmpty() -> events.lastOrNull { it.endBatch == null }
+        ?.let { it.cancellationRequestedBatch ?: it.startBatch }
+    else -> null
+}
+
+private data class ExpectedCallPlacement(
+    val alignedByCallId: Map<Long, CoroutineTimelineExpectedCall>,
+    val unaligned: List<CoroutineTimelineExpectedCall>,
+)
+
+private fun placeExpectedCalls(
+    calls: List<CoroutineTimelineCall>,
+    expectedCalls: List<CoroutineTimelineExpectedCall>,
+): ExpectedCallPlacement {
+    val alignedByCallId = mutableMapOf<Long, CoroutineTimelineExpectedCall>()
+    val alignedIndexes = mutableSetOf<Int>()
+
+    expectedCalls.forEachIndexed { index, expectedCall ->
+        val expectedArgument = expectedCall.expectedArgument ?: return@forEachIndexed
+        val call = calls.singleOrNull {
+            it.endpoint == expectedCall.endpoint &&
+                it.argument == expectedArgument
+        }
+        if (call != null) {
+            alignedByCallId[call.callId] = expectedCall
+            alignedIndexes += index
+        }
+    }
+
+    return ExpectedCallPlacement(
+        alignedByCallId = alignedByCallId,
+        unaligned = expectedCalls.filterIndexed { index, _ -> index !in alignedIndexes },
+    )
+}
 
 private fun CoroutineTimelineCall.flowEndBatch(): Int? =
     events.firstOrNull {
@@ -797,8 +919,14 @@ private fun displayValue(value: JsonElement?): String = when {
 }
 
 @Composable
-private fun TimelineCell(text: String, tooltip: String, width: Int, isHeader: Boolean = false) {
-    InstantTooltip(tooltip, Modifier.width(width.dp).height(40.dp)) { hovered ->
+private fun TimelineCell(
+    text: String,
+    tooltip: String,
+    width: Int,
+    isHeader: Boolean = false,
+    tooltipDetail: String? = null,
+) {
+    InstantTooltip(tooltip, Modifier.width(width.dp).height(40.dp), tooltipDetail) { hovered ->
         Box(
             Modifier.fillMaxSize().background(if (hovered) Color(0xFFE8F0FE) else Color.Transparent).padding(horizontal = 10.dp),
             contentAlignment = Alignment.CenterStart,
@@ -809,8 +937,15 @@ private fun TimelineCell(text: String, tooltip: String, width: Int, isHeader: Bo
 }
 
 @Composable
-private fun TimelineMarkerCell(marker: Marker, isUncompletedFailure: Boolean, isStart: Boolean, isEnd: Boolean, testTag: String) {
-    val base = if (isUncompletedFailure) Color(0xFFFFDAD6) else Color(0xFFE8F0FE)
+private fun TimelineMarkerCell(
+    marker: Marker,
+    isUnmatchedFailure: Boolean,
+    isStart: Boolean,
+    isEnd: Boolean,
+    testTag: String,
+    width: Int = 48,
+) {
+    val base = if (isUnmatchedFailure) Color(0xFFFFDAD6) else Color(0xFFE8F0FE)
     val shape = RoundedCornerShape(
         topStart = if (isStart) 16.dp else 0.dp,
         bottomStart = if (isStart) 16.dp else 0.dp,
@@ -819,13 +954,28 @@ private fun TimelineMarkerCell(marker: Marker, isUncompletedFailure: Boolean, is
     )
     val content: @Composable (Boolean) -> Unit = { hovered ->
         Box(
-            Modifier.width(48.dp).height(40.dp).testTag(testTag).padding(vertical = 5.dp)
+            Modifier.width(width.dp).height(40.dp).testTag(testTag).padding(vertical = 5.dp)
                 .clip(shape)
-                .background(if (hovered) if (isUncompletedFailure) Color(0xFFFFB4AB) else Color(0xFFD2E3FC) else if (marker.text.isEmpty()) Color.Transparent else base)
-                .then(if (hovered) Modifier.border(2.dp, Color(0xFF1A73E8), shape) else Modifier)
+                .background(if (hovered) when {
+                    isUnmatchedFailure -> Color(0xFFFFB4AB)
+                    else -> Color(0xFFD2E3FC)
+                } else if (marker.text.isEmpty()) Color.Transparent else base)
+                .then(if (hovered) Modifier.border(2.dp, when {
+                    isUnmatchedFailure -> Color(0xFFB3261E)
+                    else -> Color(0xFF1A73E8)
+                }, shape) else Modifier)
                 .padding(4.dp),
             contentAlignment = Alignment.Center,
-        ) { Text(marker.text, fontWeight = FontWeight.Bold, color = if (isUncompletedFailure) Color(0xFF8C1D18) else Color(0xFF174EA6)) }
+        ) {
+            Text(
+                marker.text,
+                fontWeight = FontWeight.Bold,
+                color = when {
+                    isUnmatchedFailure -> Color(0xFF8C1D18)
+                    else -> Color(0xFF174EA6)
+                },
+            )
+        }
     }
     if (marker.title == null) content(false) else InstantTooltip(marker.title, detail = marker.detail, content = content)
 }

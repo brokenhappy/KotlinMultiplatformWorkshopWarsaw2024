@@ -4,6 +4,7 @@ import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
+import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.ValueOrCompletion
 import kmpworkshop.common.WithCallId
 import kotlinx.serialization.json.JsonObject
@@ -36,6 +37,11 @@ data class CoroutineTimelineEvent(
     val returnValue: JsonElement? = null,
     val exceptionMessage: String? = null,
     val flowCompleted: Boolean = false,
+)
+
+data class CoroutineTimelineExpectedCall(
+    val endpoint: CoroutinePuzzleEndPointId,
+    val expectedArgument: JsonElement? = null,
 )
 
 context(clientMetadata: ClientMetadata)
@@ -81,10 +87,35 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
     return calls.values.groupBy { flowGroups[it.callId] ?: "call:${it.callId}" }.values.map { group ->
         if (group.size == 1 && !clientMetadata.isFlowEndpoint(group.single().endpoint)) group.single()
         else group.first().copy(events = group.map { call ->
-            CoroutineTimelineEvent(call.callId, call.startBatch, call.cancellationRequestedBatch, call.endBatch, call.completion, call.returnValue, call.exceptionMessage, call.flowCompleted)
+            CoroutineTimelineEvent(
+                call.callId,
+                call.startBatch,
+                call.cancellationRequestedBatch,
+                call.endBatch,
+                call.completion,
+                call.returnValue,
+                call.exceptionMessage,
+                call.flowCompleted,
+            )
         })
     }
 }
+
+context(clientMetadata: ClientMetadata)
+internal fun expectedTimelineCalls(result: CoroutinePuzzleSolutionResult?): List<CoroutineTimelineExpectedCall> =
+    when (result) {
+        is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure -> result.expectedFollowups.map {
+            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument)
+        }
+        is CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure -> result.expectations.map {
+            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument)
+        }
+        is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> result.expectations.map {
+            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument)
+        }
+        else -> emptyList()
+    }
+        .filterNot { it.endpoint.isHiddenFromHistory() }
 
 internal fun JsonElement.isUnitValue(): Boolean = this is JsonObject && isEmpty()
 

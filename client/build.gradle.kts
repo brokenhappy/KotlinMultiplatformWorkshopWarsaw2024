@@ -38,6 +38,7 @@ dependencies {
     implementation(project(":workshopApi"))
     implementation(project(":workshopSolutions"))
     testImplementation(libs.kotlin.test)
+    testImplementation(project(":server"))
     testImplementation(compose.desktop.uiTestJUnit4)
 }
 
