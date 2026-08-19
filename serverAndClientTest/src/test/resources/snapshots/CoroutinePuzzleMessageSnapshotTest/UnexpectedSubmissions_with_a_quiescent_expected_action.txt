@@ -1,4 +1,4 @@
-Currently the expected actions are nothing.
+Currently the expected action is call foo().
 But your solution was quiescent:
   - All its coroutines were suspended.
   - No new requests were made to the server.

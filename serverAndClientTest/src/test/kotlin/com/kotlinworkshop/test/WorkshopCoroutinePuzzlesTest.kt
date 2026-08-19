@@ -205,11 +205,11 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `regular collect must fail collect latest puzzle`(): Unit = runPuzzleTest {
+    fun `regular collect produces a generic quiescent failure`(): Unit = runPuzzleTest {
         doCollectLatestPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }
-            .assertIsNotOk<CoroutinePuzzleSolutionResult.FullyQuiescent>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
     }
 
     @Test

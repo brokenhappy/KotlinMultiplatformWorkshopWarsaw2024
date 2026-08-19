@@ -86,14 +86,25 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
         "You made too many function calls. No more calls were expected right now, but you called " +
             formatCallAttemptsWithMargins(overshotSubmissions.map(clientMetadata::descriptionFor)) + "."
     is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> {
-        val expectedDescriptions = expectations.map { clientMetadata.descriptionFor(it.endPoint) }.distinct()
+        val expectedDescriptions = expectations.map { expected ->
+            clientMetadata.descriptionFor(expected.endPoint).let { description ->
+                if (clientMetadata.isFlowEndpoint(expected.endPoint)) "Request an element from $description" else description
+            }
+        }.distinct()
         val actionOrActions = if (expectedDescriptions.size == 1) "action is" else "actions are"
         "Currently the expected $actionOrActions " + formatExpectedAlternatives(expectedDescriptions) + ".\n" +
-            "But instead you were doing " +
-            formatCallAttemptsWithMargins(
-                unexpectedSubmissions.map(clientMetadata::descriptionFor).distinct(),
-                concurrentActions = true,
-            ) + "."
+            if (unexpectedSubmissions.isEmpty()) {
+                "But your solution was quiescent:\n" +
+                    "  - All its coroutines were suspended.\n" +
+                    "  - No new requests were made to the server.\n\n" +
+                    "In other words, it was waiting for a server response."
+            } else {
+                "But instead you were doing " +
+                    formatCallAttemptsWithMargins(
+                        unexpectedSubmissions.map(clientMetadata::descriptionFor).distinct(),
+                        concurrentActions = true,
+                    ) + "."
+            }
     }
     is CoroutinePuzzleSolutionResult.CustomFailure -> message
     CoroutinePuzzleSolutionResult.FullyQuiescent -> "All coroutines got stuck waiting for each other."

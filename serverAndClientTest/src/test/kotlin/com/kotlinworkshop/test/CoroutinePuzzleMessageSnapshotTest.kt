@@ -7,20 +7,25 @@ import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.EndpointDescriptorRegistry
 import kmpworkshop.common.descriptor
+import kmpworkshop.common.flowDescriptor
 import org.junit.jupiter.api.Test
 
 private object MessageTestApis : EndpointDescriptorRegistry() {
     val foo by descriptor<Unit, Unit>("call foo()")
     val bar by descriptor<Unit, Unit>("call bar()")
     val baz by descriptor<Unit, Unit>("call baz()")
+    val numbers by flowDescriptor<Unit, Int>("numbers()")
 
     init { seal() }
 }
 
-private val testMetadata = clientMetadataOf(MessageTestApis) { }
+private val testMetadata = clientMetadataOf(MessageTestApis) {
+    MessageTestApis.numbers.register(isFlowEndpoint = true)
+}
 private val foo = MessageTestApis.foo.id
 private val bar = MessageTestApis.bar.id
 private val baz = MessageTestApis.baz.id
+private val numbers = MessageTestApis.numbers.id
 
 private fun CoroutinePuzzleSolutionResult.renderClientMessage(): String =
     context(testMetadata) { toMessage() }
@@ -148,6 +153,26 @@ class CoroutinePuzzleMessageSnapshotTest {
             expectations = emptyList(),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_no_expectations_and_no_unexpected_submissions.txt",
+        )
+    }
+
+    @Test
+    fun `UnexpectedSubmissions with a quiescent expected action`() {
+        CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+            unexpectedSubmissions = emptyList(),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(foo)),
+        ).renderClientMessage().assertMatchesSnapshot(
+            "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_a_quiescent_expected_action.txt",
+        )
+    }
+
+    @Test
+    fun `UnexpectedSubmissions describes a Flow expectation as an element request`() {
+        CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+            unexpectedSubmissions = emptyList(),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(numbers)),
+        ).renderClientMessage().assertMatchesSnapshot(
+            "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_describes_a_Flow_expectation_as_an_element_request.txt",
         )
     }
 
