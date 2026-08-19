@@ -6,10 +6,15 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
 
-internal fun collectClientBugDiagnostics(settings: ClientSettings): ClientBugDiagnostics {
+internal suspend fun collectClientBugDiagnostics(settings: ClientSettings): ClientBugDiagnostics {
     val values = linkedMapOf<String, String>()
     val failures = mutableListOf<String>()
 
@@ -32,21 +37,22 @@ internal fun collectClientBugDiagnostics(settings: ClientSettings): ClientBugDia
     return ClientBugDiagnostics(values, failures)
 }
 
-private fun collectGitDiagnostics(values: MutableMap<String, String>, failures: MutableList<String>) {
+private suspend fun collectGitDiagnostics(values: MutableMap<String, String>, failures: MutableList<String>) {
     val repository = runGit("rev-parse", "--show-toplevel")
+        .map { it.trim() }
         .getOrElse {
             failures += "client.git.repository: ${it.message ?: it::class.simpleName}"
             return
         }
     values["client.git.repository"] = repository
 
-    fun gitValue(name: String, vararg command: String) {
+    suspend fun gitValue(name: String, preserveWhitespace: Boolean, vararg command: String) {
         runGit(*command, directory = File(repository))
-            .onSuccess { values[name] = it }
+            .onSuccess { values[name] = if (preserveWhitespace) it else it.trim() }
             .onFailure { failures += "$name: ${it.message ?: it::class.simpleName}" }
     }
 
-    gitValue("client.git.checkedOutCommit", "rev-parse", "HEAD")
+    gitValue("client.git.checkedOutCommit", false, "rev-parse", "HEAD")
     val originHead = runGit("rev-parse", "--verify", "origin/HEAD", directory = File(repository))
         .recoverCatching {
             runGit(
@@ -55,52 +61,73 @@ private fun collectGitDiagnostics(values: MutableMap<String, String>, failures: 
                 "--format=%(refname)",
                 "refs/remotes/origin",
                 directory = File(repository),
-            ).getOrThrow().lineSequence().first { it != "refs/remotes/origin/HEAD" }
+            ).getOrThrow().lineSequence().map { it.trim() }.first { it != "refs/remotes/origin/HEAD" }
         }
+        .map { it.trim() }
     originHead
         .onSuccess { origin ->
-            values["client.git.nearestOriginCommit"] = runGit(
+            val nearestOriginCommit = runGit(
                 "merge-base", "HEAD", origin, directory = File(repository),
-            ).getOrElse {
+            ).map { it.trim() }.getOrElse {
                 failures += "client.git.nearestOriginCommit: ${it.message ?: it::class.simpleName}"
                 return@onSuccess
             }
+            values["client.git.nearestOriginCommit"] = nearestOriginCommit
             gitValue(
                 "client.git.changesSinceOrigin",
+                true,
                 "diff", "--no-ext-diff", "--binary", "${values["client.git.nearestOriginCommit"]}..HEAD",
             )
         }
         .onFailure { failures += "client.git.origin: ${it.message ?: it::class.simpleName}" }
 
-    gitValue("client.git.localChanges", "diff", "--no-ext-diff", "--binary", "HEAD")
-    gitValue("client.git.untrackedFiles", "ls-files", "--others", "--exclude-standard")
+    gitValue("client.git.localChanges", true, "diff", "--no-ext-diff", "--binary", "HEAD")
+    gitValue("client.git.untrackedFiles", false, "ls-files", "--others", "--exclude-standard")
 }
 
-private fun runGit(
+private suspend fun runGit(
     vararg command: String,
     directory: File = File("."),
-): Result<String> = runCatching {
-    val process = ProcessBuilder(listOf("git") + command)
-        .directory(directory)
-        .redirectErrorStream(false)
-        .start()
-    val output = AtomicReference("")
-    val error = AtomicReference("")
-    val stdout = Thread { output.set(readLimited(process.inputStream, MaxBugDiagnosticValueLength)) }
-    val stderr = Thread { error.set(readLimited(process.errorStream, 4_000)) }
-    stdout.start()
-    stderr.start()
-    if (!process.waitFor(3, TimeUnit.SECONDS)) {
-        process.destroyForcibly()
-        throw IllegalStateException("git command timed out")
-    }
-    stdout.join(500)
-    stderr.join(500)
-    if (process.exitValue() != 0) {
-        throw IllegalStateException(error.get().trim().take(500).ifBlank { "git failed" })
-    }
-    output.get().trim().take(MaxBugDiagnosticValueLength)
+): Result<String> = try {
+    coroutineScope {
+        val process = runInterruptible(Dispatchers.IO) {
+            ProcessBuilder(listOf("git") + command)
+                .directory(directory)
+                .redirectErrorStream(false)
+                .start()
+        }
+        process.outputStream.close()
+        val output = async(Dispatchers.IO) { readAll(process.inputStream) }
+        val error = async(Dispatchers.IO) { readLimited(process.errorStream, 4_000) }
+        try {
+            if (!runInterruptible(Dispatchers.IO) { process.waitFor(3, TimeUnit.SECONDS) }) {
+                error("git command timed out")
+            }
+            val outputText = output.await()
+            val errorText = error.await()
+            if (process.exitValue() != 0) {
+                error(errorText.trim().take(500).ifBlank { "git failed" })
+            }
+            outputText
+        } finally {
+            if (process.isAlive) terminateGitProcess(process)
+        }
+    }.let { Result.success(it) }
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (failure: Throwable) {
+    Result.failure(failure)
 }
+
+private suspend fun terminateGitProcess(process: Process) {
+    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+        runCatching { process.toHandle().descendants().forEach { it.destroyForcibly() } }
+        runCatching { process.destroyForcibly() }
+        runCatching { process.waitFor(1, TimeUnit.SECONDS) }
+    }
+}
+
+private fun readAll(input: InputStream): String = input.use { it.readBytes().toString(StandardCharsets.UTF_8) }
 
 private fun readLimited(input: InputStream, limit: Int): String {
     val output = ByteArrayOutputStream(minOf(limit, 8_192))

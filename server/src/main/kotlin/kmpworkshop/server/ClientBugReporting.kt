@@ -72,10 +72,10 @@ private fun collectServerBugDiagnostics(provenance: ServerProvenance): ServerBug
     collect("server.os.version") { System.getProperty("os.version") }
     collect("server.jvm") { System.getProperty("java.runtime.version") }
     provenance.commit?.let { values["server.checkedOutCommit"] = it.take(MaxBugDiagnosticValueLength) }
-    provenance.changes?.let { values["server.changes"] = it.take(MaxBugDiagnosticValueLength) }
+    provenance.changes?.let { values["server.changes"] = it }
     values["server.changesTruncated"] = provenance.changesTruncated.toString()
     provenance.changesSha256?.let { values["server.changesSha256"] = it }
-    provenance.untrackedChanges?.let { values["server.untrackedChanges"] = it.take(MaxBugDiagnosticValueLength) }
+    provenance.untrackedChanges?.let { values["server.untrackedChanges"] = it }
     values["server.untrackedChangesTruncated"] = provenance.untrackedChangesTruncated.toString()
     provenance.untrackedChangesSha256?.let { values["server.untrackedChangesSha256"] = it }
     return ServerBugDiagnostics(values, failures)

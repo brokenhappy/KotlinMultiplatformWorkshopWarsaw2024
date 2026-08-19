@@ -107,8 +107,6 @@ val generateServerProvenance by tasks.registering {
         }
 
         fun jsonOrNull(value: String?): String = jsonString(value) ?: "null"
-        fun bounded(value: String?): Pair<String?, Boolean> =
-            value?.let { it.take(750_000) to (it.length > 750_000) } ?: (null to false)
 
         fun sha256(value: String?): String? = value?.let {
             MessageDigest.getInstance("SHA-256")
@@ -144,7 +142,8 @@ val generateServerProvenance by tasks.registering {
             ?: System.getenv("BUILD_CHANGES")
             ?: run { failures += failureFor("git changes", changesResult); null }
         val changesSha256 = sha256(changesSource)
-        val (changes, changesTruncated) = bounded(changesSource)
+        val changes = changesSource
+        val changesTruncated = false
 
         val untrackedResult = git(
             "ls-files",
@@ -189,7 +188,8 @@ val generateServerProvenance by tasks.registering {
             System.getenv("BUILD_UNTRACKED_CHANGES")
         }
         val untrackedChangesSha256 = sha256(untrackedChangesSource)
-        val (untrackedChanges, untrackedChangesTruncated) = bounded(untrackedChangesSource)
+        val untrackedChanges = untrackedChangesSource
+        val untrackedChangesTruncated = false
 
         val escapedFailures = failures.joinToString(",") { jsonOrNull(it) }
         val output = serverProvenanceOutput.get().asFile

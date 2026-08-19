@@ -1,0 +1,376 @@
+package bugreproducer
+
+val commitHashesDump = """
+667e1ac5a8cf0b0cb49433d8b9f1f68179d9405b Fix Docker build: copy all Gradle modules, not just server's deps
+8ed6c889aefda9e556e4ac29852503ebfdcfeaac Fix Docker build: JBR toolchain download fails on Alpine/musl
+4ba2c31b0bfd4f1a2c397369c95b96ef1ae85de2 Fix Docker build: gradle:9.3.0-jdk23-alpine image does not exist
+9401c60649122fa3a6054a99a05f70e15e6edac4 Add back changes AI deleted
+74a8f31757d835fdaf607d927ddec3e331887939 Implement Channel learning coroutine puzzles
+437182ba5b3d6f16d0c60ab5de432acb556246eb Move channel learning tasks to after hot flows
+dc3dfb7cfcf46a5f649bc9f6b4ca4f7ebd6ac515 Improve tests for new stages
+597326e0d364e4644f2da969ac04debb69affaf7 First vibe coded version of channel learning stages
+2ad7fb90e2a14d383039bad58a48ee21f0c80e3f Tighten number summing puzzles and make coroutineScope solution work
+0db1f10ab6715308ff4c8d752689346ee7d7867e Fix Rpc Canceled exception in Client
+eac9f317bf538e54f753168910e7af22f92536e4 Fix exceptions during puzzle solves being shown in green in the client UI
+52ef0eadc4d68df639cdf5abd36c55d3ee104d31 Fix important cleanup not being in overridden global scope
+a119b107683fb6b077435c55c374dae308ea00f3 Fix silly GlobalScope config
+8aea0a4c24d7c19321b96b43b8adddf455c4ab4e Reorder workshop stages
+b212ecca6e4745ba8384fcdab79170fc286738eb Remove server side backup logic to fix server hang on quick events
+76cc7b8710c2f78290ef28b9b5c16e6cb06cc04f Fix admin password initialization order
+ff4d0cd25dd53658167f1ae9f526d694fc13f211 Update to latest public server URL
+64adcac6d0898b9a7f866d311f7bce804a70583a Add client bug reporting support such that attendees can report bugs
+8f4aa586c766897fdec745c3ed38aaec0db75803 Fix shortcuts breaking on Done and improve UI
+78c56da9939f2fe8d637531a529ca43987a930bc Align AdminUI's and ClientUI's settings UX
+d958daf13de8ccc2bd072495761e1f4c1947e7f9 Add settings for client and add zoom gestures
+433d45b7c887e2660990a2b5998eef612425d0eb Make Kotlin basic puzzle run semantics similar to the coroutine puzzles
+df6cbd1bd59fbed5d24173e3d5be3819067cc968 Make Workshop client hot reload on save
+3d2f46fe4d0dfcc1812e105f768bdbe79dd0b57f Make current stage clearer in admin UI
+475eb6a4c65cb0f50233d8f31e4a3ccacf09596a Add more levels to the NumSumFun stage to slowly introduce `coroutineScope`
+4e3071379eec656e0708339bfc2f26504944858a Make GlobalScope closer to real global scope from the attendee's perspective
+563e6bd28306578e65bb1df7b6bed9885ee76776 Reformat error messages
+0d399c6e6c74e77197cdcf714d720ef728f103ff Apply feedback to puzzle making skill
+cecdbf5148ed45d20fd65b7bfc53d1e446e59e02 Apply feedback to puzzle making skill
+627aec51166efe306d50b7c84cf9f1a9940f8dc4 Add shared flow puzzle
+18f0bf80b6ed85aca8fc489b81174d224a20409a Add coroutine puzzle making skill
+be9ed24fc3e24d95689fd620192639e9a5d55381 Integrate new Flow support into UI
+492e272f23836e810dc606bb90f03f8b9d33c117 Remove ExperimentalTime opt ins
+d653361029001f61bd6a39884fd64c7dedf91d87 Introduce metadata registry
+4580627c0c63d2b7e2a35af364020b9a833191db Add collector-matched coroutine puzzle flows
+bd6b3f788c413c620ac0bb6397ea92f76c7f4ed0 Rename coroutine puzzle batch entry to WithCallId
+bdec87346434078897eebaf5c7ee68f200744077 Integrate call tree UI changed in test
+a1384d4073b706f5f4478af8c203ea3d2e38be0d Add GitHub deployment config
+9c027577c5ab26c6b7dbc00bba79826de6265168 Add back CHR dependency
+acd846719882cd8a2808274b1b5d83183af2fe4a Fix setup script
+5b3a221b61b8d3dad678e40a50cd252b0852de46 Make AdminUI prettier :rainbow:
+ff93f9ed1fc35ce7f238beb9e44f888f3374624d Fix JDK setup
+f2b0e3e7b73a39760b608e67ff51bb883f0708f2 Fix WorkshopStage serializer
+2a06843774194564d77239ca2512daeb78014956 Rename timed sum puzzle to concurrent sum puzzle
+c53cc499e027c3be307a32a2c94f473812249efb Use trim margin for networkRestartStartedTooEarly message
+461ce7f2c8d5c0159f27f11d0f1d9b5d4a6dd5f7 Fix the width of the stage top bar
+9df8f18c59920f5bde78168b2b76386be3d541ad Adopt public coroutine tree visualizer release
+7f0f34160f8d8c0c04d70de70a6f2c24db1bbf60 Add missing NoOpStackTracker
+b5e6ab9c9e86679599c89b7aad64232634195c33 Adept NoOpTracker to new Metadata API
+2729988eefb16d602387007db9415e1cc3b31726 Integrate new java agent to fix `flow` and `withContext` from kx coroutines for the workshop
+c8c5ee036d9b70df400df35b986fb8b521ae7a8a Integrate new WrappingDispatcher API
+4bc3e8ed515fd7aef2a0844907a70f8682833277 Make user database in puzzles more random
+7439e0df40d9b0dd96f22376ca59af9010276889 Update to new StackTrackingMetadata type
+474c1c8429df5b056951fe2c1505adf6f49d4ea6 Improve setup for attendees
+f03628301fba4177b4fccdf3985262138bce628e Make everything consistently use Java 23
+ad8731b70097cf99541b03b25abbce577e4b66d7 Remove debugger status symbol
+8e644fc206b47c20005a3dda19e4b60973e51fd0 Remove debugger last event text
+ccb1c06ae0eb4eb16ac4c3519ea500565111fa08 Replace debugger status text with symbol
+03a5d322d424470d9b27f9bfc28616ff312be892 Add Resume until next batch button
+17445ad1acd4caf3ee8bb57db2539ae2664841f4 Remove redundant coroutineScope function
+ab491d5d110f9563399f8c074a887cfc197849c1 Fix run button not allowing re-runs
+1e54c4d21769cb007080b452f9da7e05390cff21 Refresh the call timeline as history arrives
+6336a3c5485213fd31d995324c76475677bc3b61 Keep puzzle run buttons available without reload
+8bb869087286f27bdec333aff10612e4d81d0c4a Fix double run gradle error
+13985631577115d8552f9defe9e66e7e9b0cd07b Add configurable fallback password for local testing
+b51e5cc71d1451ecdb928ec9d0aa0f14124ad24f Add Coroutine Call Tree visualization to the client
+5749c523c96623b8c4ddafb20d8142ea8e2ee22c Introduce version catalog
+8f25573694e22aada9f40c5821c8e952471cf9ec Update to Kotlin 2.4.10
+5f014908e56b3eeaa23aad041a1ab85e98802d33 Add communication protocol abstraction for Kotlin basics puzzles so we can test more easily
+a51825ba1d0411ab3a4c760b72a8a886480aceec Desperately attempt to improve IntelliJ file opening logic
+1a036c595a3ed7f13ffb5b6ba3da0e14444f7bf4 Move attendee written code to separate module
+07822129e19177ec76f47017471f3ba696d79059 Add UI tests
+c35796c642d24952390b26820259460b4f6b8e65 Add KotlinBasicsPuzzleSolutions
+91825a2620a843da079d35b3494472d5f93eb26d Rename code puzzles to Kotlin basics puzzles, and make it a cold type
+d6a28bab375fef116c2ebc0e2aa496a2288aae37 Extract `testWorkshopService` utility from coroutine puzzle tests
+a62915c3173d0a05451d821d0ac1062a6d8336fa Larger manual refactor
+1ab938d840650a6f329005410ba113d123ec95f5 Remove repetition for default coroutine puzzle implementation test
+3705a0b8472a642f99633232c8bc74a8f16dd008 Improve message reporting across the puzzles
+2ae2c493d8ed0fc2dd40dea5334edb935cbfcba7 Route client startup through WorkshopClient
+291a16f2c4474b32ab39600e5922ba63174f8668 Propagate coroutine puzzle exception messages
+93c7d2ca5742630b80c260fbcb251b1668d41a96 Vibecoded coroutine puzzle client UI
+9ce508b9579c27d0545611d192242a2c71b56f62 Refactor coroutine puzzle solving to Flow
+02375a3911969844b01e3abf134c6c8ed57fbbe4 Add file exposure coroutine puzzles
+aad7748af4ac515e3ffa77090d8850e535b7bcf0 Cover nested cancellation at expectation shutdown
+e15b50821c9bba4fe674a09834ea8847a966e0b8 End coroutine expectations through quiescence
+7387c1f1e442ccf603067a1d5007e93eba9e94f4 Replace expectingMatchedParallelism with awaitQuiescenceAndGetUnmatchedSubmissions
+ade315d4d1bb28d69363ccbbcd5e6cef203f9e91 Fix history not being able to parse cancellation and then completion
+a45049802853175dd0ee908b541bbfad90133b3d Extract strictly workshop related tests from coroutine puzzle related tests
+a541b1a78dd989d81a96768bd5ee1307be838d09 Add explicit return type for asServer
+897707d861ecaf98604d29a47560b8dd8cf4a144 Simplify code repetition to a single abstract test class
+739e229490325507cee39ee9b85637fa5f708dac Introduce CoroutinePuzzleWorkshopSolutions class to reduce drilling
+d6084af008aded76ba06d1f52a77123086bbc5a2 Remove redundant puzzleStates parameter to runTestClient
+916c415482e8b5e6e2ffc371e1b17cdff7f74033 Extract wrappedWithImportantCleanup utility
+2426e9e613cd942e5ad45ecd2ad47fd734f73e70 Move runCoroutinePuzzleClient into it's own file
+3d5ee8decb0e23711d34b55b3c7c991f91c000e2 Extract CoroutinePuzzleProvider interface
+4443a9a0f7eaf85f2db7fde9e63f26ea176102c6 Small fixups in CoroutinePuzzlesTest
+0d5559e37847a97d90c8590fd2c4b500ecd92a1e Inline not so nice `checkCoroutinePuzzle` functions
+94fe49fe63963e0fd68c0e15f9adc435e12dd05e Make CoroutinePuzzle an interface instead of a typealias.
+89cab24000021ac34bec6b84dbc82c26b2b8ba8b Add new coroutine puzzle for exception handling
+a2d30e389a79eb2742153a7b8a8e87e3072fe510 Fix strict parallelism check being too strict for ordering
+36f0f478740b0ce6d20827a29dbedd3ecdfd62dd Simplify coroutineScope wrappers
+7991bb21328d8ee82b18b14a25cd07057f1a37ef Simplify cancellation structure of legacy api mapping
+b1902ae17addebb13c6319f2af8a970bf304091d Add test to verify default implementations are wrong
+e92f6b1596d057911129dceca5eb28bee4033a03 Move test related coroutine puzzle wrappers out of production source set
+516e7cb1e24dfab7d4629d32e8f6ef164e0cf09d Massive refactor ditching slopcoded concurrency code and once and for all fixing coroutinePuzzle API! :tada:
+b8f7697b1a8b8c2511c5719ec0a1b24df9e7781e Yoink resource API from IntelliJ Community
+7523342c7171a6bfc50c0cabcf04e883935fefd8 Remove cancellation race condition in autoBatchedOnQuiescence
+0fc54ac5e223d754db61ee96177f3f6bd53a8bbc Add TODO
+a6649a4287fd3254b8193b87ba86dd8c732a55d8 Fix intercepting dispatcher fakeInterceptingDispatchedRunnableCompleted bug
+859a95b8f09ee367ba48f2d070681349c22e176e Add apis for more fine grained management of calls that break structured concurrency.
+e671b0713dc47be886ece1d2638385e7bebcf2c0 Agentic supported solution for quiescence sharing between frontend and backend
+3451026faede63748db1fb4a3b24bc441d6e0df6 Move solution batching logic to frontend side of RPC
+224b17573a040719763b8c9e748e358cb7e6cc80 Remove dead class
+298bf0cc8a2aa16e332b52642beda35e96086005 Fix wrong state being used for processedContinuations
+2c576fc856a294393509ed79d04d8c2a86c56267 Fix race condition in autoBatchedOnQuiescence
+a1c572900706ab8424ebd3c7e5dca52b0a6c7bf7 Claude said that this fixed something, but I doubt it
+535d783f849f818163374e091b090390ceef069c Track dispatchYield in the intercepting dispatcher so quiescence respects yields
+bfa0c9838babf7379dcadc7a594dff0cfc288666 Make withRandomizedDispatchOrder actually explore interleavings
+13b2f7e981db1c10c78ed6ce9a9a1a1fed619630 Fix double-resume race in autoBatchedOnQuiescence under real concurrency
+bf6e6661d2e9a94232590b1a65cc8d2ecbcf0a4b Fix cancellation being passed as 500 error
+5decdc5a72071be133b6ee03decc5919a4ef6421 Add higher level test that includes RPC communication
+ba4a2c42fc3efaf5d45c733e005847b37ae6df20 Remove outdated types
+9e060eb0e72320dd1fcae5df3b560e9563a8e214 Fix non-thrown CEs coming from the submission cancellations
+8c3f220395a5a6ebaba0f9c2567998e3d5989264 Refactor mapping legacy API puzzle logic
+63e9da2742d709a43ee431ac6553357db4457330 Add `pretendActiveAndRunUnintercepted` utility to allow using quiescence checks safely, even if we escape from the coroutine tree or coroutine world
+625deef3933bef47c9c19190436d65b290fc99e5 Improve outdated isTimed parameter name
+17c3f83cd5cfd2eb144638e61d19b11e66db9d15 Generify signature of awaitSubmissionCancellation
+d7bde591edc6424ab97b4844fc0783da4a0d9efa Introduce randomized coroutine dispatch ordering for improved test coverage
+2feaa06bb316ba1ed7a236b3794debf95abbcb25 Remove annoying exception printing
+3dc4aa0838238242c4a3f3f57075395e34e1f0a1 Add assertion for verifying cancellation order
+c1e8ca5ccb7446637465afd6f40adfc8edb8dec3 Remove branchCount check for expectingMatchedParallelism
+b2c5cba456a03fb3776907d8208717c76030f5ac Add MappingFromLegacyApisStepFour puzzle stage
+51a87e4b7609681e4dce0b8d5193c4b65d7685e7 Add test to cover the case that the user forgets to await cancellation completion.
+a31c553a098b40667285d4f2da0726f961ada9b7 Fix incorrect ordering of mapping legacy api puzzles
+08d8092efef70364e73f08b67b419e15cb971255 Fix incorrect handling of verifying user submission and simplify callLifetime verification
+acc9f727715b49a056dfe321032d9593dfd6ed3a Remove trailing println
+9aa0bd3570f3e841dd6f122b8d863d37a72fbd13 Add forgotten happy path legacy api mapping puzzle
+2b5ef7265ef0d4c1aa10c78c770109955de16719 Fix history always being empty
+93d6aa96d94657e560a3648196961d5afb56316f Remove failed exception handling block, I don't remember why I did it like this :sweat_smile:
+7dd9a07e50d93ef534063114cce3d45fdabdf6bc Remove whacky GlobalScope workaround
+177cc74304bdd3fc4313570abe19b76067cb93a7 Fix invokeOnTimeout leaking the active-coroutine count when disposed
+71826c99938f301138dcfe5c738eb04a84fa885d Always publish ExpectationsDone even if the puzzle builder is torn down
+ca7d7c3a7ffdd9b176327955d7dc00a3f117beb5 Fix test failures based on slowness from previous approach
+9073070f12f6f126e1357eb10ae8976dc5802ad7 Fix issues around legacy api with exception mapping
+2b7dc33649f57ad3358401a73eb1ae01697aa138 Fix long-running `submitCall`s from blocking all batched calls.
+537d6f79ac1db36951ff70d0c406562d5b83d9a2 Add more message test coverage
+13cc963ad8340f908a27a11a9662ee752f345047 Fix autoBatchedOnQuiescence permanently stopping batching on momentary idleness
+78adf99936425775cbf55a6a50e4f3ddb0bddcd1 Clean up coroutine puzzle failure message formatting and add file-based snapshot tests
+023bf02a2948e9956575fae1d749b9d52fdeb08d Fix MappingFromLegacyApisStepOne ignoring its own solution parameter
+8fcf4cd79f789485030380d2b7cfd8abb39fd29b Stop dispatching the legacy-query bridge onto Dispatchers.IO
+3858103001c823665567c24837c718d32760728e Delete the CoroutinePuzzle prototyping scratchpad, migrating its unique tests
+dd9786a415049c348531f090d7b714b0276fe5eb Make CoroutinePuzzleEndPointDescriptor a value class, inlining it on serialization
+36b1af4e38dda368a3794555dc152ec05343117f Move isHiddenInHistory from a per-descriptor flag to a client-side set
+d00c2fed17e97be4a9b9cb82ef59cdc64a050110 Add snapshot tests for CoroutinePuzzleSolutionResult.Failure.toMessage()
+6f924e9e803127f82d60bd80161e8efcb7abd414 Move Failure.toMessage()/Reason.toMessage() formatting to the client module
+c98f5580fa1151d2d287ebc48cf1609cc881bcb0 Replace withTimeoutOrNull+delay parallelism heuristic with expectingMatchedParallelism
+1abc53cd72d4471d427408f0f3d74b2799c9dfa7 Fix concurrent delay() calls not overlapping under withInterceptingDispatcher
+644c1150415b19f8d583b1987d4e9c0efae57c77 Fix identity vs descriptor bug in coroutinePuzzle builder-side batching
+47be11911135000d0e0d515ae997f5ff344c1ada Fix unversioned files
+6bad8c81f6f31bdf1e113517ecbf6939e4f9c6dc Integrate my new CoroutinePuzzle API using Claude
+9ffa75d2e99edc80b8f4bee3ff055753f1f55d3c Update CoroutinePuzzle APIs to use CoroutineDispatchers  - No need for clunky `puzzleScope` and `launchBranch` APIs. All coroutines are automatically tracked now.  - Now all assertions happen on quiescence, meaning we can now have `expectingMatchedParallelism` and better error messages
+55391c780591a7e620791663ed8b0521d02e1c2e WIP just to have a public link to the CoroutineDispatcher stuff
+c463134779d2ad239d6594c9d85e714d8dcf21b2 Add test for `awaitCancellationOfMatchingSubmitCall`
+0b087be6c30feaf34024280a7281b62de0b16324 Undo logging utilities
+65c9036a66a45a049663acfb2e333da2eff49741 Fix coroutine puzzles hanging when submit calls get canceled
+70de78ced4ed71b95cc7396bf1870e796fbf5fb7 Add a test for throwing calls in `expectCall`s
+526fa46a8a3a48aa44eab0b23b4b5e517a0e5dd4 Move coroutine puzzle utility functions tests to separate test class
+2db4e0c95b04242d2d883ccac359993578718dec Remove outdated endpoint
+992001ab1c8b8b8ab642794a7753e9eff80b9b63 Add internal endpoints to introduce less cluttering of the error messages with scaffolding stuff
+7362bb1a9c5df56b89b86eb7f26c2db5a1961019 Make Coroutine puzzle declaring logic public
+a391a7eb4c1e88ac0357378d77853276c48d3d87 Whole range of fixes for the coroutine puzzles.
+64e2f44b03ce00d8bdd22e4bac8281e11b719516 Fix puzzle scopes being closed twice
+a0d5a1fbb4c26a0ddb26b629f943cdf72d497649 Improve the multi branching utility functions and apply in timed sum puzzle
+47c899eb177392a021ee4784b33a444a05afb806 Add kotlinx.coroutines.test and use `runTest`
+221605623e3ee7a96dc899cffbac82a13a94cdd1 Improve the method used for timing the timed sum puzzle at slight the cost of error quality
+1746eab895dd58a55660b86da6548f321c8e8506 Rethrow exceptions thrown in `exceptCall`'s bodies into `submitCall`
+27e4217c456cc37cea8f368a550c436ee2d232ec Extract `sideEffect` utility to the common module
+a370840d6538ea644c51eff28d7539ab6c53c3b2 Add 2.5 puzzle for mapping legacy APIs
+d2f80f7e7b69ea71b20c4976ea591041c68d2132 Add forgotten assertions :facepalm:
+dae1114e1f26444dbab1c2cdccad59dfef9af96e Improve message to user when a lot of parallel calls are allowed
+108a88b8f2dee8a688aa2938d94e6269d1752b7e Fix missing important cleanup scope in puzzles
+b9706d37e27a58a9c1334c357e1d28303ee25d85 Shorten heartbeat delay
+1ca1274ea63720b2b5470dab392722565fdb11cd Fix forgotten TODO()s in server
+0b8acc747b6f29214f9671a03295e50f94c66fee Revert NumSumFun back to example code
+7dab17ed3034c14cab99caaeb7b3a172bc455d2d Add incorrect sample code for `maximumAgeFindingWithCoroutines`
+43b0a8afcda2a2539753f73597701313390c0cdc Add MaximumAgeFindingWithCoroutines coroutine puzzle
+2ae5cbbdb02c7aa05baa44b41d507d46768dea88 Fix server always rejecting puzzle solutions
+d1b3503f6975fa412c2619db857594cd1185ff4c Add heartbeat
+41c2e3f33efa0cb0cd4ddacf17dbbd2b5cdd6ef1 Disable krpc configured websocket timeout
+ce145f9e89215cf8bac61cac4961fae79aff9d72 Update WorkshopClient.xml
+7c832da44cef55af8014bd94fc0cb07c35159df1 Fix participant not found bugs in table view
+d14ad4d006a66623478c400628ca2dfe1a1af80e Change back to JetBrains hosted product environment
+8484dc5db95092612a0dab0dec57cb3d4609a18e Merge remote-tracking branch 'origin/main'
+2b84e62e56133ce81e08078b553724e92badc42a Update rpc endpoints
+861b4f1be8e15e77e93c209d1c52d116d9682bfd fixed Dockerfile v2
+196ea151ba0b24a3ee9494ff0370eec7fabae1b0 fixed Dockerfile
+aeb5355b3a69e3bdbe6bb849f2c4843052da4c4a added Dockerfile
+2d7d6facb7c91e0a19b19bd29616b51fafb60232 Change port back to 8080
+6a4305286816404188f2ae2f21f569e6d72bc9a1 Update to the new spec
+df3ea66ced00cb8fd00d0139c79b506865ecf07d Finally changed the IP to the public service! :yay:
+bbaf1f9e94b6059e2de90b85b29428cfc342374f Finally change the IP to the public service! :yay:
+58dbb38109b75183e6bf18b7cc7a1c491e3c579c Fix improper jib image
+47e736d6583932d7db543e81ae7c6b756a1bc2f3 Update IP for trial run AGAIN
+feae56f5054c0e3337f0416876a849e28e27e30b Update IP for trial run again
+69cd572a201c1fd259908e74ace53390fed22ada Update IP for trial run
+5fe764b748275a8b37897897a08b48816bf57337 [Workaround] Add a local backup managed from the frontend
+1fd76dd7305c6ffb7bb19d93b886d3cbb426c90e Fix sound not playing in admin UI
+1a44dc24b3de84ee63a0fd764d86df90dc7b25e3 Fix outdated file path
+293d3e44ceaff51425d3afab159c8d9bda75bd1f Implement mirror view
+556424e09586162c25b28e3ac32ef5454890a61a Add Compose Hot Reload
+43a0cbc961b69bc303a6778109f2cc3c8ec8a886 Simplify grid and offset conversion
+0cc2dba69b2ef1cc79bc1f51c210b067cc8d2e3e Fix table teams not being changed when team is removed
+de51bf346fb3765cf3d1e2467e41a1e7ded602e2 Bump Kotlin/JVM to 2.2.0
+0459b2e03ab1e9839c1e87f952384af51ae5776d Read password from env in admin client too
+d5ea5c1e0db3baaecc7ffccfbf395b1c050f1003 Merge remote-tracking branch 'origin/main'
+1d36360cce209d1a9baa2a5b17c92af4663e6ed8 Fix outdated mainClass name
+587b0eb2319116629c939f3b9d0ac9e0174162ff Strip KMP
+498b178ad413c314add059e52a652416d7e5db01 Fix incorrect kotlinFile names
+26cc7d11e0f37d1eaa2f09a3908c3addfb0555b7 Decouple sound play events so they can be played on the admin client instead of the server
+4cdc113c9dedd55214a49ead9cb9688d3481e69d Rename SoundEvents to SountPlayEvent
+1d42b4d1153dd364741cb72ea1b077ca869c2361 Separate puzzle view per team
+904a4ae3c8bdf9f54a57d2a7eff809a6da4a11db Add teams and tables
+0eeb445a5672a488c073f8165405f4af7a87d76a Prefer Path to File and create backup dir
+1e40affa9ec39b959d943c2d1c9f982e4c3bdf15 Add .env
+7ad0e9e7f8896eac6914177d1b2b84cec170bfa1 Add Junie guidelines.md
+7c9efdee929cce73092ef5930e9e54adaad9e005 Move file paths from Sercrets.kt to .env
+14787ff1d3838641343e0557b1f2e78ed30b17fd Remove KMP workshop stages
+50377d2a4430e85faec9a015e46bcab5b2e1469d Remove dead timeline code  to be added back later
+9f22041835ee38aca68f95d8f73ef1eae00baf4b Replace ktor plugin with jib
+0dd1069b6ea57fcfd9185f9fc7348c58a0812d9e Try Alex's patch
+08ddad1bd031a777d7d12e52e88d7e04f3cdb994 Add Google JIB integration
+413fc28ca710e7529089efcd5d51b7aaa476cbb0 Add health endpoint
+a9e8d039abb475c04df7dda2290c9d1b118f5b7c Implement admin endpoint
+5b504c54e16037dd7c62ae26471e13f8798d9df9 Fix test environment so it works with the newly separated server and admin ui logic
+f6dc66f8686024443d5c268221e57fd32d7f4902 Rename ServerUi to AdminUi
+b9043f82d475824afdcf3c4c21ca0e368ea6da75 Initial separation of Server and AdminUI logic
+572cdc3904a88552aff1b9e9b56635e7981642cb Add Coroutine puzzle infrastructure + 4 puzzles
+776f13b55faf0f02d374cd34cc1c209159b4b585 Replace suspendCoroutine for suspendCancellableCoroutine
+002e7bd6df61edd60af3e559ab238e6e7b7a017f Remove unnecessary runBlocking
+dfc2022d2374792fa198e017ba0314b3912a92c9 Update dependencies
+7aa99dce41b7c88fd78999a21ca65fbb8da06d9a Switch to context parameters
+3d1b6d88ad044a58039ebba6e259d4c419f628fa Utilize collectAsState for simple cases
+3a85912ea5c974325c0071d3d27e3717b55bd880 Fix dummy mistake because I dummy
+d9634df14cf3bc5caac524ec65f2465ddc5a707a Add ability to disable all participants who didn't win the first round
+b6cbe421f6015a1f31c4c0ecad0f2dd4c401a61f Add a timeline to inspect and revert previous states.
+dd9976599cc1c62741ac8e69d435c565a5abdc8b Make tests compile again! Let's make them great! Great they shall be!
+8ae453f79310edb6b1782890da34a5e688138471 Add test for bug reporting and start reporting indeterministic event bugs
+7802db4bbcfbc8d2cb19bcc0a15657978077dc6f Add zoom setting for the poor poor people in the back
+3832ab656fd1dde4a7af18db8f425b63064a9184 Make all tick events scheduled at most once
+7ca88e1374fab7cba457ebfd0e8e9cd7d1c5e8df Fix Test environment
+63de76cb6d6006486f59af4715969c41b2f3f7f8 Fix sound events SOE
+aef3766aea994319abf4fd9537bbdefbce046b4d Add Progress text prefix to disco game progress bar
+ff8b310f3791eae12705cd7f59534a1e6584d638 Fix critical event scheduling bug where all events are instantly triggered
+db3a94bb8e41762adfa4795d9ed18e38a7155c32 Fix bug when user presses key after they passed the first pressive game round
+0a197dff2830a469a3f98e77cce0196bce24e089 Fix the horrible message for the re-registering case
+cdcbfb06f4e74c2f3ea7ccf0f6d60dc50385fdad Add search for participants
+b8c95f0372b1ac470334ec5fabd146360349f24c Add lines between participants
+adc442b7f03d32e42e3c1595d79a21c129cbd492 Fix application not closing
+43f08e4c9b1203891baa6324f099d75719cd4f85 Add time to stored events
+0f427350be70a99a28d7ce5ba5e08ed01ffd676e << Split up event loop from event storage loop
+e51930bb884f3872a61835b1ca50fbd32136cec0 Make TimedEventTypes also just Events.
+a6881823717c7fdda47eb466c9ef90cb04285da6 Split up event loop from event storage loop
+8d7aec1dd067e98e317fbdd5f01b25b969ff97fd Prepare for new Wi-Fi
+ef0c4c991eabfb9b6df9e71084320288d669ef53 Make screens not sleep
+f880699a7f4cda589a8b6ead2df6a2e3071140fa Adjust third pressive game time
+7e1b2ee559b48c022d9eb4d61494b08da2a35c5c I'm silly
+97c2a02b4f620cacfe18125d9f21b843c629396a Use events as database
+8bc855fa9fa8fc812666178f1e367dc7a3e5ac6e Optimize the number of server updates in case of canceled requests
+c7bfb044f6d7f95b161efcf726573aa0e70a5c60 Simplify binary morse code id code
+3df067b9e5cd33b32102a1939928122972f7140f Use contexts to pass Random
+48356141770c1108407486c1530bb248269a277e Add sounds to pressive games
+4967c5ab8e9c015f0b553ef5119a5ad96ee90fad Fix Test environment to include adapting background
+a596407002353677de7eb0f649b98168f455c4d5 Share the same random instance in event handlers
+18069d017a407320fec7601abe241d6a67d854c4 Add increment and progress loss sound to second Pressive Game
+63a392a1e3ec491898036c580c5e82f3678bda2c Add increment and progress loss sound to second Disco game
+7e79589bfa90b0ca1153091f4401041772dc6e78 Slow down the disco game floor change
+bd2250404598964f2f1e00b57e7d03d7f2aa98af Finished making everything fully event-based
+622eb980665c68d40cccf0094059da30021adaf2 Allow scheduling events and waiting for them
+9d463d3100ada7802538dc14e4e3ad32df83d79c Add settings panel with initial color dimming setting.
+6b8bf3f71cb074c5e6770229d5a97c47a2576be5 Minor network traffic reduction
+f131e6e7f8e3c5d973dcf33dffcbd9cb80745bf7 Switch WiFi network
+2a1eeb6a8bba79ec25a6b90ac859483554aff4b4 Improve registration output
+f75a4799a245409de779140042911f5f15827b86 Make large vertical views scrollable
+ef500edb6f9cd1483cc73a673c5ab3c2f5c9c68d Set-up for Warsaw Event Space
+18fe9072ee987fe3712d525f24c7f07b2c2ab53f Fix slider out of bounds
+5a67e7f72c8c858128f7cfa3b2700fd4b9f537c8 Hacky add more, idk how to fix .gitIgnore
+8e608a43762c043e454c0c1723317b01038613a7 Add run configs to git ignore exclusion
+41c9f7b4ff044a96d4ee810ce1e67a3ef17bebe1 <<< Make everything a single entry point
+1190ce12a367094381b77bcf007956a8cd9c89b5 Setup for Warsaw office trial run
+513503cbc55eb5c188a6317b206920cdd6ae5db9 Make everything a single entry point
+d7f7b943858b6c24cffdf3525f0a76d851657ddf Fix state not being used as property delegate
+42e444b2da204223c71119f262a00e9b7dd89eb2 Implement introductory disco game to make sure their apps work for the big one
+78ce53ecc53f21b0b0f23979bf860f5e38f28ccf Undo this!
+4084884ba9fad1076383974a731a1011ffddb3c8 Undo this!
+da367cc12acec962499416ab0ce96ab6777dcee7 Quick push WIP disco game first
+720e1b48fdeb3406949158327fbd8e9cda5b58fe Prepare again
+518e58b7177e4f2cdd9ff341700287e182ef984c Add git ignore
+3e5bc8822652d6bef90a9ab107d17bdc40850713 Prepare for trial run @Belgrade
+dc9fa83f3e49418da6ff4a056d2d9e2632447109 Suppress annoying intention
+cf14763bc2ce608b6479de9c6e29088942406e3b Make test environment runnable on Fleet
+d213f3166de80ded90267bf7b3266392a514bfde Prepare launch import for pressive game
+fafcf107ba5cec046f1995bf54989d58d90b8f55 Fix missing opt in
+750ef9a2214776a4feeb9bbd067eb5803882e426 Add iOS target
+ba8ea813d23ded5b7509c901bf400dda49e0650f Fix serializability bug for events
+264cdfa78a18f0ac3d17a60c4f92cc21a97a4a51 Make running server work in Fleet
+4ed151281935bc9bbec09a1f046c876fd213e370 Finish switch to events for ServerUI
+c93af013cbe2a5a9f8ca94333dd8d9506fc40e13 Prevent exception swallowing
+eaf47ac4db02bc24670255210e4eb69637b03996 Add option for local Android dev
+02c7bf24aade5c2d2155535a6b43027c881b45f3 Add default secrets
+d6b9cf1828275dfb0c0778882f03bce1607f2920 Uhh, forgot this earlier?
+e50eaa32a9345f4187947d8a80bf26008d3ea2fc Finish new registration flow
+79d24af49b8a5f2fc5249e9c5bf13e50590b452a Added Android
+e1beb9c0520ab8c845a092ab7cb7aec57fb3b8bc WIP Improve registration, no bash!
+8c280cdd62d609772e86894eb4ebf85e5ccc7aaf Commonize code and add Jvm target
+8a404fe429cceb11cf81cac33035a2caa668bf93 Implement first half of event based system in ServerUI
+475a39959f255740c52d58456e60e5b1a8b2ac45 Implement DiscoGame
+4ef9a0bc2c3d6bc3b13362ef01a8737fce5cba67 Motivate people more to help others
+c705514d813fcacb16b1a521e6f3eec9611161ba Give a default layout for test environment and implement slider game solution
+9a246c1e8e790036059f6409b4f9764c9e73a898 Fix slider game names being misaligned with their sliders
+d7443c83225a9b9c6e7c6db6ee09afc28dfe7866 Fix toString method showing in UI instead of user's name
+9a27f15965ec85a7384c585a3a1b75bb202d93f4 Fix schedule effect for third pressive game
+1b4cde8b2c6cf955f45eb7fc966ce9561fe58588 Fix time scheduling NoSuchElement exception
+d38096baf72d91b4c674e59a25ce2204b1aa7f1c Fix wrong time used for scheduling events
+8ca79fa2308ab07898d713054ff4bf3a26d8bbc6 Add button for starting third pressing game
+8632b2602afa2d1c46f2e4c3f9dfe1beaa247c4f Add initial test environment
+d0f093a194432a184c4f9c9ade39abdc8614d6aa Prevent text from flashing in when pressing game background is turned off
+ce23d15f79a75005ba67521d93b3045974eb4e60 Sort submissions overview by submission time
+2634018b4d177e314d1386ae988c3428430f08c0 Lift server state to local variable and add Workshop API that is decoupled from the RPC framework.
+2acb8693a16a902b4d900efefe41530d5a37008f Add context receivers build setting
+05d0d2c197eff87d3815643d1c53358f35554df2 Update todos
+2ef9a5088830faaa76517b65919bc5930cfb6990 Remove unused check
+5ddbf84952c4907ab81643aa3779f3a54c39296a Disable PositionRangeInWhichPegWouldFallThroughTest
+e106083584b50b83d5f42880c402ac81152693d4 Fix binary morse code generation
+f6ae123740e6d971691f15b1e65c9436dde54003 Add event scheduling
+3654a4536d537488feec1eeafe383e5f44d7cd77 Implement the third pressive game without event scheduling
+111d5a448a2e5c61cfc1afcdb67e6f0aee555a25 Extract first pressive game (re)start function
+ebf724804a6f2b287242fdbdd746b72511b1df73 Fix incorrect trim
+d55093fe65ddc187f0e431e78daabaaa8b0ae05c Fix first pressive game state not switching to finished
+ca2b85f52efd166672f91e045cc5b1fdccfebaeb Reduce the number of button presses required for the first pressive game
+48e8d3037739c1ebaab949716a02907e05f431e3 Insert notes after trialing
+228ba2ed679dfd5bd31538318bdf611d79ab1a13 Fix flow invariance bug
+d0d7fea15112b1a470e1ca539392369de61e74c9 Make persisting of server state passive instead of eager
+91d3895e37e76b134259a6260061970f67bcec77 Add PressiveGame
+44a7c35528c806aeea0e19957954a0a63f219b27 Extract Common App logic
+677be05739b7369e9afed0edb19630216145b802 Add Slider Game
+2fbea6bf77dcb5320c1469ed9cccf5289f2f1b82 Improve error reporting for incorrect puzzle name
+03560368c11537e97e1cabf9bee76d594604bc68 Minor formatting change
+204963341c848766529c85b0991a05a22ddfb4e7 Make puzzle test data a when statement so I don't forget again...
+c6c65e2d42b0d727927445204f1cbf9505996a90 Fix test data for minimum age finding task
+5c00a6dcb31571fdac1842f54a96e30e242ca732 Add OldestUserFinding
+6e08a12c18d0ea4d2bed718487c8d77efed914d0 Fix issue with generics
+4ad5f1c4d6737f3830ecedf84f0ae455ab25ad77 Add minimum age finding puzzle
+c7db1fe3a1808477053c5407b7eeb8536319ca00 Make puzzle making multiplayer!
+227d01c87dbf831962b341554aef97cef22bdb65 Add first puzzle interaction
+1d89f3d590ca42482cd26e16f894383df704ade3 Add WorkshopStage UI
+15b85e7324603e82d9a0ddeda792a66be134f223 Introduce ServerUI
+d5409b0f5d2d24d6a1937e7a821f69c939d4da32 Fix registration flow when api key does not exist yet.
+981510beaf612b18a8393ae7dfd55c8670a30c40 Make ServerState reset state when API changes
+f294543f83dc70082b96d190ef18733262b40659 Improve update server state performance
+e2d308f15107a02fd0aeff4aaa82000070e03a30 Introduced ServerState
+a9948063ebbfc670729ef7afecfd2e21cc8bb45f Finish registration flow
+74efb0a6d7a9bd7ae44ba1fbfeff37534fc36610 Finish registration flow
+97562f164d1be9aebc1683d2507e6ae84f3009cb Fixed package name
+e22a47b9d69c2e0c18c0d0977659565eeac992e6 Make `group`s the same, whatever it means :shrug:
+1fae5151cc18761d9761f68a022ff10ff7fe919f Bumped and decreased all versions until it suddenly worked!
+94c39d34acd923d36a30f0f5b45a46245774003c Bumped server versions
+e46f8239424ac8fe869fc4ab4579f38db7991d43 Introduce kmpworkshop.client module and bumped versions
+71e1b27ee29e8e287623583b5d8e18344e8d2cf5 Introduce kmpworkshop.server module
+3d466ec7686c18427d8ac06cfa7676942f7117f9 Introduce kmpworkshop package prefix
+70b0415e7fcb9664d6b29a0e8c31b035793a3d67 Prepare for multi-module setup
+5eea3cea67876735195075b889eb8d27899748fa Update root project name
+f3d4bfd97647e30f11e1d87c172b6a6dfd434da2 Add ktor client app tutorial.
+"""

@@ -1,0 +1,26 @@
+{
+  "clientReport": {
+    "description": "Sample report: the historical client contains a Kotlin compilation error.",
+    "attachments": [],
+    "diagnostics": {
+      "values": {
+        "client.git.checkedOutCommit": "c2a9227d2e44536591bca6db1ecdff90e062e258",
+        "client.git.localChanges": "diff --git a/common/src/main/kotlin/kmpworkshop/common/Secrets.kt b/common/src/main/kotlin/kmpworkshop/common/Secrets.kt\n--- a/common/src/main/kotlin/kmpworkshop/common/Secrets.kt\n+++ b/common/src/main/kotlin/kmpworkshop/common/Secrets.kt\n@@ -1,3 +1,3 @@\n package kmpworkshop.common\n \n-val clientApiKey: String? = null\n\\ No newline at end of file\n+val clientApiKey: String? = \"sample-compilation-key\"\n\\ No newline at end of file\ndiff --git a/client/src/main/kotlin/kmpworkshop/client/ClientScaffolding.kt b/client/src/main/kotlin/kmpworkshop/client/ClientScaffolding.kt\n--- a/client/src/main/kotlin/kmpworkshop/client/ClientScaffolding.kt\n+++ b/client/src/main/kotlin/kmpworkshop/client/ClientScaffolding.kt\n@@ -125,1 +125,2 @@\n }\n+this is intentionally invalid Kotlin\n",
+        "client.settings": "zoom=1.0",
+        "client.git.untrackedFiles": ""
+      },
+      "failures": []
+    },
+    "createdAt": "2026-08-19T08:01:00Z"
+  },
+  "serverDiagnostics": {
+    "values": {
+      "server.checkedOutCommit": "c2a9227d2e44536591bca6db1ecdff90e062e258",
+      "server.changes": "",
+      "server.untrackedChanges": ""
+    },
+    "failures": []
+  },
+  "serverState": {},
+  "receivedAt": "2026-08-19T08:01:00Z"
+}
