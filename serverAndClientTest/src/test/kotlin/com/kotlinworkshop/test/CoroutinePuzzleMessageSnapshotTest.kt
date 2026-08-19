@@ -2,7 +2,6 @@ package com.kotlinworkshop.test
 
 import kmpworkshop.client.toMessage
 import kmpworkshop.client.clientMetadataOf
-import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.EndpointDescriptorRegistry
@@ -36,6 +35,7 @@ class CoroutinePuzzleMessageSnapshotTest {
         CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = listOf(foo),
             expectations = listOf(CoroutinePuzzleExpectedFollowup(foo), CoroutinePuzzleExpectedFollowup(bar)),
+            incorrectSubmissions = emptyList(),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_a_single_submission.txt",
         )
@@ -50,6 +50,7 @@ class CoroutinePuzzleMessageSnapshotTest {
                 CoroutinePuzzleExpectedFollowup(bar),
                 CoroutinePuzzleExpectedFollowup(baz),
             ),
+            emptyList(),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_multiple_concurrent_submissions.txt",
         )
@@ -63,6 +64,7 @@ class CoroutinePuzzleMessageSnapshotTest {
         CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = emptyList(),
             expectations = listOf(CoroutinePuzzleExpectedFollowup(foo)),
+            incorrectSubmissions = emptyList(),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_no_submissions.txt",
         )

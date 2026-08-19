@@ -411,6 +411,18 @@ fun fail(reason: CoroutinePuzzleSolutionResult): Nothing = failInternal(reason)
 context(_: CoroutinePuzzleBuilderScope)
 fun fail(message: String): Nothing = fail(CustomFailure(message))
 
+/**
+ * Fails a puzzle-specific check while preserving which already-submitted calls were conclusively incorrect.
+ *
+ * Use this after [awaitQuiescenceAndGetUnmatchedSubmissions] only when the check can distinguish an unexpected
+ * submission from another call that merely remains suspended.
+ */
+context(_: CoroutinePuzzleBuilderScope)
+fun fail(
+    message: String,
+    incorrectSubmissions: List<CoroutinePuzzleEndPoint<*, *>>,
+): Nothing = fail(CustomFailure(message, incorrectSubmissions.map { it.id }))
+
 context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */T, /* @Exact */R>.expectCall(
     noinline valueProducer: suspend (T) -> R,
@@ -457,11 +469,29 @@ fun verifyUnmatchedSubmissions(
     message: UnmatchedSubmissionMessageFunction? = null,
 ) {
     if (submissions.groupingBy { it.id }.eachCount() != expected.groupingBy { it.id }.eachCount()) {
-        message?.invoke(submissions)?.let { fail(it) }
+        val incorrectSubmissions = submissions.incorrectComparedTo(expected)
+        message?.invoke(submissions)?.let { fail(it, incorrectSubmissions) }
         fail(CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = submissions.map { it.id },
             expectations = expected.map { CoroutinePuzzleExpectedFollowup(it.id) },
+            incorrectSubmissions = incorrectSubmissions.map { it.id },
         ))
+    }
+}
+
+/** The remaining submissions after pairing each expected endpoint with one actual submission. */
+private fun List<CoroutinePuzzleEndPoint<*, *>>.incorrectComparedTo(
+    expected: List<CoroutinePuzzleEndPoint<*, *>>,
+): List<CoroutinePuzzleEndPoint<*, *>> {
+    val remainingExpectedCounts = expected.groupingBy { it.id }.eachCount().toMutableMap()
+    return filter { submission ->
+        val remaining = remainingExpectedCounts[submission.id] ?: 0
+        if (remaining == 0) {
+            true
+        } else {
+            remainingExpectedCounts[submission.id] = remaining - 1
+            false
+        }
     }
 }
 

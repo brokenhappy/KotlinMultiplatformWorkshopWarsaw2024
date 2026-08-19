@@ -197,11 +197,17 @@ class CoroutinePuzzleResultWithHistory(
     @Serializable data class ExactParallelismMismatchFailure(
         val submissions: List<CoroutinePuzzleEndPointId>,
         val expectations: List<CoroutinePuzzleExpectedFollowup>,
+        /** Submissions an explicit concurrent check conclusively identified as incorrect. */
+        val incorrectSubmissions: List<CoroutinePuzzleEndPointId>,
     ) : CoroutinePuzzleSolutionResult()
     @Serializable data class UnexpectedSubmissionsFailure(
         val unexpectedSubmissions: List<CoroutinePuzzleEndPointId>,
         val expectations: List<CoroutinePuzzleExpectedFollowup>,
     ) : CoroutinePuzzleSolutionResult()
     @Serializable data object FullyQuiescent : CoroutinePuzzleSolutionResult()
-    @Serializable data class CustomFailure(val message: String) : CoroutinePuzzleSolutionResult()
+    @Serializable data class CustomFailure(
+        val message: String,
+        /** Submissions a puzzle-specific check conclusively identified as incorrect. */
+        val incorrectSubmissions: List<CoroutinePuzzleEndPointId> = emptyList(),
+    ) : CoroutinePuzzleSolutionResult()
 }

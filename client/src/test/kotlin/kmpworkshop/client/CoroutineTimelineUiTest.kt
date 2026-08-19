@@ -76,10 +76,105 @@ class CoroutineTimelineUiTest {
         onNodeWithTag("timeline-expected-marker-0").assertIsDisplayed()
         onNodeWithTag("timeline-marker-3-2").performMouseInput { moveTo(center) }
         waitForIdle()
-        onNodeWithText("Unmatched request").assertIsDisplayed()
-        onNodeWithText("The puzzle did not match this request before the attempt failed.").assertIsDisplayed()
+        onNodeWithText("Started").assertIsDisplayed()
         saveScreenshot("coroutine-timeline-highlighted.png")
         saveScreenshot("coroutine-timeline-tooltip.png", rootIndex = 1)
+    }
+
+    @Test
+    fun `only an identified incorrect request is red`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(900.dp, 560.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            sampleHistory(),
+                            CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
+                                submissions = listOf(UiTestApis.waitForUpdate.id),
+                                expectations = emptyList(),
+                                incorrectSubmissions = listOf(UiTestApis.waitForUpdate.id),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithTag("timeline-marker-3-2").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Unexpected function call").assertIsDisplayed()
+        onNodeWithText("This function call is not currently expected.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `an unmatched request with no matching expectation is red`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(900.dp, 560.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            sampleHistory(),
+                            CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+                                unexpectedSubmissions = listOf(UiTestApis.waitForUpdate.id),
+                                expectations = listOf(CoroutinePuzzleExpectedFollowup(UiTestApis.numbers.id)),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithTag("timeline-marker-3-2").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Unexpected function call").assertIsDisplayed()
+    }
+
+    @Test
+    fun `an unexpected flow start has a flow-specific tooltip`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(900.dp, 560.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = flowHistory().take(1),
+                            result = CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+                                unexpectedSubmissions = listOf(UiTestApis.numbers.id),
+                                expectations = emptyList(),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithTag("timeline-marker-1-0").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Unexpected flow start").assertIsDisplayed()
+        onNodeWithText("Starting this flow is not currently expected.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `an unexpected flow emission request has an emission-specific tooltip`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(900.dp, 560.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = flowHistory(),
+                            result = CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+                                unexpectedSubmissions = listOf(UiTestApis.numbers.id),
+                                expectations = emptyList(),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithTag("timeline-marker-1-3").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Unexpected emission request").assertIsDisplayed()
+        onNodeWithText("Requesting the next element from this flow is not currently expected.").assertIsDisplayed()
     }
 
     @Test
@@ -154,7 +249,7 @@ class CoroutineTimelineUiTest {
         onNodeWithTag("timeline-expected-marker-1").performMouseInput { moveTo(center) }
         waitForIdle()
         onNodeWithText("Expected request for a new emission").assertIsDisplayed()
-        onNodeWithText("The puzzle expected this collector to request a new emission, but no submission matched it before the attempt failed.").assertIsDisplayed()
+        onNodeWithText("The puzzle expected the next element from this flow to be requested. But that request was never made.").assertIsDisplayed()
     }
 
     @Test

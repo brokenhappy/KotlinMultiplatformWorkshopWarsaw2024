@@ -349,6 +349,34 @@ class CoroutinePuzzleTest {
     }
 
     @Test
+    fun `exact concurrent check identifies only its incorrect submissions`() = runTestWithRandomizedDispatchOrdering {
+        val expected = TestApis.intString
+        val incorrect = TestApis.bar
+
+        val failure = coroutinePuzzle {
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(expected)
+        }.solve {
+            incorrect.submitCall(Unit)
+        }.result.assertIs<CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure>()
+
+        assertEquals(listOf(incorrect.id), failure.incorrectSubmissions)
+    }
+
+    @Test
+    fun `puzzle-specific quiescence check can identify incorrect submissions`() = runTestWithRandomizedDispatchOrdering {
+        val incorrect = TestApis.bar
+
+        val failure = coroutinePuzzle {
+            val submissions = awaitQuiescenceAndGetUnmatchedSubmissions()
+            fail("This call is incorrect", submissions)
+        }.solve {
+            incorrect.submitCall(Unit)
+        }.result.assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
+
+        assertEquals(listOf(incorrect.id), failure.incorrectSubmissions)
+    }
+
+    @Test
     fun `trying to call a coroutine puzzle endpoint in parallel while the expectation is synchronous fails`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = TestApis.intString
         coroutinePuzzle {

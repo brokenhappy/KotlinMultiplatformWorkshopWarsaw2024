@@ -306,7 +306,10 @@ private suspend fun failIfTypingUpdateWasReplaced(
                 }
             ).awaitAll()
         }
-        fail(CoroutinePuzzleErrorMessages.chatTypingUpdatesMustNotBeCanceled())
+        fail(
+            CoroutinePuzzleErrorMessages.chatTypingUpdatesMustNotBeCanceled(),
+            List(replacementUpdateCount) { updateCurrentTypingStatus },
+        )
     }
 }
 

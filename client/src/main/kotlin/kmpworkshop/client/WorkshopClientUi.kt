@@ -663,6 +663,7 @@ internal fun CoroutineTimelineWithMetadata(
     val calls = remember(attemptVersion, history.size) { coroutineTimeline(history) }
     val expectedCalls = remember(result) { expectedTimelineCalls(result) }
     val expectedCallPlacement = placeExpectedCalls(calls, expectedCalls)
+    val incorrectRequestBatches = result.incorrectRequestBatches(calls)
     if (history.isEmpty() && expectedCalls.isEmpty()) {
         Card(modifier = modifier, backgroundColor = Color(0xFFF7F8FA), elevation = 0.dp) {
             Text("The timeline will appear here as soon as your solution makes its first call.", Modifier.padding(20.dp), color = Color(0xFF5F6368))
@@ -702,7 +703,6 @@ internal fun CoroutineTimelineWithMetadata(
                     )
                 }
                 calls.forEach { call ->
-                    val unmatchedRequestBatch = result?.let { call.lastUnmatchedRequestBatch() }
                     val alignedExpectedCall = expectedCallPlacement.alignedByCallId[call.callId]
                     val expectedCallContinuesFlow = alignedExpectedCall != null &&
                         clientMetadata.isFlowEndpoint(call.endpoint) &&
@@ -716,8 +716,8 @@ internal fun CoroutineTimelineWithMetadata(
                         repeat(history.size) { batch ->
                             val marker = markerAt(call, batch, history.lastIndex)
                             TimelineMarkerCell(
-                                marker = if (batch == unmatchedRequestBatch) marker.asUnmatchedRequest() else marker,
-                                isUnmatchedFailure = batch == unmatchedRequestBatch,
+                                marker = if (batch == incorrectRequestBatches[call.callId]) marker.asUnexpectedRequest(call) else marker,
+                                isUnmatchedFailure = batch == incorrectRequestBatches[call.callId],
                                 isStart = batch == call.startBatch,
                                 isEnd = if (call.events.isEmpty()) {
                                     batch == call.endBatch || (call.endBatch == null && batch == history.lastIndex)
@@ -733,13 +733,13 @@ internal fun CoroutineTimelineWithMetadata(
                                     Marker(
                                         "↗",
                                         "Expected request for a new emission",
-                                        "The puzzle expected this collector to request a new emission, but no submission matched it before the attempt failed.",
+                                        "The puzzle expected the next element from this flow to be requested. But that request was never made.",
                                     )
                                 } else {
                                     Marker(
                                         "●",
                                         "Unmatched expected call",
-                                        "The puzzle expected another call with this argument, but no submission matched it before the attempt failed.",
+                                        "The puzzle expected this function call. But the call was never made.",
                                     )
                                 }
                                 else -> Marker("")
@@ -764,9 +764,9 @@ internal fun CoroutineTimelineWithMetadata(
                         else -> "Unmatched expected call"
                     }
                     val expectedDetail = when {
-                        expectsFlowEmission -> "The puzzle was waiting for a collector to request a new emission, but no submission matched it before the attempt ended."
-                        expectsNewFlowCollector -> "The puzzle was waiting for a new collector of this flow to start, but no submission matched it before the attempt ended."
-                        else -> "The puzzle was waiting for this call, but no submission matched it before the attempt ended."
+                        expectsFlowEmission -> "The puzzle expected the next element from this flow to be requested. But that request was never made."
+                        expectsNewFlowCollector -> "The puzzle expected this flow to be started. But the flow was never started."
+                        else -> "The puzzle expected this function call. But the call was never made."
                     }
                     Row {
                         TimelineCell(
@@ -811,11 +811,28 @@ internal fun CoroutineTimelineWithMetadata(
 
 private data class Marker(val text: String, val title: String? = null, val detail: String? = null)
 
-private fun Marker.asUnmatchedRequest(): Marker = Marker(
-    text = text,
-    title = "Unmatched request",
-    detail = "The puzzle did not match this request before the attempt failed.",
-)
+private fun Marker.asUnexpectedRequest(call: CoroutineTimelineCall): Marker = when {
+    text == "↗" -> Marker(
+        text,
+        "Unexpected emission request",
+        "Requesting the next element from this flow is not currently expected.",
+    )
+    call.events.isNotEmpty() && text == "●" -> Marker(
+        text,
+        "Unexpected flow start",
+        "Starting this flow is not currently expected.",
+    )
+    text == "×" -> Marker(
+        text,
+        "Unexpected cancellation request",
+        "Cancelling this call is not currently expected.",
+    )
+    else -> Marker(
+        text,
+        "Unexpected function call",
+        "This function call is not currently expected.",
+    )
+}
 
 private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): Marker {
     if (call.events.isNotEmpty()) {
@@ -873,6 +890,25 @@ private fun CoroutineTimelineCall.lastUnmatchedRequestBatch(): Int? = when {
     events.isNotEmpty() -> events.lastOrNull { it.endBatch == null }
         ?.let { it.cancellationRequestedBatch ?: it.startBatch }
     else -> null
+}
+
+private fun CoroutinePuzzleSolutionResult?.incorrectRequestBatches(
+    calls: List<CoroutineTimelineCall>,
+): Map<Long, Int> {
+    val remainingIncorrectEndpoints = when (this) {
+        is CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure -> incorrectSubmissions
+        is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> unexpectedSubmissions
+        is CoroutinePuzzleSolutionResult.CustomFailure -> incorrectSubmissions
+        else -> emptyList()
+    }.groupingBy { it }.eachCount().toMutableMap()
+
+    return calls.asReversed().mapNotNull { call ->
+        val batch = call.lastUnmatchedRequestBatch() ?: return@mapNotNull null
+        val remaining = remainingIncorrectEndpoints[call.endpoint] ?: return@mapNotNull null
+        if (remaining == 0) return@mapNotNull null
+        remainingIncorrectEndpoints[call.endpoint] = remaining - 1
+        call.callId to batch
+    }.toMap()
 }
 
 private data class ExpectedCallPlacement(
