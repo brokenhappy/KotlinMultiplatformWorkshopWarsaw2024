@@ -3,6 +3,7 @@ package com.kotlinworkshop.test
 import kmpworkshop.client.toMessage
 import kmpworkshop.client.clientMetadataOf
 import kmpworkshop.common.CoroutinePuzzleEndPointId
+import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.EndpointDescriptorRegistry
 import kmpworkshop.common.descriptor
@@ -29,7 +30,7 @@ class CoroutinePuzzleMessageSnapshotTest {
     fun `ExactParallelismMismatch with a single submission`() {
         CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = listOf(foo),
-            expectations = listOf(foo, bar),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(foo), CoroutinePuzzleExpectedFollowup(bar)),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_a_single_submission.txt",
         )
@@ -39,7 +40,11 @@ class CoroutinePuzzleMessageSnapshotTest {
     fun `ExactParallelismMismatch with multiple concurrent submissions`() {
         CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = listOf(foo, bar),
-            expectations = listOf(foo, bar, baz),
+            expectations = listOf(
+                CoroutinePuzzleExpectedFollowup(foo),
+                CoroutinePuzzleExpectedFollowup(bar),
+                CoroutinePuzzleExpectedFollowup(baz),
+            ),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_multiple_concurrent_submissions.txt",
         )
@@ -52,7 +57,7 @@ class CoroutinePuzzleMessageSnapshotTest {
         // since it's a distinct branch of the rendering logic.
         CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = emptyList(),
-            expectations = listOf(foo),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(foo)),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/ExactParallelismMismatch_with_no_submissions.txt",
         )
@@ -60,7 +65,7 @@ class CoroutinePuzzleMessageSnapshotTest {
 
     @Test
     fun `MoreExpectationsThanSubmissions with a single expected call`() {
-        CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(expectedFollowups = listOf(foo))
+        CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(expectedFollowups = listOf(CoroutinePuzzleExpectedFollowup(foo)))
             .renderClientMessage()
             .assertMatchesSnapshot(
                 "snapshots/CoroutinePuzzleMessageSnapshotTest/MoreExpectationsThanSubmissions_with_a_single_expected_call.txt",
@@ -69,7 +74,9 @@ class CoroutinePuzzleMessageSnapshotTest {
 
     @Test
     fun `MoreExpectationsThanSubmissions with multiple expected calls`() {
-        CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(expectedFollowups = listOf(foo, bar))
+        CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(
+            expectedFollowups = listOf(CoroutinePuzzleExpectedFollowup(foo), CoroutinePuzzleExpectedFollowup(bar)),
+        )
             .renderClientMessage()
             .assertMatchesSnapshot(
                 "snapshots/CoroutinePuzzleMessageSnapshotTest/MoreExpectationsThanSubmissions_with_multiple_expected_calls.txt",
@@ -118,7 +125,7 @@ class CoroutinePuzzleMessageSnapshotTest {
     fun `UnexpectedSubmissions with a single expectation and a single unexpected submission`() {
         CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
             unexpectedSubmissions = listOf(bar),
-            expectations = listOf(foo),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(foo)),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_a_single_expectation_and_a_single_unexpected_submission.txt",
         )
@@ -128,7 +135,7 @@ class CoroutinePuzzleMessageSnapshotTest {
     fun `UnexpectedSubmissions with multiple expectations and multiple unexpected submissions`() {
         CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
             unexpectedSubmissions = listOf(baz, foo),
-            expectations = listOf(foo, bar),
+            expectations = listOf(CoroutinePuzzleExpectedFollowup(foo), CoroutinePuzzleExpectedFollowup(bar)),
         ).renderClientMessage().assertMatchesSnapshot(
             "snapshots/CoroutinePuzzleMessageSnapshotTest/UnexpectedSubmissions_with_multiple_expectations_and_multiple_unexpected_submissions.txt",
         )

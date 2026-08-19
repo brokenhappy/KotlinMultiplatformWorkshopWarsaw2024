@@ -5,15 +5,12 @@ import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.stoppedBeforeAllValue
 import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.tooFewCollectors
 import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.tooManyCollectors
 import kmpworkshop.common.CoroutinePuzzleEndPointId
-import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.ValueOrCompletion
 import kmpworkshop.common.WithCallId
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 
 /**
@@ -50,7 +47,7 @@ object CoroutinePuzzleFlowErrorMessages {
 context(clientMetadata: ClientMetadata)
 private fun CoroutinePuzzleResultWithHistory.flowCollectorMismatchMessage(): String? {
     val mismatchedEndpoints = when (val failure = result) {
-        is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure -> failure.expectedFollowups
+        is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure -> failure.expectedFollowups.map { it.endPoint }
         is CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure -> failure.overshotSubmissions
         else -> return null
     }
@@ -65,25 +62,15 @@ private fun CoroutinePuzzleResultWithHistory.flowCollectorMismatchMessage(): Str
             entry.callId to Json.decodeFromJsonElement<WithCallId<Unit>>(call.arg).callId
         }
 
-    return when (result) {
+    return when (val failure = result) {
         is CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure ->
             if (calls.map { it.second }.distinct().size > 1) tooManyCollectors(flowName)
             else requestedValuesAfterCompletion(flowName)
         is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure ->
-            if (calls.lastOrNull()?.first?.wasCompletedIn(history) == true) tooFewCollectors(flowName)
-            else stoppedBeforeAllValues(flowName)
+            if (failure.expectedFollowups.any { it.expectedArgument != null }) stoppedBeforeAllValues(flowName)
+            else tooFewCollectors(flowName)
         else -> null
     }
-}
-
-private fun Long.wasCompletedIn(history: List<CoroutinePuzzleHistoryBatch>): Boolean {
-    val result = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Expectation>()
-        .flatMap { it.entries }
-        .firstOrNull { it.callId == this }
-        ?.payload as? CoroutinePuzzleExpectationPayload.CallAnswered
-        ?: return false
-    return Json.decodeFromJsonElement<WithCallId<ValueOrCompletion<JsonElement>>>(result.result).payload ===
-        ValueOrCompletion.Completion
 }
 
 context(clientMetadata: ClientMetadata)
@@ -91,15 +78,15 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
     is CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure ->
         "You tried to call " + formatCallAttemptsWithMargins(submissions.map(clientMetadata::descriptionFor)) + ".\n" +
         "But you were expected to call exactly " +
-            formatCallAttemptsWithMargins(expectations.map(clientMetadata::descriptionFor)) + "."
+            formatCallAttemptsWithMargins(expectations.map { clientMetadata.descriptionFor(it.endPoint) }) + "."
     is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure ->
         "You made too few function calls. We're still expecting " +
-            formatExpectedAlternatives(expectedFollowups.map(clientMetadata::descriptionFor).distinct()) + "."
+            formatExpectedAlternatives(expectedFollowups.map { clientMetadata.descriptionFor(it.endPoint) }.distinct()) + "."
     is CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure ->
         "You made too many function calls. No more calls were expected right now, but you called " +
             formatCallAttemptsWithMargins(overshotSubmissions.map(clientMetadata::descriptionFor)) + "."
     is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> {
-        val expectedDescriptions = expectations.map(clientMetadata::descriptionFor).distinct()
+        val expectedDescriptions = expectations.map { clientMetadata.descriptionFor(it.endPoint) }.distinct()
         val actionOrActions = if (expectedDescriptions.size == 1) "action is" else "actions are"
         "Currently the expected $actionOrActions " + formatExpectedAlternatives(expectedDescriptions) + ".\n" +
             "But instead you were doing " +

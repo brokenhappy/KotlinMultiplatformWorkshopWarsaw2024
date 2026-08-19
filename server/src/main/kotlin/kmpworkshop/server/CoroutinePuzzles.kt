@@ -17,11 +17,18 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.map
 import kotlin.collections.plus
 
+/** Typed server-side marker, converted to a serialized [JsonElement] before it enters the protocol result. */
+sealed class ExpectedArgument<out T> {
+    data object None : ExpectedArgument<Nothing>()
+    data class Exact<T>(val value: T) : ExpectedArgument<T>()
+}
+
 interface CoroutinePuzzleBuilderScope {
     suspend fun <T, R> expectCallTo(
         endPoint: CoroutinePuzzleEndPoint<T, R>,
         tSerializer: KSerializer<T>,
         rSerializer: KSerializer<R>,
+        expectedArgument: ExpectedArgument<T> = ExpectedArgument.None,
         valueProducer: suspend (T) -> R,
     ): T
 
@@ -71,10 +78,16 @@ fun coroutinePuzzleWithMetadata(
                                             endPoint: CoroutinePuzzleEndPoint<T, R>,
                                             tSerializer: KSerializer<T>,
                                             rSerializer: KSerializer<R>,
+                                            expectedArgument: ExpectedArgument<T>,
                                             valueProducer: suspend (T) -> R,
                                         ): T {
                                             val (element, callId) = coroutinePuzzleSubmissionFunction.batched(
-                                                InternalCoroutineExpectationMessage.Expectation(endPoint.id),
+                                                InternalCoroutineExpectationMessage.Expectation(
+                                                    CoroutinePuzzleExpectedFollowup(
+                                                        endPoint.id,
+                                                        expectedArgument.encodeWith(tSerializer),
+                                                    ),
+                                                ),
                                             ) as InternalCoroutineExpectationResult.MatchedSubmission
                                             return Json.decodeFromJsonElement(
                                                 tSerializer,
@@ -178,8 +191,8 @@ private suspend fun puzzleStateActor(
         if (submissionsAndCancellations == null) {
             val expectedFollowups = expectationAndResults.map { it.query }
                 .filterIsInstance<InternalCoroutineExpectationMessage.Expectation>()
-                .map { it.endPoint }
-                .plus(accumulatedExpectations.map { it.query.endPoint })
+                .map { it.expectedFollowup }
+                .plus(accumulatedExpectations.map { it.query.expectedFollowup })
             val incomingQuiescenceWaiters = expectationAndResults
                 .filter { it.query is InternalCoroutineExpectationMessage.AwaitQuiescence }
                 .map { it.asQuiescenceWaitingState() }
@@ -238,7 +251,7 @@ private suspend fun puzzleStateActor(
         if (results.isEmpty()) {
             val matches = accumulatedSubmissions.mapNotNull { submission ->
                 accumulatedExpectations
-                    .lastOrNull { it.query.endPoint == submission.payload.endPoint }
+                    .lastOrNull { it.query.expectedFollowup.endPoint == submission.payload.endPoint }
                     // Make sure we don't process the same expectation twice
                     ?.also { accumulatedExpectations.remove(it) }
                     ?.to(submission)
@@ -248,7 +261,7 @@ private suspend fun puzzleStateActor(
                 if (finishExpectationsWhenQuiescent) {
                     if (accumulatedExpectations.isNotEmpty()) {
                         return MoreExpectationsThanSubmissionsFailure(
-                            expectedFollowups = accumulatedExpectations.map { it.query.endPoint },
+                            expectedFollowups = accumulatedExpectations.map { it.query.expectedFollowup },
                         )
                     }
                     if (accumulatedSubmissions.isNotEmpty()) {
@@ -264,7 +277,7 @@ private suspend fun puzzleStateActor(
                         unexpectedSubmissions = unexpectedIds
                             .filterNot(serverMetadata::isFlowEndpoint)
                             .ifEmpty { unexpectedIds },
-                        expectations = accumulatedExpectations.map { it.query.endPoint },
+                        expectations = accumulatedExpectations.map { it.query.expectedFollowup },
                     ))
                 }
 
@@ -359,7 +372,7 @@ private suspend fun ReceiveChannel<InternalPuzzleEvent>.receiveFirstTwoEvents(
 }
 
 private sealed class InternalCoroutineExpectationMessage {
-    data class Expectation(val endPoint: CoroutinePuzzleEndPointId): InternalCoroutineExpectationMessage()
+    data class Expectation(val expectedFollowup: CoroutinePuzzleExpectedFollowup) : InternalCoroutineExpectationMessage()
     data class BatchEntry(val reply: WithCallId<CoroutinePuzzleExpectationPayload>): InternalCoroutineExpectationMessage()
     data class AwaitQuiescence(val finishExpectations: Boolean) : InternalCoroutineExpectationMessage()
 }
@@ -401,7 +414,7 @@ fun fail(message: String): Nothing = fail(CustomFailure(message))
 context(builder: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint</* @Exact */T, /* @Exact */R>.expectCall(
     noinline valueProducer: suspend (T) -> R,
-): T = builder.expectCallTo(this, serializer(), serializer(), valueProducer)
+): T = builder.expectCallTo(this, serializer(), serializer(), valueProducer = valueProducer)
 
 context(_: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.expectThrowingCall(message: String) {
@@ -447,7 +460,7 @@ fun verifyUnmatchedSubmissions(
         message?.invoke(submissions)?.let { fail(it) }
         fail(CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure(
             submissions = submissions.map { it.id },
-            expectations = expected.map { it.id },
+            expectations = expected.map { CoroutinePuzzleExpectedFollowup(it.id) },
         ))
     }
 }
@@ -492,13 +505,13 @@ internal fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCom
     resultSerializer: KSerializer<WithCallId<ValueOrCompletion<T>>>,
 ): Resource<Resource<Pair<A, suspend (T) -> Unit>>> = resource { consume ->
         val registrations = Channel<ExpectedFlowCollector<A, T>>(Channel.UNLIMITED)
-        val callsNeeded = Channel<Unit>(Channel.UNLIMITED)
+        val callsNeeded = Channel<ExpectedFlowCollector<A, T>?>(Channel.UNLIMITED)
         val matcher = launch { matchFlowCollectors(registrations, callsNeeded, argumentSerializer, resultSerializer) }
         try {
             consume(resource { consumeCollector ->
-                val collector = ExpectedFlowCollector<A, T>(callsNeeded)
+                val collector = ExpectedFlowCollector(callsNeeded)
                 registrations.send(collector)
-                callsNeeded.send(Unit)
+                callsNeeded.send(null)
                 try {
                     try {
                         consumeCollector(collector.argument.await() to { value -> collector.send(FlowCollectorEvent.Value(value)) })
@@ -522,21 +535,27 @@ internal fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCom
 context(builder: CoroutinePuzzleBuilderScope)
 internal suspend fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<ValueOrCompletion<T>>>.matchFlowCollectors(
     registrations: ReceiveChannel<ExpectedFlowCollector<A, T>>,
-    callsNeeded: ReceiveChannel<Unit>,
+    callsNeeded: ReceiveChannel<ExpectedFlowCollector<A, T>?>,
     argumentSerializer: KSerializer<WithCallId<A>>,
     resultSerializer: KSerializer<WithCallId<ValueOrCompletion<T>>>,
 ) {
     val collectors = mutableMapOf<Long, ExpectedFlowCollector<A, T>>()
     coroutineScope {
-        for (ignored in callsNeeded) {
+        for (expectedCollector in callsNeeded) {
             launch {
                 var submittedCollectorId: Long? = null
                 var event: FlowCollectorEvent<T>? = null
                 try {
-                    builder.expectCallTo(this@matchFlowCollectors, argumentSerializer, resultSerializer) { submitted ->
+                    builder.expectCallTo(
+                        this@matchFlowCollectors,
+                        argumentSerializer,
+                        resultSerializer,
+                        expectedArgument = expectedCollector?.submittedArgument?.let { ExpectedArgument.Exact(it) }
+                            ?: ExpectedArgument.None,
+                    ) { submitted ->
                         submittedCollectorId = submitted.callId
                         val collector = collectors[submitted.callId] ?: registrations.receive().also {
-                            it.collectorId = submitted.callId
+                            it.submittedArgument = submitted
                             it.argument.complete(submitted.payload)
                             collectors[submitted.callId] = it
                         }
@@ -563,8 +582,10 @@ internal suspend fun <A, T> CoroutinePuzzleEndPoint<WithCallId<A>, WithCallId<Va
     }
 }
 
-internal class ExpectedFlowCollector<A, T>(private val callsNeeded: Channel<Unit>) {
-    var collectorId: Long? = null
+internal class ExpectedFlowCollector<A, T>(
+    private val callsNeeded: Channel<ExpectedFlowCollector<A, T>?>,
+) {
+    var submittedArgument: WithCallId<A>? = null
     val argument = CompletableDeferred<A>()
     val events = Channel<FlowCollectorEvent<T>>(Channel.RENDEZVOUS)
 
@@ -573,10 +594,15 @@ internal class ExpectedFlowCollector<A, T>(private val callsNeeded: Channel<Unit
             event.sent.await()
             return
         }
-        callsNeeded.send(Unit)
+        callsNeeded.send(this)
         events.send(event)
         event.sent.await()
     }
+}
+
+private fun <T> ExpectedArgument<T>.encodeWith(serializer: KSerializer<T>): JsonElement? = when (this) {
+    ExpectedArgument.None -> null
+    is ExpectedArgument.Exact -> Json.encodeToJsonElement(serializer, value)
 }
 
 internal sealed interface FlowCollectorEvent<out T> {

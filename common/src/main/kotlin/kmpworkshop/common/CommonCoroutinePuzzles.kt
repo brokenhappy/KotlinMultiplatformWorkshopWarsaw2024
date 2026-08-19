@@ -179,21 +179,28 @@ class CoroutinePuzzleResultWithHistory(
     val history: List<CoroutinePuzzleHistoryBatch>,
 )
 
+/** A call the evaluator was still waiting for when the solution attempt ended. */
+@Serializable data class CoroutinePuzzleExpectedFollowup(
+    val endPoint: CoroutinePuzzleEndPointId,
+    /** Optional argument metadata for correlating this expectation with history; it does not affect matching. */
+    val expectedArgument: JsonElement? = null,
+)
+
 @Serializable sealed class CoroutinePuzzleSolutionResult {
     @Serializable data object Success : CoroutinePuzzleSolutionResult()
     @Serializable data class MoreSubmissionsThanExpectationsFailure(
         val overshotSubmissions: List<CoroutinePuzzleEndPointId>,
     ) : CoroutinePuzzleSolutionResult()
     @Serializable data class MoreExpectationsThanSubmissionsFailure(
-        val expectedFollowups: List<CoroutinePuzzleEndPointId>,
+        val expectedFollowups: List<CoroutinePuzzleExpectedFollowup>,
     ) : CoroutinePuzzleSolutionResult()
     @Serializable data class ExactParallelismMismatchFailure(
         val submissions: List<CoroutinePuzzleEndPointId>,
-        val expectations: List<CoroutinePuzzleEndPointId>,
+        val expectations: List<CoroutinePuzzleExpectedFollowup>,
     ) : CoroutinePuzzleSolutionResult()
     @Serializable data class UnexpectedSubmissionsFailure(
         val unexpectedSubmissions: List<CoroutinePuzzleEndPointId>,
-        val expectations: List<CoroutinePuzzleEndPointId>,
+        val expectations: List<CoroutinePuzzleExpectedFollowup>,
     ) : CoroutinePuzzleSolutionResult()
     @Serializable data object FullyQuiescent : CoroutinePuzzleSolutionResult()
     @Serializable data class CustomFailure(val message: String) : CoroutinePuzzleSolutionResult()
