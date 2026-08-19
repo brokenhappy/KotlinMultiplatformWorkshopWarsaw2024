@@ -43,6 +43,28 @@ class LauncherUiTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun `report details offers buttons for captured client and server changes`() = runComposeUiTest {
+        val report = loaded(
+            name = "changes",
+            description = "changes description",
+            clientChanges = "client patch",
+            serverChanges = "server patch",
+            serverUntrackedChanges = "untracked server patch",
+        )
+        setContent {
+            MaterialTheme {
+                LauncherApp(BugReportLoadResult(listOf(report), emptyList()), onExit = {})
+            }
+        }
+
+        onNodeWithTag("copy-client-changes-button").assertIsDisplayed()
+        onNodeWithTag("copy-server-changes-button").assertIsDisplayed()
+        onNodeWithText("Copy client changes").assertIsDisplayed()
+        onNodeWithText("Copy server changes").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun `renders launch errors inside a selectable container`() = runComposeUiTest {
         setContent {
             MaterialTheme {
@@ -149,13 +171,31 @@ class LauncherUiTest {
         assertTrue(canceled)
     }
 
-    private fun loaded(name: String, description: String): LoadedBugReport {
+    private fun loaded(
+        name: String,
+        description: String,
+        clientChanges: String = "",
+        serverChanges: String = "",
+        serverUntrackedChanges: String = "",
+    ): LoadedBugReport {
         val path = createTempDirectory("bug-reproducer-ui").resolve("$name.json").also { it.writeText("{}") }
         return LoadedBugReport(
             path,
             StoredClientBugReport(
-                ClientBugReport(description, createdAt = Clock.System.now(), diagnostics = ClientBugDiagnostics()),
-                ServerBugDiagnostics(emptyMap(), emptyList()),
+                ClientBugReport(
+                    description,
+                    createdAt = Clock.System.now(),
+                    diagnostics = ClientBugDiagnostics(
+                        values = mapOf("client.git.localChanges" to clientChanges),
+                    ),
+                ),
+                ServerBugDiagnostics(
+                    values = mapOf(
+                        "server.changes" to serverChanges,
+                        "server.untrackedChanges" to serverUntrackedChanges,
+                    ),
+                    failures = emptyList(),
+                ),
                 ServerState(),
                 Clock.System.now(),
             ),

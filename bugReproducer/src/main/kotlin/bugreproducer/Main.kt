@@ -465,6 +465,11 @@ private fun ReportDetails(
     val report = item.report
     val clientDiagnostics = report.clientReport.diagnostics
     val serverDiagnostics = report.serverDiagnostics
+    val clientChanges = clientDiagnostics.values["client.git.localChanges"].orEmpty()
+    val serverChanges = combineCapturedChanges(
+        serverDiagnostics.values["server.changes"].orEmpty(),
+        serverDiagnostics.values["server.untrackedChanges"].orEmpty(),
+    )
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -497,10 +502,24 @@ private fun ReportDetails(
                 }
             }
         }
-        Text("Client diagnostics", style = MaterialTheme.typography.h6)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Client diagnostics", style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
+            CopyChangesButton(
+                label = "Copy client changes",
+                changes = clientChanges,
+                testTag = "copy-client-changes-button",
+            )
+        }
         DiagnosticMap(clientDiagnostics.values)
         DiagnosticFailures(clientDiagnostics.failures)
-        Text("Server diagnostics", style = MaterialTheme.typography.h6)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Server diagnostics", style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
+            CopyChangesButton(
+                label = "Copy server changes",
+                changes = serverChanges,
+                testTag = "copy-server-changes-button",
+            )
+        }
         DiagnosticMap(serverDiagnostics.values)
         DiagnosticFailures(serverDiagnostics.failures)
         Text("Captured server state", style = MaterialTheme.typography.h6)
@@ -533,6 +552,25 @@ private fun DiagnosticMap(values: Map<String, String>) {
 @Composable
 private fun DiagnosticFailures(failures: List<String>) {
     failures.forEach { Text("$it", color = WarningText) }
+}
+
+private fun combineCapturedChanges(trackedChanges: String, untrackedChanges: String): String = buildString {
+    append(trackedChanges)
+    if (trackedChanges.isNotEmpty() && untrackedChanges.isNotEmpty() && !trackedChanges.endsWith('\n')) {
+        append('\n')
+    }
+    append(untrackedChanges)
+}
+
+@Composable
+private fun CopyChangesButton(label: String, changes: String, testTag: String) {
+    OutlinedButton(
+        enabled = changes.isNotEmpty(),
+        onClick = { copyToSystemClipboard(changes) },
+        modifier = Modifier.testTag(testTag),
+    ) {
+        Text(label)
+    }
 }
 
 private fun runReproducer(configPath: Path) {
