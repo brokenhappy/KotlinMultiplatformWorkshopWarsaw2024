@@ -106,7 +106,7 @@ Notes for coroutine/flow tests:
 
 ## 4. Additional Development Information
 
-- Code style: Kotlin official style. Keep imports explicit and use idiomatic coroutines/flows. Enable `-Xcontext-parameters` is already configured in `server` compiler options.
+- Code style: Kotlin official style. Keep imports explicit and use idiomatic coroutines/flows.
 - Serialization: Centralized on `kotlinx.serialization` (JSON). When adding new DTOs that cross the wire, annotate with `@Serializable` and maintain version compatibility with existing clients.
 - Concurrency/coroutines:
   - Server code relies on structured concurrency and flow operators (`map`, `flatMapLatest`, `collectLatest`, cancellation). When changing server puzzles, consider cancellation behavior carefully: cancellation must be detected in the “collectLatest” puzzle, and time bounds must be enforced in the “timed sum” puzzle.

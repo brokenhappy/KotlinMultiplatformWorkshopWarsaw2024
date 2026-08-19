@@ -14,7 +14,3 @@ dependencies {
     implementation(project(":workshopApi"))
     implementation(libs.kotlinx.coroutines.core)
 }
-
-kotlin {
-    compilerOptions.freeCompilerArgs.add("-Xcontext-parameters")
-}

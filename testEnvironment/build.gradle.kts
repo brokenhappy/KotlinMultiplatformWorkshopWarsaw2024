@@ -31,11 +31,6 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.add("-Xcontext-parameters")
-    }
-}
 
 // Compose launch variants and Hot Reload use the same DCEVM-capable runtime.
 val java25Launcher = javaToolchains.launcherFor {

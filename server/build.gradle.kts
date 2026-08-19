@@ -211,9 +211,3 @@ tasks.processResources {
     dependsOn(generateServerProvenance)
     from(layout.buildDirectory.dir("generated/resources"))
 }
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.add("-Xcontext-parameters")
-    }
-}
