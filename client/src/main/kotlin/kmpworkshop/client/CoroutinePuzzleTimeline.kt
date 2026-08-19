@@ -4,6 +4,7 @@ import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
+import kmpworkshop.common.ValueOrCompletion
 import kmpworkshop.common.WithCallId
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.Json
@@ -22,6 +23,7 @@ data class CoroutineTimelineCall(
     val completion: TimelineCompletion? = null,
     val returnValue: JsonElement? = null,
     val exceptionMessage: String? = null,
+    val flowCompleted: Boolean = false,
     val events: List<CoroutineTimelineEvent> = emptyList(),
 )
 
@@ -33,6 +35,7 @@ data class CoroutineTimelineEvent(
     val completion: TimelineCompletion? = null,
     val returnValue: JsonElement? = null,
     val exceptionMessage: String? = null,
+    val flowCompleted: Boolean = false,
 )
 
 context(clientMetadata: ClientMetadata)
@@ -62,6 +65,7 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
                             endBatch = batchIndex,
                             completion = TimelineCompletion.RETURNED,
                             returnValue = payload.result.unwrapCollectorValue(),
+                            flowCompleted = clientMetadata.isFlowEndpoint(call.endpoint) && payload.result.isCollectorCompletion(),
                         )
                         is CoroutinePuzzleExpectationPayload.CallThrew -> call.copy(
                             endBatch = batchIndex,
@@ -75,9 +79,9 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
         }
     }
     return calls.values.groupBy { flowGroups[it.callId] ?: "call:${it.callId}" }.values.map { group ->
-        if (group.size == 1) group.single()
+        if (group.size == 1 && !clientMetadata.isFlowEndpoint(group.single().endpoint)) group.single()
         else group.first().copy(events = group.map { call ->
-            CoroutineTimelineEvent(call.callId, call.startBatch, call.cancellationRequestedBatch, call.endBatch, call.completion, call.returnValue, call.exceptionMessage)
+            CoroutineTimelineEvent(call.callId, call.startBatch, call.cancellationRequestedBatch, call.endBatch, call.completion, call.returnValue, call.exceptionMessage, call.flowCompleted)
         })
     }
 }
@@ -91,3 +95,8 @@ internal fun JsonElement.unwrapCollectorValue(): JsonElement =
         ?.let { it as? JsonObject }
         ?.get("value")
         ?: this
+
+internal fun JsonElement.isCollectorCompletion(): Boolean =
+    runCatching {
+        Json.decodeFromJsonElement<WithCallId<ValueOrCompletion<JsonElement>>>(this).payload === ValueOrCompletion.Completion
+    }.getOrDefault(false)
