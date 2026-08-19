@@ -751,21 +751,21 @@ private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): M
         ?: call.events.lastOrNull { batch in it.startBatch..(it.endBatch ?: lastBatch) }
         ?: call.asEvent()
     return when {
-    batch == event.endBatch -> when (event.completion) {
-        TimelineCompletion.RETURNED -> Marker("✓", "Returned", "Result: ${displayValue(event.returnValue)}")
-        TimelineCompletion.THREW -> Marker("!", "Threw", "Exception: ${event.exceptionMessage}")
-        TimelineCompletion.CANCELLED -> Marker("⊘", "Cancellation completed", "The puzzle confirmed that this call was cancelled.")
-        null -> Marker("")
-    }
-    batch == event.cancellationRequestedBatch -> Marker("×", "Cancellation requested", "Your coroutine asked the puzzle to cancel this call.")
-    batch == event.startBatch -> Marker(
-        "●",
-        "Started",
-        if (call.argument.isUnitValue()) "This call has no argument." else "Argument: ${displayValue(call.argument)}",
-    )
-    event.endBatch == null && batch == lastBatch -> Marker("…", "Still running", "The puzzle did not complete this call before the attempt ended.")
-    batch in event.startBatch..(event.endBatch ?: lastBatch) -> Marker("━", "Running", "This call was in progress during this exchange.")
-    else -> Marker("")
+        batch == event.endBatch -> when (event.completion) {
+            TimelineCompletion.RETURNED -> Marker("✓", "Returned", "Result: ${displayValue(event.returnValue)}")
+            TimelineCompletion.THREW -> Marker("!", "Threw", "Exception: ${event.exceptionMessage}")
+            TimelineCompletion.CANCELLED -> Marker("⊘", "Cancellation completed", "The puzzle confirmed that this call was cancelled.")
+            null -> Marker("")
+        }
+        batch == event.cancellationRequestedBatch -> Marker("×", "Cancellation requested", "Your coroutine asked the puzzle to cancel this call.")
+        batch == event.startBatch -> Marker(
+            "●",
+            "Started",
+            if (call.argument.isUnitValue()) "This call has no argument." else "Argument: ${displayValue(call.argument)}",
+        )
+        event.endBatch == null && batch == lastBatch -> Marker("…", "Still running", "The puzzle did not complete this call before the attempt ended.")
+        batch in event.startBatch..(event.endBatch ?: lastBatch) -> Marker("━", "Running", "This call was in progress during this exchange.")
+        else -> Marker("")
     }
 }
 
