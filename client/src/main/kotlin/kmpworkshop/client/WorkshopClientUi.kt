@@ -154,7 +154,10 @@ private fun WorkshopClientContent(
         copy(zoom = change(zoom).coerceIn(MinClientZoom, MaxClientZoom))
 
     val zoomShortcutModifier = remember { clientShortcutModifier() }
-    val stage by remember(server) { server.currentStage() }.collectAsState(initial = WorkshopStage.Registration)
+    // A reload re-collects the stage flow. Use the last observed stage while that flow reconnects instead of
+    // briefly rendering Registration and discarding the current puzzle attempt.
+    var lastObservedStage by remember { mutableStateOf<WorkshopStage>(WorkshopStage.Registration) }
+    val stage by remember(server) { server.currentStage() }.collectAsState(initial = lastObservedStage)
     var hotReloadVersion by remember { mutableStateOf(0L) }
     var lastRunHotReloadVersion by remember(stage) { mutableStateOf<Long?>(null) }
     val hasHotReloadSinceLastRun = lastRunHotReloadVersion != hotReloadVersion
@@ -191,7 +194,10 @@ private fun WorkshopClientContent(
         hotReloadVersion++
     }
 
-    LaunchedEffect(stage, hotReloadVersion) {
+    // A hot reload only invalidates the run button. Keep the completed attempt visible so attendees can
+    // compare it with the code they have just changed; changing stages still starts with a clean attempt.
+    LaunchedEffect(stage) {
+        lastObservedStage = stage
         attemptVersion++
         history.clear()
         result = null
