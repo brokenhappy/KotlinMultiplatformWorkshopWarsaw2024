@@ -25,7 +25,7 @@ dependencies {
     implementation(libs.kotlinx.rpc.krpc.serialization.json)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.serialization.core)
-    testImplementation(libs.kotlin.test)
+    implementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.test {
