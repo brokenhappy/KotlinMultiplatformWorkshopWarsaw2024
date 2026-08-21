@@ -12,10 +12,10 @@ import kmpworkshop.server.awaitQuiescenceAndGetUnmatchedSubmissions
 import kmpworkshop.server.coroutinePuzzle
 import kmpworkshop.server.expectCall
 import kmpworkshop.server.expectCanceledCall
+import kmpworkshop.server.expectCancellation
 import kmpworkshop.server.expectThrowingCall
 import kmpworkshop.server.expectingFlowCollector
 import kmpworkshop.server.serverMetadataOf
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.take
@@ -71,7 +71,7 @@ class CoroutinePuzzleTimelineTest {
         val attempt = coroutinePuzzle(testServerMetadata) {
             TestApis.hanging.expectCanceledCall {
                 TestApis.callLifetime.expectCall(Unit)
-                awaitCancellation()
+                expectCancellation()
             }
         }.asPuzzle().solveAsFlow {
             launch { TestApis.hanging.submitCall(Unit) }.sideEffect { hangingCall ->
@@ -85,6 +85,27 @@ class CoroutinePuzzleTimelineTest {
         assertIs<CoroutinePuzzleSolutionResult.Success>(attempt.result)
         assertEquals(TestApis.hanging.id, call.endpoint)
         assertEquals(TimelineCompletion.CANCELLED, call.completion)
+    }
+
+    @Test
+    fun `reports an expected cancellation after another unexpected request`() = runBlocking {
+        val attempt = coroutinePuzzle(testServerMetadata) {
+            TestApis.hanging.expectCanceledCall {
+                TestApis.callLifetime.expectCall(Unit)
+                expectCancellation()
+            }
+        }.asPuzzle().solveAsFlow {
+            launch { TestApis.hanging.submitCall(Unit) }.sideEffect {
+                TestApis.callLifetime.submitCall(Unit)
+                TestApis.answer.submitCall(7)
+            }
+        }.toResultWithHistory()
+
+        assertIs<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>(attempt.result)
+        val expectedCall = context(testMetadata) { expectedTimelineCalls(attempt.result) }.single()
+        val hangingCall = context(testMetadata) { coroutineTimeline(attempt.history) }
+            .single { it.endpoint == TestApis.hanging.id }
+        assertEquals(hangingCall.callId, expectedCall.expectedCancellationOfCallId)
     }
 
     @Test

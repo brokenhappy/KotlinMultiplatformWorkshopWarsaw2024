@@ -253,6 +253,36 @@ class CoroutineTimelineUiTest {
     }
 
     @Test
+    fun `aligns an expected cancellation with the call that should be cancelled`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(700.dp, 420.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history = sampleHistory(),
+                            result = CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
+                                unexpectedSubmissions = listOf(UiTestApis.callNumber.id),
+                                expectations = listOf(
+                                    CoroutinePuzzleExpectedFollowup(
+                                        endPoint = UiTestApis.waitForUpdate.id,
+                                        expectedCancellationOfCallId = 3,
+                                    ),
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
+        onNodeWithTag("timeline-expected-marker-3").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Expected cancellation request").assertIsDisplayed()
+        onNodeWithText("The puzzle expected this call to be cancelled. But the cancellation request was never made.").assertIsDisplayed()
+    }
+
+    @Test
     fun `aligns an expected emission with its collector when the same flow has two collectors`() = runComposeUiTest {
         setContent {
             MaterialTheme {

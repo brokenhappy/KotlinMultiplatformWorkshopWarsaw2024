@@ -4,6 +4,8 @@ import com.woutwerkman.calltreevisualizer.StackTrackingContext
 import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
 import kmpworkshop.client.runCoroutinePuzzleClient
 import kmpworkshop.client.sumWithLifecycleScaffolding
+import kmpworkshop.client.defaultClientMetadata
+import kmpworkshop.client.toMessage
 import kmpworkshop.client.workshopSolutions
 import kmpworkshop.api.*
 import kmpworkshop.client.asSolution
@@ -23,6 +25,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.shareIn
@@ -111,8 +114,13 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         // Step 2: replacing a file must cancel and join that file's download work.
         // Solution 2 observes network strength in the API scope, so replacing the file cannot cancel it.
         doFileExposureStepOne { allowPeopleToDownloadExposedFile2(it) }.assertIsOk()
-        doFileExposureStepTwo { allowPeopleToDownloadExposedFile2(it) }
-            .assertIsNotOk<CoroutinePuzzleSolutionResult.FullyQuiescent>()
+        val replacementFailure = doFileExposureStepTwo { allowPeopleToDownloadExposedFile2(it) }
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+        replacementFailure.unexpectedSubmissions.assertEquals(listOf(closeExposedFile.id))
+        replacementFailure.expectations.map { it.endPoint }.toSet().assertEquals(
+            setOf(DefaultApis.advertiseExposedFile.id, DefaultApis.makeFileDownloadable.id),
+        )
+        replacementFailure.expectations.all { it.expectedCancellationOfCallId != null }.assertEquals(true)
         doFileExposureStepThree { allowPeopleToDownloadExposedFile2(it) }.assertIsNotOk()
 
         // Step 3: advertising must be joined as well. Solution 3 fixes the download lifetime, but its launch still
@@ -121,7 +129,10 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doFileExposureStepTwo { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
         val advertisingFailure = doFileExposureStepThree { allowPeopleToDownloadExposedFile3(it) }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
-        advertisingFailure.expectations.assertEquals(emptyList<CoroutinePuzzleEndPointId>())
+        advertisingFailure.expectations.single().apply {
+            endPoint.assertEquals(DefaultApis.advertiseExposedFile.id)
+            checkNotNull(expectedCancellationOfCallId)
+        }
         advertisingFailure.unexpectedSubmissions.assertEquals(listOf(closeExposedFile.id))
 
         // Solution 4 gives the task a lexical coroutineScope receiver; both download and advertising are children.
@@ -210,6 +221,25 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             api.numbers().collect { api.submit(it) }
         }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+    }
+
+    @Test
+    fun `buffering regular collect does not provide collectLatest cancellation`(): Unit = runPuzzleTest {
+        val result = doCollectLatestPuzzle { api ->
+            api.numbers().buffer(1).collect {
+                api.submit(it)
+            }
+        }
+        val failure = result.assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+        failure.unexpectedSubmissions.assertEquals(listOf(DefaultApis.emitNumber.id))
+        failure.expectations.single().apply {
+            endPoint.assertEquals(DefaultApis.submitNumber.id)
+            checkNotNull(expectedCancellationOfCallId)
+        }
+        context(defaultClientMetadata) { failure.toMessage() }.assertEquals(
+            "Currently the expected action is Cancel the call to Call submit(number: Int): Unit.\n" +
+                "But instead, your solution made this request: Request the next element from numbers().",
+        )
     }
 
     @Test

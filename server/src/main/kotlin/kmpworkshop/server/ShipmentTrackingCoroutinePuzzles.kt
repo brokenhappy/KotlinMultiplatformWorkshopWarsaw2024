@@ -7,7 +7,6 @@ import kmpworkshop.common.DefaultApis.renderShipmentOnMap
 import kmpworkshop.common.DefaultApis.shipmentTrackingConnectionLifetime
 import kmpworkshop.common.DefaultApis.shipmentTrackingUpdates
 import kmpworkshop.common.DefaultApis.updateShipmentEtaCard
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -26,7 +25,7 @@ fun shipmentTrackingIndependentViewsPuzzle() = withVisibilityCollectors { emitMa
     coroutineScope {
         repeat(2) {
             launch {
-                shipmentTrackingConnectionLifetime.expectCanceledCall { awaitCancellation() }
+                shipmentTrackingConnectionLifetime.expectCanceledCall { expectCancellation() }
             }
         }
         shipmentTrackingUpdates.expectingFlowCollector().use { collectors ->
@@ -116,7 +115,7 @@ fun shipmentTrackingWhileSubscribedPuzzle() = withVisibilityCollectors { emitMap
     emitMapVisibility(true)
     coroutineScope {
         val connectionLifetime = launch {
-            shipmentTrackingConnectionLifetime.expectCanceledCall { awaitCancellation() }
+            shipmentTrackingConnectionLifetime.expectCanceledCall { expectCancellation() }
         }
         shipmentTrackingUpdates.expectingFlowCollector().use { trackingCollectors ->
             trackingCollectors.use { (_, emitUpdate) ->
@@ -140,7 +139,7 @@ private suspend fun evaluateTrackingConnection(
     evaluate: suspend context(CoroutinePuzzleBuilderScope) () -> Unit,
 ) = coroutineScope {
     launch {
-        shipmentTrackingConnectionLifetime.expectCanceledCall { awaitCancellation() }
+        shipmentTrackingConnectionLifetime.expectCanceledCall { expectCancellation() }
     }
     evaluate()
 }

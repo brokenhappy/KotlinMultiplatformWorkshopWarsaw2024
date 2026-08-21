@@ -11,7 +11,6 @@ import kmpworkshop.common.DefaultApis.submitNumber
 import kmpworkshop.common.Resource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -46,7 +45,7 @@ fun cancellationSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle
         CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()
     }
     val cancellations = List(2) {
-        launch { getNumber.expectCanceledCall { awaitCancellation() } }
+        launch { getNumber.expectCanceledCall { expectCancellation() } }
     }
     launch { callIsDone.expectCall(Unit) }
 
@@ -64,7 +63,7 @@ fun exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes: Boolean): Reso
     val exceptionMessage = "getNumber() could not provide a number"
 
     launch { callIsDone.expectCall(Unit) }
-    val cancellation = launch { getNumber.expectCanceledCall { awaitCancellation() } }
+    val cancellation = launch { getNumber.expectCanceledCall { expectCancellation() } }
     awaitQuiescenceAndVerifyUnmatchedSubmissions(callLifetime, getNumber)
     launch { callLifetime.expectCall(Unit) }
     getNumber.expectThrowingCall(exceptionMessage)

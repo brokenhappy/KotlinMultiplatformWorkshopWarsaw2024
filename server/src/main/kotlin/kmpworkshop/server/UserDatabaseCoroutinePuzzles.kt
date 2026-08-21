@@ -91,7 +91,7 @@ context(builder: CoroutinePuzzleBuilderScope)
 private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal: CompletableDeferred<Unit>) {
     queryUserById.expectCanceledCall {
         cancellationSignal.complete(Unit) // Now we're signaling to the submission that we should get canceled.
-        awaitCancellation()
+        expectCancellation()
     }
 }
 

@@ -90,7 +90,7 @@ class PuzzleUiQaTest {
         waitForIdle()
         onNodeWithText(
             "Currently the expected action is Call getNumber(): Int.\n" +
-                "But instead you were doing Call submit(number: Int): Unit.",
+                "But instead, your solution made this request: Call submit(number: Int): Unit.",
         ).assertIsDisplayed()
         onNodeWithText("Call timeline").assertIsDisplayed()
     }

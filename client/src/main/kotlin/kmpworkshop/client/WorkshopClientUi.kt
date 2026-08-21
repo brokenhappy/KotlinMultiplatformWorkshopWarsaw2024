@@ -711,6 +711,7 @@ internal fun CoroutineTimelineWithMetadata(
                 calls.forEach { call ->
                     val alignedExpectedCall = expectedCallPlacement.alignedByCallId[call.callId]
                     val expectedCallContinuesFlow = alignedExpectedCall != null &&
+                        alignedExpectedCall.expectedCancellationOfCallId == null &&
                         clientMetadata.isFlowEndpoint(call.endpoint) &&
                         call.flowEndBatch() == null
                     Row {
@@ -735,19 +736,23 @@ internal fun CoroutineTimelineWithMetadata(
                         }
                         TimelineMarkerCell(
                             marker = when {
-                                alignedExpectedCall != null -> if (clientMetadata.isFlowEndpoint(call.endpoint)) {
+                                alignedExpectedCall?.expectedCancellationOfCallId != null -> Marker(
+                                    "×",
+                                    "Expected cancellation request",
+                                    "The puzzle expected this call to be cancelled. But the cancellation request was never made.",
+                                )
+                                alignedExpectedCall != null && clientMetadata.isFlowEndpoint(call.endpoint) ->
                                     Marker(
                                         "↗",
                                         "Expected request for a new emission",
                                         "The puzzle expected the next element from this flow to be requested. But that request was never made.",
                                     )
-                                } else {
+                                alignedExpectedCall != null ->
                                     Marker(
                                         "●",
                                         "Unmatched expected call",
                                         "The puzzle expected this function call. But the call was never made.",
                                     )
-                                }
                                 else -> Marker("")
                             },
                             isUnmatchedFailure = alignedExpectedCall != null,
@@ -761,15 +766,22 @@ internal fun CoroutineTimelineWithMetadata(
                 }
                 expectedCallPlacement.unaligned.forEachIndexed { index, expectedCall ->
                     val isFlowEndpoint = clientMetadata.isFlowEndpoint(expectedCall.endpoint)
+                    val expectsCancellation = expectedCall.expectedCancellationOfCallId != null
                     val expectsNewFlowCollector = isFlowEndpoint && expectedCall.expectedArgument == null
                     val expectsFlowEmission = isFlowEndpoint && expectedCall.expectedArgument != null
-                    val expectedMarker = if (expectsFlowEmission) "↗" else "●"
+                    val expectedMarker = when {
+                        expectsCancellation -> "×"
+                        expectsFlowEmission -> "↗"
+                        else -> "●"
+                    }
                     val expectedTitle = when {
+                        expectsCancellation -> "Expected cancellation request"
                         expectsFlowEmission -> "Expected request for a new emission"
                         expectsNewFlowCollector -> "Unmatched expected flow collector"
                         else -> "Unmatched expected call"
                     }
                     val expectedDetail = when {
+                        expectsCancellation -> "The puzzle expected this call to be cancelled. But the cancellation request was never made."
                         expectsFlowEmission -> "The puzzle expected the next element from this flow to be requested. But that request was never made."
                         expectsNewFlowCollector -> "The puzzle expected this flow to be started. But the flow was never started."
                         else -> "The puzzle expected this function call. But the call was never made."
@@ -930,10 +942,15 @@ private fun placeExpectedCalls(
     val alignedIndexes = mutableSetOf<Int>()
 
     expectedCalls.forEachIndexed { index, expectedCall ->
-        val expectedArgument = expectedCall.expectedArgument ?: return@forEachIndexed
-        val call = calls.singleOrNull {
-            it.endpoint == expectedCall.endpoint &&
-                it.argument == expectedArgument
+        val call = expectedCall.expectedCancellationOfCallId?.let { expectedCallId ->
+            calls.singleOrNull { call ->
+                call.callId == expectedCallId || call.events.any { it.callId == expectedCallId }
+            }
+        } ?: expectedCall.expectedArgument?.let { expectedArgument ->
+            calls.singleOrNull {
+                it.endpoint == expectedCall.endpoint &&
+                    it.argument == expectedArgument
+            }
         }
         if (call != null) {
             alignedByCallId[call.callId] = expectedCall

@@ -224,7 +224,12 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                                 continuation.ensuringItsResumedOn(this@withInterceptingDispatcher)
                             val batchCall = SuspendedBatchCall(request, guardedContinuation)
                             state.update {
-                                it.copy(currentRequests = it.currentRequests.add(batchCall))
+                                it.copy(
+                                    currentRequests = it.currentRequests.add(batchCall),
+                                    // A request made by an undispatched resumption is itself new work, even if the
+                                    // dispatcher did not publish another active -> idle transition in between.
+                                    expectingZeroActiveCountBecauseWeJustClearedRequests = false,
+                                )
                             }
                             continuation.invokeOnCancellation {
                                 state.update { // Prevents memory leak

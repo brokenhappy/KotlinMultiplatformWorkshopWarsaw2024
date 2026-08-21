@@ -23,6 +23,8 @@ import kotlinx.serialization.serializer
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.nio.ByteBuffer
+import kotlin.properties.ReadOnlyProperty
 import kotlin.test.assertEquals
 import kotlin.test.assertContains
 
@@ -300,7 +302,7 @@ class CoroutinePuzzleTest {
             endpoint.expectCanceledCall {
                 endpointIsRunning.expectCall(Unit)
                 throw assertThrows<CancellationAcrossRpc> {
-                    awaitCancellation()
+                    expectCancellation()
                 }
             }
         }.solve {
@@ -311,6 +313,40 @@ class CoroutinePuzzleTest {
                 it.cancel()
             }
         }.assertIsOk()
+    }
+
+    @Test
+    fun `expected cancellation is reported when another request is unexpected`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = TestApis.intInt
+        val endpointIsRunning = TestApis.bar
+        val result = coroutinePuzzle {
+            endpoint.expectCanceledCall {
+                endpointIsRunning.expectCall(Unit)
+                expectCancellation()
+            }
+        }.solve {
+            launch { endpoint.submitCall(5) }.sideEffect {
+                endpointIsRunning.submitCall(Unit)
+                TestApis.unit.submitCall(Unit)
+            }
+        }
+
+        val expectedCallId = result.history
+            .filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
+            .flatMap { it.entries }
+            .single {
+                (it.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted)?.endPoint == endpoint.id
+            }
+            .callId
+        val failure = result.assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+        assertEquals(listOf(TestApis.unit.id), failure.unexpectedSubmissions)
+        assertEquals(
+            CoroutinePuzzleExpectedFollowup(
+                endPoint = endpoint.id,
+                expectedCancellationOfCallId = expectedCallId,
+            ),
+            failure.expectations.single(),
+        )
     }
 
     @Test

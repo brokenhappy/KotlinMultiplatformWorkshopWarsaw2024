@@ -42,6 +42,7 @@ data class CoroutineTimelineEvent(
 data class CoroutineTimelineExpectedCall(
     val endpoint: CoroutinePuzzleEndPointId,
     val expectedArgument: JsonElement? = null,
+    val expectedCancellationOfCallId: Long? = null,
 )
 
 context(clientMetadata: ClientMetadata)
@@ -105,13 +106,13 @@ context(clientMetadata: ClientMetadata)
 internal fun expectedTimelineCalls(result: CoroutinePuzzleSolutionResult?): List<CoroutineTimelineExpectedCall> =
     when (result) {
         is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure -> result.expectedFollowups.map {
-            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument)
+            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument, it.expectedCancellationOfCallId)
         }
         is CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure -> result.expectations.map {
-            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument)
+            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument, it.expectedCancellationOfCallId)
         }
         is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> result.expectations.map {
-            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument)
+            CoroutineTimelineExpectedCall(it.endPoint, it.expectedArgument, it.expectedCancellationOfCallId)
         }
         else -> emptyList()
     }

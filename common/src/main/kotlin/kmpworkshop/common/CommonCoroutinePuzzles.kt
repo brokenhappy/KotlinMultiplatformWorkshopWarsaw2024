@@ -184,6 +184,8 @@ class CoroutinePuzzleResultWithHistory(
     val endPoint: CoroutinePuzzleEndPointId,
     /** Optional argument metadata for correlating this expectation with history; it does not affect matching. */
     val expectedArgument: JsonElement? = null,
+    /** The already matched call that the evaluator expected to be cancelled. */
+    val expectedCancellationOfCallId: Long? = null,
 )
 
 @Serializable sealed class CoroutinePuzzleSolutionResult {

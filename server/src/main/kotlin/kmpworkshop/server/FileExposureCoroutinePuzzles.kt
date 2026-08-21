@@ -12,7 +12,6 @@ import kmpworkshop.common.DefaultApis.emitNetworkStrength
 import kmpworkshop.common.DefaultApis.makeFileDownloadable
 import kmpworkshop.common.DefaultApis.openExposedFile
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -73,7 +72,7 @@ private suspend fun evaluateNetworkRestart(
     launch {
         advertiseExposedFile.expectCanceledCall {
             verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the opened file") }
-            awaitCancellation() // We don't care when it cancels. That's a problem for later.
+            expectCancellation() // We don't care when it cancels. That's a problem for later.
         }
     }
     makeFileDownloadable.expectCanceledCall {
@@ -85,16 +84,16 @@ private suspend fun evaluateNetworkRestart(
                 CoroutinePuzzleErrorMessages.networkRestartStartedTooEarly(it)
             }
         }
-        awaitCancellation()
+        expectCancellation()
     }
     makeFileDownloadable.expectCanceledCall {
         advertiseExposedFile.expectCall {
             verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the opened file") }
-            Unit // Advertising cancellation is deliberately not part of this stage.
+            // Advertising cancellation is deliberately not part of this stage.
         }
         awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
         callLifetimeSignal.complete(Unit) // Cancel only after the advertising result was consumed.
-        awaitCancellation()
+        expectCancellation()
     }
 }
 
@@ -118,7 +117,7 @@ private suspend fun evaluateFileReplacement(
         scopeToLaunchOn.launch {
             advertiseExposedFile.expectCanceledCall {
                 verify(it == first) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the first opened file") }
-                awaitCancellation()
+                expectCancellation()
             }
         }
         makeFileDownloadable.expectCanceledCall {
@@ -126,7 +125,7 @@ private suspend fun evaluateFileReplacement(
             runOnBiggerScope(this@evaluatorScope) {
                 emitFile(second)
             }
-            awaitCancellation()
+            expectCancellation()
         }
     }
 
@@ -138,11 +137,10 @@ private suspend fun evaluateFileReplacement(
         verify(it == second) { CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the replacement file") }
         advertiseExposedFile.expectCall {
             verify(it == second) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the replacement file") }
-            Unit
         }
         awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
         callLifetimeSignal.complete(Unit)
-        awaitCancellation()
+        expectCancellation()
     }
     closeExposedFile.expectArgument(second)
 }
