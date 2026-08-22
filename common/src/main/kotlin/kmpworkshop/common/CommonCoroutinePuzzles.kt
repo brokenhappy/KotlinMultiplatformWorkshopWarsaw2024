@@ -182,7 +182,7 @@ class CoroutinePuzzleResultWithHistory(
 /** A call the evaluator was still waiting for when the solution attempt ended. */
 @Serializable data class CoroutinePuzzleExpectedFollowup(
     val endPoint: CoroutinePuzzleEndPointId,
-    /** Optional argument metadata for correlating this expectation with history; it does not affect matching. */
+    /** Allows an expectation to optionally expose what the expected argument is. */
     val expectedArgument: JsonElement? = null,
     /** The already matched call that the evaluator expected to be cancelled. */
     val expectedCancellationOfCallId: Long? = null,
