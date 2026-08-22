@@ -172,7 +172,7 @@ suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.submitCa
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
 suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement =
-    with(solutionScope) { submitRawCall(t) }
+    with(solutionScope) { this@submitRawCall.submitRawCall(t) }
 
 class CoroutinePuzzleResultWithHistory(
     val result: CoroutinePuzzleSolutionResult,

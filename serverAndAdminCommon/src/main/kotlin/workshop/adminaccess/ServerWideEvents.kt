@@ -118,7 +118,7 @@ internal fun ServerState.after(
     is StageChangeEvent -> copy(currentStage = event.stage)
     is SettingsChangeEvent -> copy(settings = event.newSettings)
     is ParticipantDeactivationEvent -> deactivateParticipant(event.participant)
-    is ParticipantReactivationEvent -> with(Random(event.randomSeed)) { reactivateParticipant(event.participant) }
+    is ParticipantReactivationEvent -> context(Random(event.randomSeed)) { reactivateParticipant(event.participant) }
     is ParticipantRemovalEvent -> removeParticipant(event.participant)
     is ParticipantRejectionEvent -> copy(unverifiedParticipants = unverifiedParticipants - event.participant)
     is ApplyScheduledEvent -> copy(

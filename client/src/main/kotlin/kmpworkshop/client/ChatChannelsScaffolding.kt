@@ -44,7 +44,7 @@ context(solutionScope: CoroutinePuzzleSolutionScope)
 private fun Flow<ChatMessage>.reportAcceptedMessages() = flow {
     collect { message ->
         emit(message)
-        with(solutionScope) { chatMessageAccepted.submitCall(message) }
+        chatMessageAccepted.submitCall(message)
     }
 }
 
@@ -52,6 +52,6 @@ context(solutionScope: CoroutinePuzzleSolutionScope)
 private fun Flow<TypingStatus>.reportAcceptedTypingStatuses() = flow {
     collect { status ->
         emit(status)
-        with(solutionScope) { chatTypingStatusAccepted.submitCall(status) }
+        chatTypingStatusAccepted.submitCall(status)
     }
 }
