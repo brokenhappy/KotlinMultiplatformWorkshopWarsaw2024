@@ -28,9 +28,6 @@ fun CoroutinePuzzleResultWithHistory.toMessage(): String = """
     |${flowCollectorMismatchMessage() ?: result.toMessage()}
 """.trimMargin()
 
-context(clientMetadata: ClientMetadata)
-fun CoroutinePuzzleResultWithHistory.toMessageWithMetadata(): String = toMessage()
-
 object CoroutinePuzzleFlowErrorMessages {
     fun tooManyCollectors(flowName: String): String =
         "Your solution started too many collectors of $flowName. No additional collector was expected."

@@ -1,7 +1,7 @@
 package com.kotlinworkshop.test
 
 import kmpworkshop.client.clientMetadataOf
-import kmpworkshop.client.toMessageWithMetadata
+import kmpworkshop.client.toMessage
 import kmpworkshop.common.EndpointDescriptorRegistry
 import kmpworkshop.common.descriptor
 import kmpworkshop.common.submitCall
@@ -55,7 +55,7 @@ class CoroutinePuzzleMetadataTest {
             MetadataTestApis.work.submitCall<Unit, Unit>(Unit)
         }
 
-        assertContains(context(testClientMetadata) { result.toMessageWithMetadata() }, "The puzzle was solved")
+        assertContains(context(testClientMetadata) { result.toMessage() }, "The puzzle was solved")
         assertContains(testClientMetadata.descriptionFor(MetadataTestApis.work.id), "Call test work")
     }
 
