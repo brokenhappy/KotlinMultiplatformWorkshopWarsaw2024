@@ -121,7 +121,8 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
 
 context(clientMetadata: ClientMetadata)
 private fun CoroutinePuzzleExpectedFollowup.expectedActionDescription(): String = when {
-    expectedCancellationOfCallId != null -> "Cancel the call to ${clientMetadata.descriptionFor(endPoint)}"
+    // TODO: Check cancellation reporting for flow cancellation.
+    expectedCancellationOfCallId != null -> "Cancel ${clientMetadata.descriptionFor(endPoint)}"
     clientMetadata.isFlowEndpoint(endPoint) -> "Request an element from ${clientMetadata.descriptionFor(endPoint)}"
     else -> clientMetadata.descriptionFor(endPoint)
 }
