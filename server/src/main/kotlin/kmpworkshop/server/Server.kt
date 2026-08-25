@@ -5,6 +5,7 @@ package kmpworkshop.server
 import kmpworkshop.common.*
 import kmpworkshop.common.DefaultApis
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.channelFlow
@@ -22,11 +23,12 @@ suspend fun main() {
 suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
-    val soundEvents = MutableSharedFlow<SoundPlayEvent>()
+    val soundEvents = MutableSharedFlow<SoundPlayEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
     val clientBugReports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 8)
-    val onSoundEvent: (SoundPlayEvent) -> Unit = {
-        launch { soundEvents.emit(it) }
-    }
+    val onSoundEvent: (SoundPlayEvent) -> Unit = { soundEvents.tryEmit(it) }
     launch {
         serve(
             rpcService {
