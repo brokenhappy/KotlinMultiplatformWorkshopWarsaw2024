@@ -30,7 +30,6 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":workshopApi"))
     implementation(project(":common"))
     implementation(project(":serverAndAdminCommon"))
     implementation(libs.ktor.server.netty.jvm)

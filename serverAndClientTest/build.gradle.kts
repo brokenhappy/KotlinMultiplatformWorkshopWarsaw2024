@@ -16,7 +16,6 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":workshopApi"))
     implementation(project(":workshopSolutions"))
     implementation(project(":common"))
     implementation(project(":server"))

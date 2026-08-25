@@ -35,7 +35,6 @@ dependencies {
     implementation(libs.calltreevisualizer.call.tree.ui)
     implementation(libs.compose.hot.reload.runtime.api)
     implementation(project(":common"))
-    implementation(project(":workshopApi"))
     implementation(project(":workshopSolutions"))
     testImplementation(libs.kotlin.test)
     testImplementation(project(":server"))

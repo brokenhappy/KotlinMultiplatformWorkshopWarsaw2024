@@ -20,7 +20,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":workshopApi"))
+    api(project(":workshopApi"))
     implementation(libs.calltreevisualizer.flow.context.agent.api)
     implementation(libs.ktor.client.core)
     implementation(libs.kotlinx.rpc.krpc.client)
