@@ -7,13 +7,11 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import java.util.*
-import kotlin.collections.copy
-import kotlin.plus
 import kotlin.random.Random
-import kotlin.text.contains
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
+internal const val MaxRegistrations = 200
 
 @Serializable
 sealed class ServerWideEvents : WorkshopEvent()
@@ -34,6 +32,8 @@ data class RegistrationStartEvent(
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, ApiKeyRegistrationResult> = when {
         !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
         oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
+        oldState.participants.size + oldState.deactivatedParticipants.size + oldState.unverifiedParticipants.size >= MaxRegistrations ->
+            oldState to ApiKeyRegistrationResult.CapacityReached
         else -> UUID.nameUUIDFromBytes(Random(randomSeed).nextBytes(16)).toString()
             .let { Participant(name, ApiKey(it)) }
             .let {

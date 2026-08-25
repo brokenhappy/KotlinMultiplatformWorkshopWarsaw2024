@@ -153,6 +153,8 @@ sealed class ApiKeyRegistrationResult {
     data object NameAlreadyExists : ApiKeyRegistrationResult()
     @Serializable
     data object NameTooComplex : ApiKeyRegistrationResult()
+    @Serializable
+    data object CapacityReached : ApiKeyRegistrationResult()
 }
 
 @Serializable

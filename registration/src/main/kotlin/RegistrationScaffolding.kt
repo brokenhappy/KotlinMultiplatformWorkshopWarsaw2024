@@ -39,6 +39,9 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
             """.trimIndent())
             suggestRunningCode()
         }
+        ApiKeyRegistrationResult.CapacityReached -> {
+            println("Registration is currently full. Please ask the workshop host for help.")
+        }
         is ApiKeyRegistrationResult.Success -> {
             prepareApiKey(result.key.stringRepresentation)
             println("""
