@@ -1,7 +1,6 @@
 package kmpworkshop.server
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kmpworkshop.common.coroutinesToLoom
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import workshop.adminaccess.ServerState
@@ -46,7 +45,7 @@ suspend fun reportBug(bug: ReportedBug) {
         Server not set up to store bugs! But the following bug happened:
         ${Json.encodeToString(bug)}
     """.trimIndent())
-    withContext(Dispatchers.IO) {
+    coroutinesToLoom {
         val file = generateSequence(0) { it + 1 }
             .map { bugDirectory.toFile().resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
             .first { !it.exists() }

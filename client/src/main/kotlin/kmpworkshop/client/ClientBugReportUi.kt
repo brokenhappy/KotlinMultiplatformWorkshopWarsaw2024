@@ -64,10 +64,8 @@ internal fun ClientBugReportPage(
     }
 
     LaunchedEffect(Unit) {
-        diagnostics = withContext(Dispatchers.IO) {
-            runCatching { collectClientBugDiagnostics(settings) }
-                .getOrElse { ClientBugDiagnostics(failures = listOf("client diagnostics: ${it.message}")) }
-        }
+        diagnostics = runCatching { collectClientBugDiagnostics(settings) }
+            .getOrElse { ClientBugDiagnostics(failures = listOf("client diagnostics: ${it.message}")) }
     }
 
     fun addAttachments(results: List<Result<BugImageAttachment>>) {

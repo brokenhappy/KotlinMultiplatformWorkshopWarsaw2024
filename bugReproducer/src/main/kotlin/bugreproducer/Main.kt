@@ -122,9 +122,7 @@ fun LauncherApp(
             }
         }
         try {
-            withContext(Dispatchers.IO) {
-                runReproducer(report, ui)
-            }
+            runReproducer(report, ui)
             status = LauncherStatus.Idle
             requestedReport = null
         } catch (cancellation: CancellationException) {

@@ -1,17 +1,14 @@
 package com.kotlinworkshop.test
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.http.URLProtocol
-import io.ktor.http.encodedPath
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.http.*
 import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopStage
 import kmpworkshop.server.rpcServer
 import kmpworkshop.server.rpcService
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
@@ -50,16 +47,12 @@ class RpcClientCancellationTest {
                 }
                 val workshopService = rpcClient.withService<WorkshopApiService>()
 
-                withContext(Dispatchers.IO) {
-                    workshopService.currentStage().first()
-                }
+                workshopService.currentStage().first()
 
                 rpcClient.close()
 
                 val failure = assertFailsWith<IllegalStateException> {
-                    withContext(Dispatchers.IO) {
-                        workshopService.currentStage().first()
-                    }
+                    workshopService.currentStage().first()
                 }
                 assertContains(failure.message.orEmpty(), "RpcClient was cancelled")
             } finally {

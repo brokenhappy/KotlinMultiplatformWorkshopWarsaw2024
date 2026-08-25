@@ -2,17 +2,13 @@ package kmpworkshop.client
 
 import kmpworkshop.common.ClientBugDiagnostics
 import kmpworkshop.common.MaxBugDiagnosticValueLength
+import kmpworkshop.common.coroutinesToLoom
+import kotlinx.coroutines.*
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.withContext
 
 internal suspend fun collectClientBugDiagnostics(settings: ClientSettings): ClientBugDiagnostics {
     val values = linkedMapOf<String, String>()
@@ -90,17 +86,17 @@ private suspend fun runGit(
     directory: File = File("."),
 ): Result<String> = try {
     coroutineScope {
-        val process = runInterruptible(Dispatchers.IO) {
+        val process = coroutinesToLoom {
             ProcessBuilder(listOf("git") + command)
                 .directory(directory)
                 .redirectErrorStream(false)
                 .start()
         }
         process.outputStream.close()
-        val output = async(Dispatchers.IO) { readAll(process.inputStream) }
-        val error = async(Dispatchers.IO) { readLimited(process.errorStream, 4_000) }
+        val output = async { coroutinesToLoom { readAll(process.inputStream) } }
+        val error = async { coroutinesToLoom { readLimited(process.errorStream, 4_000) } }
         try {
-            if (!runInterruptible(Dispatchers.IO) { process.waitFor(3, TimeUnit.SECONDS) }) {
+            if (!coroutinesToLoom { process.waitFor(3, TimeUnit.SECONDS) }) {
                 error("git command timed out")
             }
             val outputText = output.await()
@@ -120,10 +116,12 @@ private suspend fun runGit(
 }
 
 private suspend fun terminateGitProcess(process: Process) {
-    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
-        runCatching { process.toHandle().descendants().forEach { it.destroyForcibly() } }
-        runCatching { process.destroyForcibly() }
-        runCatching { process.waitFor(1, TimeUnit.SECONDS) }
+    withContext(NonCancellable) {
+        coroutinesToLoom {
+            runCatching { process.toHandle().descendants().forEach { it.destroyForcibly() } }
+            runCatching { process.destroyForcibly() }
+            runCatching { process.waitFor(1, TimeUnit.SECONDS) }
+        }
     }
 }
 

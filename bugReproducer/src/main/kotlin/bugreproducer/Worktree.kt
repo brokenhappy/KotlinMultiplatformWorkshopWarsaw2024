@@ -1,28 +1,16 @@
 package bugreproducer
 
+import kmpworkshop.common.coroutinesToLoom
+import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.withContext
 import workshop.adminaccess.StoredClientBugReport
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.concurrent.TimeUnit
-import kotlin.io.path.createDirectories
-import kotlin.io.path.deleteIfExists
-import kotlin.io.path.exists
-import kotlin.io.path.isDirectory
-import kotlin.io.path.readBytes
-import kotlin.io.path.readText
-import kotlin.io.path.writeBytes
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 
 data class GitResult(
     val output: String,
@@ -44,14 +32,18 @@ open class GitRunner(private val timeout: Long = 10, private val unit: TimeUnit 
             process.outputStream.close()
         }
 
-        val output = async(Dispatchers.IO) {
-            process.inputStream.use { it.readBytes().toString(StandardCharsets.UTF_8) }
+        val output = async {
+            coroutinesToLoom {
+                process.inputStream.use { it.readBytes().toString(StandardCharsets.UTF_8) }
+            }
         }
-        val error = async(Dispatchers.IO) {
-            process.errorStream.use { it.readBytes().toString(StandardCharsets.UTF_8) }
+        val error = async {
+            coroutinesToLoom {
+                process.errorStream.use { it.readBytes().toString(StandardCharsets.UTF_8) }
+            }
         }
         try {
-            if (!runInterruptible(Dispatchers.IO) { process.waitFor(timeout, unit) }) {
+            if (!coroutinesToLoom { process.waitFor(timeout, unit) }) {
                 terminateProcessTree(process)
                 GitResult(output.await(), "git command timed out", -1)
             } else {
@@ -76,10 +68,12 @@ open class GitRunner(private val timeout: Long = 10, private val unit: TimeUnit 
 }
 
 internal suspend fun terminateProcessTree(process: Process) {
-    withContext(NonCancellable + Dispatchers.IO) {
-        runCatching { process.toHandle().descendants().forEach { it.destroyForcibly() } }
-        runCatching { process.destroyForcibly() }
-        runCatching { process.waitFor(1, TimeUnit.SECONDS) }
+    withContext(NonCancellable) {
+        coroutinesToLoom {
+            runCatching { process.toHandle().descendants().forEach { it.destroyForcibly() } }
+            runCatching { process.destroyForcibly() }
+            runCatching { process.waitFor(1, TimeUnit.SECONDS) }
+        }
     }
 }
 

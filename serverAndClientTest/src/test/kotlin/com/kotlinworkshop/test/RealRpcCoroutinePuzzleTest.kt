@@ -67,7 +67,7 @@ internal suspend fun runRealRpcTestClient(
         }
         try {
             val boundPort = server.engine.resolvedConnectors().first().port
-            val service = withContext(Dispatchers.IO) {
+            val service = coroutinesToLoom {
                 httpClient.connectWorkshopService(protocol = URLProtocol.WS, host = "localhost", port = boundPort)
             }
 

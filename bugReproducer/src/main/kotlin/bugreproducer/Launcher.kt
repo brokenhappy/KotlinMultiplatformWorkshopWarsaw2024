@@ -2,13 +2,12 @@ package bugreproducer
 
 import kmpworkshop.client.ClientSettings
 import kmpworkshop.common.Resource
+import kmpworkshop.common.coroutinesToLoom
 import kmpworkshop.common.resource
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
 import kotlin.io.path.writeText
@@ -135,16 +134,18 @@ private fun historicalClientAttempt(
         coroutineScope {
             val output = StringBuilder()
             val ready = CompletableDeferred<Unit>()
-            val outputReader = launch(Dispatchers.IO) {
-                process.inputStream.bufferedReader().useLines { lines ->
-                    lines.forEach { line ->
-                        output.appendLine(line)
-                        if (line.contains(ReproducerReadyMarker)) ready.complete(Unit)
+            val outputReader = launch {
+                coroutinesToLoom {
+                    process.inputStream.bufferedReader().useLines { lines ->
+                        lines.forEach { line ->
+                            output.appendLine(line)
+                            if (line.contains(ReproducerReadyMarker)) ready.complete(Unit)
+                        }
                     }
                 }
             }
-            val processExit = async(Dispatchers.IO) {
-                runInterruptible(Dispatchers.IO) { process.waitFor() }
+            val processExit = async {
+                coroutinesToLoom { process.waitFor() }
             }
             val monitor = launch {
                 val exitCode = processExit.await()
@@ -167,7 +168,7 @@ private fun historicalClientAttempt(
 }
 
 private fun managedProcess(command: List<String>, worktree: Path): Resource<Process> = resource { consumer ->
-    val process = runInterruptible(Dispatchers.IO) {
+    val process = coroutinesToLoom {
         ProcessBuilder(command)
             .directory(worktree.toFile())
             .redirectErrorStream(true)

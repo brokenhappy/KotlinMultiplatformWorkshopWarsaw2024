@@ -1,5 +1,6 @@
 package workshop.adminaccess
 
+import kmpworkshop.common.coroutinesToLoom
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import java.io.ByteArrayInputStream
@@ -52,10 +53,14 @@ private suspend fun playProgressSound(progress: Double) {
 }
 
 private suspend fun AudioInputStream.playIn(clip: Clip) {
-    clip.open(this)
+    coroutinesToLoom { clip.open(this) }
     clip.start()
     clip.drain()
-    delay(3.seconds)
+    try {
+        delay(3.seconds)
+    } catch (_: CancellationException) {
+        clip.close()
+    }
 }
 
 private suspend fun AudioInputStream.changePitch(progress: Double): AudioInputStream {
@@ -76,8 +81,6 @@ private suspend fun AudioInputStream.changePitch(progress: Double): AudioInputSt
 
 private suspend fun AudioInputStream.readAsWavByteArray(): ByteArray {
     val byteArrayOutputStream = ByteArrayOutputStream()
-    withContext(Dispatchers.IO) {
-        AudioSystem.write(this@readAsWavByteArray, AudioFileFormat.Type.WAVE, byteArrayOutputStream)
-    }
+    coroutinesToLoom { AudioSystem.write(this, AudioFileFormat.Type.WAVE, byteArrayOutputStream) }
     return byteArrayOutputStream.toByteArray()
 }

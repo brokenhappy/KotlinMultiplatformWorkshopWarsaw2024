@@ -177,7 +177,7 @@ private fun WorkshopClientContent(
     val latestDebuggerEvents = rememberUpdatedState(debuggerEvents)
 
     LaunchedEffect(reportDraft) {
-        withContext(Dispatchers.IO) { reportDraftStore.save(reportDraft) }
+        coroutinesToLoom { reportDraftStore.save(reportDraft) }
     }
     LaunchedEffect(openReportBug) {
         if (openReportBug) reportIsOpen = true

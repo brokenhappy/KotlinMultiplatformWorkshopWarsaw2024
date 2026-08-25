@@ -1,27 +1,18 @@
 package kmpworkshop.server
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.http.URLProtocol
-import io.ktor.http.encodedPath
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.http.*
 import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.coroutinesToLoom
 import kmpworkshop.common.superSecretFallbackPassword
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.ktor.client.rpcConfig
@@ -68,7 +59,7 @@ class AdminStageChangesOverRpcTest {
 
         try {
             val port = rpcServer.engine.resolvedConnectors().first().port
-            val admin = withContext(Dispatchers.IO) {
+            val admin = coroutinesToLoom {
                 client.rpc {
                     url {
                         protocol = URLProtocol.WS

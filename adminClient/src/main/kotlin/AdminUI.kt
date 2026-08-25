@@ -149,58 +149,56 @@ fun AdminApp(onExit: () -> Unit) {
     var adminAccessService: AdminAccess? by remember { mutableStateOf(null) }
     LaunchedEffect(Unit) {
         try {
-            withContext(Dispatchers.IO) {
-                withAdminAccessService { adminAccess ->
-                    val serverState = adminAccess
-                        .serverState(adminPassword)
-                        .shareIn(this, SharingStarted.Eagerly, replay = 1)
+            withAdminAccessService { adminAccess ->
+                val serverState = adminAccess
+                    .serverState(adminPassword)
+                    .shareIn(this, SharingStarted.Eagerly, replay = 1)
 
-                    val adminAccessWithSharedStateFlow = object: AdminAccess by adminAccess {
-                        override fun serverState(password: String): Flow<ServerState> = serverState
-                    }
-                    launch {
-                        System.getenv("SERVER_EVENT_BACKUP_DIRECTORY")?.let(::Path)?.sideEffect { backupDir ->
-                            backupDir.toFile().mkdirs()
-                            try {
-                                adminAccess.fire(
-                                    adminPassword,
-                                    RevertWholeStateEvent(Json.decodeFromString<ServerState>(
-                                        backupDir.resolve("adminLocalBackup").readText()),
-                                    ),
-                                )
-                            } catch (e: SerializationException) {
-                                backupDir.resolve("unrestorableBackup${Clock.System.now()}").writeText(backupDir.resolve("adminLocalBackup").readText())
-                            } catch (e: NoSuchFileException) {
-                                // No probs
-                            }
-
-                            serverState.drop(2).conflate().collect {
-                                backupDir.resolve("adminLocalBackup").writeText(Json.encodeToString(it))
-                            }
-                        }
-                    }
-                    launch {
-                        adminAccess.clientBugReports(adminPassword).collect { report ->
-                            runCatching { persistClientBugReportLocally(report) }
-                                .onFailure { failure ->
-                                    System.err.println("Could not store client bug report: ${failure.message}")
-                                }
-                        }
-                    }
-                    launch {
-                        while (true) {
-                            adminAccess.heartbeat()
-                            delay(2.seconds)
-                        }
-                    }
-                    launch {
-                        adminAccess.soundEvents(adminPassword).collect { soundEvent ->
-                            this@launch.launch { soundEvent.play() }
-                        }
-                    }
-                    adminAccessService = adminAccessWithSharedStateFlow
-                    awaitCancellation()
+                val adminAccessWithSharedStateFlow = object: AdminAccess by adminAccess {
+                    override fun serverState(password: String): Flow<ServerState> = serverState
                 }
+                launch {
+                    System.getenv("SERVER_EVENT_BACKUP_DIRECTORY")?.let(::Path)?.sideEffect { backupDir ->
+                        backupDir.toFile().mkdirs()
+                        try {
+                            adminAccess.fire(
+                                adminPassword,
+                                RevertWholeStateEvent(Json.decodeFromString<ServerState>(
+                                    backupDir.resolve("adminLocalBackup").readText()),
+                                ),
+                            )
+                        } catch (e: SerializationException) {
+                            backupDir.resolve("unrestorableBackup${Clock.System.now()}").writeText(backupDir.resolve("adminLocalBackup").readText())
+                        } catch (e: NoSuchFileException) {
+                            // No probs
+                        }
+
+                        serverState.drop(2).conflate().collect {
+                            backupDir.resolve("adminLocalBackup").writeText(Json.encodeToString(it))
+                        }
+                    }
+                }
+                launch {
+                    adminAccess.clientBugReports(adminPassword).collect { report ->
+                        runCatching { persistClientBugReportLocally(report) }
+                            .onFailure { failure ->
+                                System.err.println("Could not store client bug report: ${failure.message}")
+                            }
+                    }
+                }
+                launch {
+                    while (true) {
+                        adminAccess.heartbeat()
+                        delay(2.seconds)
+                    }
+                }
+                launch {
+                    adminAccess.soundEvents(adminPassword).collect { soundEvent ->
+                        soundEvent.play()
+                    }
+                }
+                adminAccessService = adminAccessWithSharedStateFlow
+                awaitCancellation()
             }
         } finally {
             adminAccessService = null
@@ -217,7 +215,7 @@ fun AdminApp(onExit: () -> Unit) {
 @Composable
 fun AdminApp(adminAccessService: AdminAccess, onExit: () -> Unit) {
     val state by remember { adminAccessService.serverState(adminPassword) }.collectAsState(initial = ServerState())
-    val scope = rememberCoroutineScope { Dispatchers.IO }
+    val scope = rememberCoroutineScope()
     AdminApp(state, onEvent = { scheduledEvent ->
         scope.launch {
             when (scheduledEvent) {
