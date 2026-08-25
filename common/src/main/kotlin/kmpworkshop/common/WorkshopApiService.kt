@@ -138,6 +138,8 @@ sealed class PuzzleCompletionResult {
     @Serializable
     data object PuzzleNotOpenedYet : PuzzleCompletionResult()
     @Serializable
+    data object NotActiveParticipant : PuzzleCompletionResult()
+    @Serializable
     data object AlreadySolved : PuzzleCompletionResult()
     @Serializable
     data object Done : PuzzleCompletionResult()

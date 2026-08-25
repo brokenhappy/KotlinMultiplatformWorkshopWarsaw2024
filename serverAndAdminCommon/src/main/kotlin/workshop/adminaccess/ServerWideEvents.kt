@@ -7,7 +7,10 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import java.util.*
+import kotlin.collections.copy
+import kotlin.plus
 import kotlin.random.Random
+import kotlin.text.contains
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
@@ -79,7 +82,9 @@ data class PuzzleFinishedEvent(
     override val serializer: KSerializer<PuzzleCompletionResult> = kotlinx.serialization.serializer()
 
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, PuzzleCompletionResult> =
-        (oldState.puzzleStates[puzzleId] as? PuzzleState.Opened)?.let { puzzleState ->
+        if (oldState.participants.none { it.apiKey == participant })
+            oldState to PuzzleCompletionResult.NotActiveParticipant
+        else (oldState.puzzleStates[puzzleId] as? PuzzleState.Opened)?.let { puzzleState ->
             when {
                 participant.stringRepresentation in puzzleState.submissions -> oldState to PuzzleCompletionResult.AlreadySolved
                 else -> oldState.copy(

@@ -82,7 +82,7 @@ fun workshopService(
         puzzleId: String,
         answers: Flow<JsonElement>,
     ): Flow<SolvingStatus> =
-        context(KotlinBasicsPuzzleType) { doPuzzleAttempt(key, puzzleId, answers, onEvent) }
+        context(KotlinBasicsPuzzleType) { doPuzzleAttempt(key, puzzleId, answers, serverState, onEvent) }
 
     override fun doCoroutinePuzzleSolveAttempt(
         key: ApiKey,
@@ -92,7 +92,7 @@ fun workshopService(
     ): Flow<CoroutinePuzzleExpectationBatchOrCompletion> =
         if (clientMetadataHash != DefaultApis.endpointHash())
             flow { emit(CoroutinePuzzleType.customError("Client and server coroutine puzzle APIs do not match.")) }
-        else context(CoroutinePuzzleType) { doPuzzleAttempt(key, puzzleId, messages, onEvent) }
+        else context(CoroutinePuzzleType) { doPuzzleAttempt(key, puzzleId, messages, serverState, onEvent) }
 }
 
 /** Shit, I couldn't help myself from introducing a type class, just inline this and the type if it needs a lot of maintanence */
@@ -101,6 +101,7 @@ private fun <Stage: Enum<Stage>, Outgoing, Incoming> doPuzzleAttempt(
     key: ApiKey,
     puzzleId: String,
     answers: Flow<Incoming>,
+    serverState: Flow<ServerState>,
     onEvent: OnEvent,
 ): Flow<Outgoing> {
     val puzzle = type
@@ -113,6 +114,11 @@ private fun <Stage: Enum<Stage>, Outgoing, Incoming> doPuzzleAttempt(
         }
 
     return channelFlow {
+        if (serverState.first().participants.none { it.apiKey == key }) {
+            send(type.customError(participantNotActiveMessage))
+            return@channelFlow
+        }
+
         try {
             puzzle.use { (outgoing, incoming) ->
                 launch {
@@ -129,6 +135,7 @@ private fun <Stage: Enum<Stage>, Outgoing, Incoming> doPuzzleAttempt(
                             PuzzleCompletionResult.Done -> message
                             PuzzleCompletionResult.AlreadySolved -> type.customError(alreadySolvedMessage)
                             PuzzleCompletionResult.PuzzleNotOpenedYet -> type.customError(puzzleNotOpenedYetMessage)
+                            PuzzleCompletionResult.NotActiveParticipant -> type.customError(participantNotActiveMessage)
                         }
                     )
                 }
@@ -161,4 +168,12 @@ private val puzzleNotOpenedYetMessage = """
 private val metadataNotFoundMessage = """
     Tried to call endpoint that does not exist. The server and client are out of sync.
     Try updating the repository (pulling latest changes). Otherwise ask for workshop host for help.
+""".trimIndent()
+
+private val participantNotActiveMessage = """
+    The participant you tried to register with is not active. That means one of:
+      - The workshop host deactivated you temporarily for some reason.
+        In this case, ask the workshop host that you are ready again, and that they can reactivate your registration.
+      - Something went wrong with your registration, or the server rolled back to a state before you registered.
+        In this case, please register again.
 """.trimIndent()
