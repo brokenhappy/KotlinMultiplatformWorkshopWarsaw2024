@@ -7,9 +7,9 @@ import kotlinx.serialization.json.Json
 import workshop.adminaccess.ServerBugDiagnostics
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StoredClientBugReport
-import java.io.ByteArrayInputStream
 import java.util.Base64
 import javax.imageio.ImageIO
+import kotlin.runCatching
 import kotlin.time.Clock
 
 internal const val MaxBugImagePixels = 40_000_000
@@ -17,7 +17,7 @@ internal const val MaxBugImagePixels = 40_000_000
 internal fun ServerState.acceptsBugReportFrom(key: ApiKey): Boolean =
     (participants + deactivatedParticipants).any { it.apiKey == key }
 
-internal fun validateClientBugReport(report: ClientBugReport): String? {
+internal suspend fun validateClientBugReport(report: ClientBugReport): String? {
     if (report.description.length > MaxBugDescriptionLength) {
         return "The bug description is too long."
     }
@@ -26,25 +26,41 @@ internal fun validateClientBugReport(report: ClientBugReport): String? {
     }
 
     var totalBytes = 0
-    for (attachment in report.attachments) {
-        if (attachment.fileName.length > 200 || attachment.fileName.any { it == '/' || it == '\\' }) {
+    for ((fileName, mimeType, dataBase64) in report.attachments) {
+        if (fileName.length > 200 || fileName.any { it == '/' || it == '\\' }) {
             return "An attachment has an invalid name."
         }
-        if (attachment.mimeType != "image/png") {
+        if (mimeType != "image/png") {
             return "Only PNG image attachments are supported."
         }
-        val bytes = runCatching { Base64.getDecoder().decode(attachment.dataBase64) }
+        val bytes = runCatching { Base64.getDecoder().decode(dataBase64) }
             .getOrElse { return "An attachment is not valid base64 data." }
         if (bytes.size > MaxBugAttachmentBytes) return "An image attachment is too large."
         totalBytes += bytes.size
         if (totalBytes > MaxBugAttachmentTotalBytes) return "The image attachments are too large in total."
 
-        val image = runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }
-            .getOrElse { return "An image attachment could not be decoded." }
-            ?: return "An image attachment could not be decoded."
-        if (image.width <= 0 || image.height <= 0 || image.width.toLong() * image.height > MaxBugImagePixels) {
-            return "An image attachment has unsafe dimensions."
-        }
+        coroutinesToLoom {
+            ImageIO.createImageInputStream(bytes.inputStream()).use { input ->
+                val reader = ImageIO.getImageReaders(input).asSequence().firstOrNull()
+                    ?: return@coroutinesToLoom "An image attachment could not be decoded."
+                try {
+                    reader.input = input
+                    if (!reader.formatName.equals("png", ignoreCase = true)) {
+                        return@coroutinesToLoom  "Only PNG image attachments are supported."
+                    }
+                    val (width, height) = runCatching { reader.getWidth(0) to reader.getHeight(0) }
+                        .getOrElse { return@coroutinesToLoom  "An image attachment could not be decoded." }
+                    if (width <= 0 || height <= 0 || width.toLong() * height > MaxBugImagePixels) {
+                        return@coroutinesToLoom  "An image attachment has unsafe dimensions."
+                    }
+                    runCatching { reader.read(0) }
+                        .getOrElse { return@coroutinesToLoom  "An image attachment could not be decoded." }
+                } finally {
+                    reader.dispose()
+                }
+            }
+            null
+        }?.let { return it }
     }
     return null
 }
@@ -52,7 +68,7 @@ internal fun validateClientBugReport(report: ClientBugReport): String? {
 internal fun buildStoredClientBugReport(
     report: ClientBugReport,
     serverState: ServerState,
-    provenance: ServerProvenance = ServerProvenance.load(),
+    provenance: ServerProvenance,
 ): StoredClientBugReport = StoredClientBugReport(
     clientReport = report,
     serverDiagnostics = collectServerBugDiagnostics(provenance),
@@ -81,7 +97,7 @@ private fun collectServerBugDiagnostics(provenance: ServerProvenance): ServerBug
     return ServerBugDiagnostics(values, failures)
 }
 
-internal fun submitClientBugReport(
+internal suspend fun submitClientBugReport(
     key: ApiKey,
     report: ClientBugReport,
     serverState: ServerState,
@@ -94,7 +110,7 @@ internal fun submitClientBugReport(
     if (clientBugReports.subscriptionCount.value == 0) {
         return ClientBugReportSubmissionResult.AdminUiNotConnected
     }
-    val storedReport = buildStoredClientBugReport(report, serverState)
+    val storedReport = buildStoredClientBugReport(report, serverState, coroutinesToLoom { loadServerProvenance() })
     return if (clientBugReports.tryEmit(storedReport)) {
         ClientBugReportSubmissionResult.Accepted
     } else {
@@ -112,38 +128,6 @@ internal data class ServerProvenance(
     val untrackedChangesSha256: String?,
     val failures: List<String>,
 ) {
-    companion object {
-        fun load(): ServerProvenance = runCatching {
-            val json = Json.decodeFromString<ServerProvenanceFile>(
-                ServerProvenance::class.java.classLoader
-                    .getResourceAsStream("server-provenance.json")
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    ?: error("server-provenance.json is not available"),
-            )
-            ServerProvenance(
-                commit = json.commit,
-                changes = json.changes,
-                changesTruncated = json.changesTruncated,
-                changesSha256 = json.changesSha256,
-                untrackedChanges = json.untrackedChanges,
-                untrackedChangesTruncated = json.untrackedChangesTruncated,
-                untrackedChangesSha256 = json.untrackedChangesSha256,
-                failures = json.failures,
-            )
-        }.getOrElse {
-            ServerProvenance(
-                commit = null,
-                changes = null,
-                changesTruncated = false,
-                changesSha256 = null,
-                untrackedChanges = null,
-                untrackedChangesTruncated = false,
-                untrackedChangesSha256 = null,
-                failures = listOf("server provenance: ${it.message ?: it::class.simpleName}"),
-            )
-        }
-    }
 }
 
 @Serializable
@@ -157,3 +141,34 @@ private data class ServerProvenanceFile(
     val untrackedChangesSha256: String? = null,
     val failures: List<String> = emptyList(),
 )
+
+internal fun loadServerProvenance(): ServerProvenance = runCatching {
+    val json = Json.decodeFromString<ServerProvenanceFile>(
+        ServerProvenance::class.java.classLoader
+            .getResourceAsStream("server-provenance.json")
+            ?.bufferedReader()
+            ?.use { it.readText() }
+            ?: error("server-provenance.json is not available"),
+    )
+    ServerProvenance(
+        commit = json.commit,
+        changes = json.changes,
+        changesTruncated = json.changesTruncated,
+        changesSha256 = json.changesSha256,
+        untrackedChanges = json.untrackedChanges,
+        untrackedChangesTruncated = json.untrackedChangesTruncated,
+        untrackedChangesSha256 = json.untrackedChangesSha256,
+        failures = json.failures,
+    )
+}.getOrElse {
+    ServerProvenance(
+        commit = null,
+        changes = null,
+        changesTruncated = false,
+        changesSha256 = null,
+        untrackedChanges = null,
+        untrackedChangesTruncated = false,
+        untrackedChangesSha256 = null,
+        failures = listOf("server provenance: ${it.message ?: it::class.simpleName}"),
+    )
+}
