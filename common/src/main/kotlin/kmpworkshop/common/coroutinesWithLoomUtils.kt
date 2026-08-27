@@ -39,6 +39,7 @@ suspend fun <T> coroutinesToLoom(block: () -> T): T {
                     }
                 } catch (t: Throwable) {
                     if (c !== t) c.suppressed.forEach { t.addSuppressed(it) }
+                    throw t
                 }
             }
         }
