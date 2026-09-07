@@ -929,12 +929,12 @@ private fun CoroutinePuzzleSolutionResult?.incorrectRequestBatches(
     }.toMap()
 }
 
-private data class ExpectedCallPlacement(
+internal data class ExpectedCallPlacement(
     val alignedByCallId: Map<Long, CoroutineTimelineExpectedCall>,
     val unaligned: List<CoroutineTimelineExpectedCall>,
 )
 
-private fun placeExpectedCalls(
+internal fun placeExpectedCalls(
     calls: List<CoroutineTimelineCall>,
     expectedCalls: List<CoroutineTimelineExpectedCall>,
 ): ExpectedCallPlacement {

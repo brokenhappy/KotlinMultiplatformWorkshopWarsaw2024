@@ -237,7 +237,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             checkNotNull(expectedCancellationOfCallId)
         }
         context(defaultClientMetadata) { failure.toMessage() }.assertEquals(
-            "Currently the expected action is Cancel the call to Call submit(number: Int): Unit.\n" +
+            "Currently the expected action is Cancel Call submit(number: Int): Unit.\n" +
                 "But instead, your solution made this request: Request the next element from numbers().",
         )
     }

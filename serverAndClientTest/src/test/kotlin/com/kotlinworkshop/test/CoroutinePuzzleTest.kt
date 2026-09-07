@@ -350,6 +350,44 @@ class CoroutinePuzzleTest {
     }
 
     @Test
+    fun `expected cancellation of a flow request is reported as a flow action`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = TestApis.flowUnitInt
+        val endpointIsRunning = TestApis.bar
+        val result = coroutinePuzzle {
+            endpoint.expectCanceledCall {
+                endpointIsRunning.expectCall(Unit)
+                expectCancellation()
+            }
+        }.solve {
+            launch { endpoint.submitCall(WithCallId(41, Unit)) }.sideEffect {
+                endpointIsRunning.submitCall(Unit)
+                TestApis.unit.submitCall(Unit)
+            }
+        }
+
+        val expectedCallId = result.history
+            .filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
+            .flatMap { it.entries }
+            .single {
+                (it.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted)?.endPoint == endpoint.id
+            }
+            .callId
+        val failure = result.assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+        assertEquals(
+            CoroutinePuzzleExpectedFollowup(
+                endPoint = endpoint.id,
+                expectedCancellationOfCallId = expectedCallId,
+            ),
+            failure.expectations.single(),
+        )
+        assertEquals(
+            "Currently the expected action is Cancel numbers().\n" +
+                "But instead, your solution made this request: foo.",
+            failure.renderClientMessage(),
+        )
+    }
+
+    @Test
     fun `regular expectCall cancellation of matching submit call DOES throw into coroutine puzzle scope`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = TestApis.unit
         val endpointIsRunning = TestApis.bar

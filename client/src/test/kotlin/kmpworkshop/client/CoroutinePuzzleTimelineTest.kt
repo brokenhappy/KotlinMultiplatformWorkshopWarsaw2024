@@ -2,6 +2,8 @@ package kmpworkshop.client
 
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
 import kmpworkshop.common.EndpointDescriptorRegistry
+import kmpworkshop.common.ValueOrCompletion
+import kmpworkshop.common.WithCallId
 import kmpworkshop.common.asPuzzle
 import kmpworkshop.common.descriptor
 import kmpworkshop.common.flowDescriptor
@@ -106,6 +108,36 @@ class CoroutinePuzzleTimelineTest {
         val hangingCall = context(testMetadata) { coroutineTimeline(attempt.history) }
             .single { it.endpoint == TestApis.hanging.id }
         assertEquals(hangingCall.callId, expectedCall.expectedCancellationOfCallId)
+    }
+
+    @Test
+    fun `aligns an expected cancellation with a later request in its flow row`() = runBlocking {
+        val collectorId = 41L
+        val attempt = coroutinePuzzle(testServerMetadata) {
+            TestApis.numbers.expectCall(WithCallId(collectorId, ValueOrCompletion.Value(7)))
+            TestApis.numbers.expectCanceledCall {
+                TestApis.callLifetime.expectCall(Unit)
+                expectCancellation()
+            }
+        }.asPuzzle().solveAsFlow {
+            TestApis.numbers.submitCall(WithCallId(collectorId, Unit))
+            launch { TestApis.numbers.submitCall(WithCallId(collectorId, Unit)) }.sideEffect {
+                TestApis.callLifetime.submitCall(Unit)
+                TestApis.answer.submitCall(9)
+            }
+        }.toResultWithHistory()
+
+        assertIs<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>(attempt.result)
+        val calls = context(testMetadata) { coroutineTimeline(attempt.history) }
+        val expectedCalls = context(testMetadata) { expectedTimelineCalls(attempt.result) }
+        val flowCall = calls.single { it.endpoint == TestApis.numbers.id }
+        val expectedCall = expectedCalls.single()
+
+        assertEquals(2, flowCall.events.size)
+        assertEquals(flowCall.events.last().callId, expectedCall.expectedCancellationOfCallId)
+        val placement = placeExpectedCalls(calls, expectedCalls)
+        assertEquals(expectedCall, placement.alignedByCallId[flowCall.callId])
+        assertTrue(placement.unaligned.isEmpty())
     }
 
     @Test
