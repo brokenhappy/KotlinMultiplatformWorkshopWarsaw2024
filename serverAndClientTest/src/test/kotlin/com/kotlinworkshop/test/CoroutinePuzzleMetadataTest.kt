@@ -48,14 +48,17 @@ class CoroutinePuzzleMetadataTest {
     @Test
     fun `endpoint hashes include callback input and output types`() {
         val original = object : EndpointDescriptorRegistry() {
+            @Suppress("unused")
             val callback by higherOrderDescriptor<Unit, Int, String, Unit>("callback")
             init { seal() }
         }
         val changedInput = object : EndpointDescriptorRegistry() {
+            @Suppress("unused")
             val callback by higherOrderDescriptor<Unit, Long, String, Unit>("callback")
             init { seal() }
         }
         val changedOutput = object : EndpointDescriptorRegistry() {
+            @Suppress("unused")
             val callback by higherOrderDescriptor<Unit, Int, Boolean, Unit>("callback")
             init { seal() }
         }
@@ -66,7 +69,7 @@ class CoroutinePuzzleMetadataTest {
     fun `test api uses server and client metadata blocks`() = runTest {
         val puzzle: Resource<CoroutinePuzzleProtocol> = context(testServerMetadata) {
             coroutinePuzzleWithMetadata {
-                MetadataTestApis.work.expectCall<Unit, Unit> { Unit }
+                MetadataTestApis.work.expectCall<Unit, Unit> { }
             }
         }
         val result = puzzle.asPuzzle().solve {

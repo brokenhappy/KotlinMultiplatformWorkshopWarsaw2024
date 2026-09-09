@@ -2,17 +2,8 @@
 
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
-
-import kmpworkshop.common.WithCallId
-import kmpworkshop.common.CoroutinePuzzleExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleEndPointId
-import kmpworkshop.common.CoroutinePuzzleHistoryBatch
-import kmpworkshop.common.EndpointDescriptorRegistry
-import kmpworkshop.common.descriptor
-import kmpworkshop.client.clientMetadataOf
 import kotlinx.serialization.json.JsonNull
 import org.junit.jupiter.api.Assertions.assertEquals
 import kotlin.test.Test

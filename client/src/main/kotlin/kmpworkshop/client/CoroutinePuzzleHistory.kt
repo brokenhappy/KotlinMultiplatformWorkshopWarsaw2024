@@ -84,11 +84,6 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
     }
 }
 
-fun renderCoroutinePuzzleHistory(
-    batches: List<CoroutinePuzzleHistoryBatch>,
-    clientMetadata: ClientMetadata,
-): String = context(clientMetadata) { renderCoroutinePuzzleHistory(batches) }
-
 private const val LABEL_COLUMN_WIDTH = 6
 
 private data class RenderedCall(

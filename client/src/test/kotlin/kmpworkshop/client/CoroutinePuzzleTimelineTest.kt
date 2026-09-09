@@ -1,41 +1,14 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.*
 import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
-
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.CoroutinePuzzleExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
-import kmpworkshop.common.CoroutinePuzzleHistoryBatch
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.EndpointDescriptorRegistry
-import kmpworkshop.common.WithCallId
-import kmpworkshop.common.asPuzzle
-import kmpworkshop.common.descriptor
-import kmpworkshop.common.flowDescriptor
-import kmpworkshop.common.higherOrderDescriptor
-import kmpworkshop.common.sideEffect
-import kmpworkshop.common.submitCall
-import kmpworkshop.common.toResultWithHistory
-import kmpworkshop.server.awaitQuiescenceAndGetUnmatchedSubmissions
-import kmpworkshop.server.coroutinePuzzle
-import kmpworkshop.server.expectCall
-import kmpworkshop.server.expectCanceledCall
-import kmpworkshop.server.expectCancellation
-import kmpworkshop.server.expectThrowingCall
-import kmpworkshop.server.expectingFlowCollector
-import kmpworkshop.server.serverMetadataOf
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kmpworkshop.server.*
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 private object TestApis : EndpointDescriptorRegistry() {
     val answer by descriptor<Int, Unit>("answer")
@@ -92,9 +65,6 @@ class CoroutinePuzzleTimelineTest {
             ))
             val cancelled = CoroutinePuzzleHistoryBatch.Expectation(listOf(
                 WithCallId(99, CoroutinePuzzleCallPayload.Cancel),
-            ))
-            val answer = CoroutinePuzzleHistoryBatch.Expectation(listOf(
-                WithCallId(99, Outcome.Returned(JsonPrimitive(7))),
             ))
             // Before and after an answer, cancellation ends with exactly the same outcome.
             listOf(listOf(submitted, cancelled)).forEach { pending ->

@@ -1,38 +1,26 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.common.CoroutinePuzzleCallPayload
-import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
-
 import com.woutwerkman.calltreevisualizer.StackTrackingContext
 import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
-import kmpworkshop.client.runCoroutinePuzzleClient
-import kmpworkshop.client.sumWithLifecycleScaffolding
-import kmpworkshop.client.defaultClientMetadata
-import kmpworkshop.client.toMessage
-import kmpworkshop.client.workshopSolutions
 import kmpworkshop.api.*
-import kmpworkshop.client.asSolution
-import kmpworkshop.solutions.allowPeopleToDownloadExposedFile
-import kmpworkshop.solutions.writeChatUpdatesDirectly
+import kmpworkshop.client.*
 import kmpworkshop.common.*
-import kmpworkshop.common.ApiKey
 import kmpworkshop.common.DefaultApis.closeExposedFile
 import kmpworkshop.common.DefaultApis.emitFileToExpose
 import kmpworkshop.common.DefaultApis.openExposedFile
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
-import kmpworkshop.common.asServer
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
 import kmpworkshop.server.CoroutinePuzzleType
+import kmpworkshop.solutions.allowPeopleToDownloadExposedFile
+import kmpworkshop.solutions.writeChatUpdatesDirectly
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
@@ -290,7 +278,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
                 var job: Job? = null
                 api.numbers().collect { value ->
                     job?.cancelAndJoin()
-                    job = launch { api.submit(value) }
+                    job = this@coroutineScope.launch { api.submit(value) }
                 }
             }
         }.assertIsOk()
@@ -1370,24 +1358,6 @@ private inline fun <reified T> ResultsWHistory.callbackArguments(endpoint: Corou
         .mapNotNull { it.payload as? CoroutinePuzzleCallPayload.CallbackInvoked }
         .filter { it.parentCallId in outerIds }
         .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
-}
-
-private inline fun <reified T> ResultsWHistory.returnedValues(
-    endpoint: CoroutinePuzzleEndPoint<*, T>,
-): List<T> {
-    val callIds = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
-        .flatMap { it.entries }
-        .mapNotNull { entry ->
-            (entry.payload as? CoroutinePuzzleCallPayload.CallSubmitted)
-                ?.takeIf { it.endPoint == endpoint.id }
-                ?.let { entry.callId }
-        }
-        .toSet()
-    return history.filterIsInstance<CoroutinePuzzleHistoryBatch.Expectation>()
-        .flatMap { it.entries }
-        .filter { it.callId in callIds }
-        .mapNotNull { it.payload as? Outcome.Returned }
-        .map { Json.decodeFromJsonElement(serializer<T>(), it.result) }
 }
 
 private inline fun <reified T> ResultsWHistory.arguments(

@@ -84,7 +84,6 @@ fun coroutineTimeline(batches: List<CoroutinePuzzleHistoryBatch>): List<Coroutin
                             endBatch = batchIndex, completion = TimelineCompletion.THREW, exceptionMessage = payload.message,
                         )
                         Outcome.Cancelled -> call.copy(endBatch = batchIndex, completion = TimelineCompletion.CANCELLED)
-                        else -> error("Requests are handled before their outcomes")
                     }
                 }
             }

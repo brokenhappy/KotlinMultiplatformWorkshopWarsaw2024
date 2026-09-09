@@ -2,36 +2,26 @@
 
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleCallPayload
-import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
-
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performMouseInput
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import kmpworkshop.common.WithCallId
-import kmpworkshop.common.CoroutinePuzzleExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.CoroutinePuzzleHistoryBatch
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.EndpointDescriptorRegistry
-import kmpworkshop.common.descriptor
-import kmpworkshop.common.flowDescriptor
+import kmpworkshop.common.*
+import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.awt.image.BufferedImage

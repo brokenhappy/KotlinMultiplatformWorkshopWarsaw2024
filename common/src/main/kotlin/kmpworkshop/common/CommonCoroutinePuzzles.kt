@@ -253,10 +253,6 @@ suspend inline fun <reified T, reified U, reified R> CoroutinePuzzleEndPoint<Pai
     noinline callback: suspend CoroutineScope.(T) -> U,
 ): R = submitCall(Unit, callback)
 
-context(solutionScope: CoroutinePuzzleSolutionScope)
-suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement =
-    with(solutionScope) { submitRawCall(t) }
-
 class CoroutinePuzzleResultWithHistory(
     val result: CoroutinePuzzleSolutionResult,
     val history: List<CoroutinePuzzleHistoryBatch>,

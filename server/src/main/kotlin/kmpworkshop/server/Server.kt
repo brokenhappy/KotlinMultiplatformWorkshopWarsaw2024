@@ -1,5 +1,3 @@
-@file:Suppress("ReplaceToWithInfixForm")
-
 package kmpworkshop.server
 
 import kmpworkshop.common.*
