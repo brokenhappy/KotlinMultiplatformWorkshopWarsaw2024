@@ -22,6 +22,7 @@ import kmpworkshop.client.ClientEntryPoint
 import kmpworkshop.client.ClientSettings
 import kmpworkshop.client.defaultClientMetadata
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
 import org.jetbrains.skia.Image.Companion.makeFromEncoded
 import java.awt.Toolkit
@@ -590,7 +591,7 @@ private fun ReproducerApp(config: ReproductionConfig, onExit: () -> Unit) {
         embeddedReproducerRuntime(config.report.serverState, config.apiKey)
     }
     var runtime by remember(config) { mutableStateOf<EmbeddedReproducerRuntime?>(null) }
-    val settings = remember(config) { kotlinx.coroutines.flow.MutableStateFlow(ClientSettings(config.settings.zoom)) }
+    val settings = remember(config) { MutableStateFlow(ClientSettings(config.settings.zoom)) }
     LaunchedEffect(runtimeResource) {
         try {
             runtimeResource.use {

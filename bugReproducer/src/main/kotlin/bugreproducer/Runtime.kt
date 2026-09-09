@@ -14,6 +14,7 @@ import kmpworkshop.server.workshopService
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.ScheduledWorkshopEvent
@@ -24,7 +25,7 @@ import workshop.adminaccess.ScheduledWorkshopEvent
  * under the reproducer window's control.
  */
 interface EmbeddedReproducerRuntime {
-    val serverState: kotlinx.coroutines.flow.StateFlow<ServerState>
+    val serverState: StateFlow<ServerState>
     val client: WorkshopServer
 
     suspend fun submit(report: ClientBugReport): ClientBugReportSubmissionResult

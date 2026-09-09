@@ -7,6 +7,7 @@ import kmpworkshop.common.DefaultApis.renderShipmentOnMap
 import kmpworkshop.common.DefaultApis.shipmentTrackingConnectionLifetime
 import kmpworkshop.common.DefaultApis.shipmentTrackingUpdates
 import kmpworkshop.common.DefaultApis.updateShipmentEtaCard
+import kmpworkshop.common.CoroutinePuzzleEndPoint
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -183,7 +184,7 @@ private suspend fun expectBothViews(update: ShipmentUpdate) = coroutineScope {
 }
 
 context(_: CoroutinePuzzleBuilderScope)
-private suspend fun kmpworkshop.common.CoroutinePuzzleEndPoint<ShipmentUpdate, Unit>.expectUpdate(expected: ShipmentUpdate) {
+private suspend fun CoroutinePuzzleEndPoint<ShipmentUpdate, Unit>.expectUpdate(expected: ShipmentUpdate) {
     val actual = expectCall(Unit)
     verify(actual == expected) { CoroutinePuzzleErrorMessages.wrongShipmentUpdate(actual, expected) }
 }

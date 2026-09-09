@@ -19,6 +19,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.shareIn
@@ -979,7 +980,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
 
 private suspend fun collectVisibleTrackingWidgets(
     api: ShipmentTrackingApi,
-    updates: kotlinx.coroutines.flow.Flow<ShipmentUpdate>,
+    updates: Flow<ShipmentUpdate>,
 ) = coroutineScope {
     launch {
         api.shouldMapBeVisible().collectLatest { visible ->

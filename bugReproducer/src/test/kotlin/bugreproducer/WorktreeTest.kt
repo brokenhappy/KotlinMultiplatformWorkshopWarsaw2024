@@ -1,6 +1,7 @@
 package bugreproducer
 
 import kotlinx.coroutines.test.runTest
+import kmpworkshop.client.ClientSettings
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -251,7 +252,7 @@ class WorktreeTest {
         clientLocalChanges = "",
         serverChanges = "",
         serverUntrackedChanges = "",
-        clientSettings = kmpworkshop.client.ClientSettings(),
+        clientSettings = ClientSettings(),
         warnings = emptyList(),
     )
 

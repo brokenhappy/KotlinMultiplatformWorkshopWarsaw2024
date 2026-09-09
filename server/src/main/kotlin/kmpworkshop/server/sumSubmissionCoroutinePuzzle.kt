@@ -96,7 +96,9 @@ fun exceptionSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
                 try {
                     throwingNumber.expectCall { throw ExceptionAcrossRpc(exceptionMessage) }
                 } catch (failure: ExceptionAcrossRpc) {
-                    check(failure.message == exceptionMessage)
+                    verify(failure.message == exceptionMessage) {
+                        "Expected exception with message '$exceptionMessage', but got '${failure.message}'"
+                    }
                 }
                 val result = submittedSolution.await()
                 val escapedFailure = result.exceptionOrNull() as? ExceptionAcrossRpc

@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import workshop.adminaccess.Participant
 import workshop.adminaccess.ServerState
+import workshop.adminaccess.StoredClientBugReport
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -18,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.time.Clock
 
 class ClientBugReportingSecurityTest {
     @Test
@@ -62,7 +64,7 @@ class ClientBugReportingSecurityTest {
     fun `requires a registered api key and an active admin stream`(): Unit = runTest {
         val key = ApiKey("known")
         val state = ServerState(participants = listOf(Participant("Ada", key)))
-        val reports = MutableSharedFlow<workshop.adminaccess.StoredClientBugReport>(extraBufferCapacity = 1)
+        val reports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 1)
         assertEquals(
             ClientBugReportSubmissionResult.Rejected("The client API key is not registered."),
             submitClientBugReport(ApiKey("unknown"), report(), state, reports),
@@ -90,7 +92,7 @@ class ClientBugReportingSecurityTest {
             mimeType = "image/png",
             dataBase64 = reportImage(image),
         )
-        return ClientBugReport("Something went wrong", listOf(imageAttachment), ClientBugDiagnostics(), kotlin.time.Clock.System.now())
+        return ClientBugReport("Something went wrong", listOf(imageAttachment), ClientBugDiagnostics(), Clock.System.now())
     }
 
     private fun reportImage(image: ByteArray): String = Base64.getEncoder().encodeToString(image)

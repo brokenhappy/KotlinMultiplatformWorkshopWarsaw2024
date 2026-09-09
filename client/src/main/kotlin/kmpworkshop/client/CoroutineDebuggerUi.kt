@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.woutwerkman.calltreevisualizer.gui.CallTreeTheme
+import com.woutwerkman.calltreevisualizer.gui.CallTree
 import com.woutwerkman.calltreevisualizer.gui.CallTreeUI
 import com.woutwerkman.calltreevisualizer.gui.KotlinFqnTextRenderer
 import com.woutwerkman.calltreevisualizer.coroutineintegration.CallStackTrackEvent
@@ -128,7 +129,7 @@ internal fun CoroutineDebuggerPanel(
                     .height(240.dp)
                     .background(Color.White),
             ) {
-                if (state.tree == com.woutwerkman.calltreevisualizer.gui.CallTree.Empty) {
+                if (state.tree == CallTree.Empty) {
                     Text(
                         "The call tree will appear when the solution starts.",
                         modifier = Modifier.padding(12.dp),

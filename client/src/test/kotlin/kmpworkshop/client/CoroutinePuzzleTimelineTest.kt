@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
 
 private object TestApis : EndpointDescriptorRegistry() {
@@ -36,7 +37,7 @@ class CoroutinePuzzleTimelineTest {
         val history = listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(
                 WithCallId(1, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(TestApis.transform.id,
-                    kotlinx.serialization.json.JsonObject(mapOf("first" to JsonPrimitive("topic"), "second" to JsonPrimitive(1))))),
+                    JsonObject(mapOf("first" to JsonPrimitive("topic"), "second" to JsonPrimitive(1))))),
             )),
             CoroutinePuzzleHistoryBatch.Expectation(listOf(
                 WithCallId(-1, CoroutinePuzzleCallPayload.CallbackInvoked(1, JsonPrimitive(7))),
@@ -90,7 +91,7 @@ class CoroutinePuzzleTimelineTest {
         context(testMetadata) {
             val submission = CoroutinePuzzleHistoryBatch.Submission(listOf(
                 WithCallId(99, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(TestApis.numbers.id,
-                    kotlinx.serialization.json.JsonObject(mapOf("first" to kotlinx.serialization.json.JsonObject(emptyMap()), "second" to JsonPrimitive(99))))),
+                    JsonObject(mapOf("first" to JsonObject(emptyMap()), "second" to JsonPrimitive(99))))),
             ))
             val invocation = CoroutinePuzzleHistoryBatch.Expectation(listOf(
                 WithCallId(-1, CoroutinePuzzleCallPayload.CallbackInvoked(99, JsonPrimitive(7))),
@@ -104,7 +105,7 @@ class CoroutinePuzzleTimelineTest {
             ))
             assertEquals(mapOf(99L to expected.single()), placeExpectedCalls(listOf(call), expected).alignedByCallId)
             val completed = pending + CoroutinePuzzleHistoryBatch.Submission(listOf(
-                WithCallId(-1, Outcome.Returned(kotlinx.serialization.json.JsonObject(emptyMap()))),
+                WithCallId(-1, Outcome.Returned(JsonObject(emptyMap()))),
             ))
             assertNull(coroutineTimeline(completed).single().endBatch)
             assertEquals(2, coroutineTimeline(completed).single().events.single().endBatch)

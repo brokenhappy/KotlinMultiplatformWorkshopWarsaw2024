@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
@@ -175,7 +176,7 @@ class CoroutinePuzzleFlowTest {
         val submissions = listOf(
             CoroutinePuzzleCallPayload.CallSubmitted(endpoint.id, JsonObject(emptyMap())),
             CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(TestApis.callback.id,
-                kotlinx.serialization.json.buildJsonObject { put("first", JsonObject(emptyMap())); put("second", kotlinx.serialization.json.JsonPrimitive(42)) }),
+                kotlinx.serialization.json.buildJsonObject { put("first", JsonObject(emptyMap())); put("second", JsonPrimitive(42)) }),
             CoroutinePuzzleCallPayload.Cancel,
             Outcome.Returned(JsonObject(emptyMap())),
             Outcome.Threw("Consumer failed"),

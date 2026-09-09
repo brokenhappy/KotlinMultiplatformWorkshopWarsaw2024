@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
+@file:OptIn(ExperimentalTestApi::class)
 
 package kmpworkshop.client
 
@@ -12,6 +12,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -334,7 +336,7 @@ class CoroutineTimelineUiTest {
         onAllNodesWithText("↗").assertCountEquals(2)
     }
 
-    private fun androidx.compose.ui.test.ComposeUiTest.saveScreenshot(name: String, rootIndex: Int = 0) {
+    private fun ComposeUiTest.saveScreenshot(name: String, rootIndex: Int = 0) {
         val image = onAllNodes(isRoot())[rootIndex].captureToImage()
         val pixels = image.toPixelMap()
         val output = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
