@@ -17,22 +17,17 @@ import kotlinx.coroutines.launch
 context(_: CoroutinePuzzleSolutionScope)
 suspend fun shipmentTrackingScaffolding(
     solution: suspend CoroutineScope.(ShipmentTrackingApi) -> Unit,
-) {
-    shipmentTrackingUpdates.asFlows().use { updates ->
-        emitShouldMapBeVisible.asFlows().use { mapVisibility ->
-            emitShouldEtaCardBeVisible.asFlows().use { etaVisibility ->
-                val trackedUpdates = flow {
-                    coroutineScope {
-                        val lifetime = launch { shipmentTrackingConnectionLifetime.submitCall(Unit) }
-                        try {
-                            updates.collect { emit(it) }
-                        } finally {
-                            lifetime.cancelAndJoin()
-                        }
-                    }
-                }
-                solution(shipmentTrackingApi(trackedUpdates, mapVisibility, etaVisibility))
+) = coroutineScope {
+    val updates = shipmentTrackingUpdates.asFlow()
+    val trackedUpdates = flow {
+        coroutineScope {
+            val lifetime = launch { shipmentTrackingConnectionLifetime.submitCall(Unit) }
+            try {
+                updates.collect { emit(it) }
+            } finally {
+                lifetime.cancelAndJoin()
             }
         }
     }
+    solution(shipmentTrackingApi(trackedUpdates, emitShouldMapBeVisible.asFlow(), emitShouldEtaCardBeVisible.asFlow()))
 }

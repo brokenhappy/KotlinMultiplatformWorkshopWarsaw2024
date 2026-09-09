@@ -9,6 +9,7 @@ import kmpworkshop.common.DefaultApis.queryUserById
 import kmpworkshop.common.DefaultApis.submitNumber
 import kmpworkshop.common.Resource
 import kmpworkshop.common.SerializableUser
+import kmpworkshop.common.runOnBiggerScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -79,18 +80,29 @@ fun mappingLegacyApiCoroutinePuzzleWithEscapingCancellation(): Resource<Coroutin
 
 fun mappingLegacyApiCoroutinePuzzleStepFour(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
-        expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
-        // expectCanceledCall does not return until the peer has completed its cancellation cleanup. Therefore
-        // observing callIsDone afterwards proves the suspending wrapper waited for onCancellationFinished.
+        expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal, mustAwaitCleanup = true)
         callIsDone.expectCall(Unit)
     }
 }
 
 context(builder: CoroutinePuzzleBuilderScope)
-private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal: CompletableDeferred<Unit>) {
+private suspend fun expectQueryUserByIdCallThatShouldGetCanceled(
+    cancellationSignal: CompletableDeferred<Unit>,
+    mustAwaitCleanup: Boolean = false,
+) = coroutineScope {
+    val expectationScope = this
     queryUserById.expectCanceledCall {
         cancellationSignal.complete(Unit) // Now we're signaling to the submission that we should get canceled.
-        expectCancellation()
+        try {
+            expectCancellation()
+        } finally {
+            if (mustAwaitCleanup) runOnBiggerScope(expectationScope) {
+                // Keep query cancellation unfinished while checking that the wrapper has not returned yet.
+                awaitQuiescenceAndVerifyUnmatchedSubmissions {
+                    CoroutinePuzzleErrorMessages.cancellationMustFinishFirst()
+                }
+            }
+        }
     }
 }
 

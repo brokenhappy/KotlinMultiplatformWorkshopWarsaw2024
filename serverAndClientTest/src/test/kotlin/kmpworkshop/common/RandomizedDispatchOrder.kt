@@ -80,7 +80,7 @@ suspend fun <T> withRandomizedDispatchOrder(
                 wrapDispatcher(delegateDispatcher.limitedParallelism(parallelism, name), delegateDelay)
 
             override fun wrap(other: CoroutineDispatcher): CoroutineDispatcher =
-                wrapDispatcher((other as? WrappingDispatcher)?.wrap(other) ?: other, delegateDelay)
+                wrapDispatcher((delegateDispatcher as? WrappingDispatcher)?.wrap(other) ?: other, delegateDelay)
 
             override fun scheduleResumeAfterDelay(timeMillis: Long, continuation: CancellableContinuation<Unit>) {
                 delegateDelay.scheduleResumeAfterDelay(timeMillis, continuation)

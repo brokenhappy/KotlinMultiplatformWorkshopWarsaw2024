@@ -157,7 +157,8 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
     )
 
     val isComplete = AtomicBoolean(false)
-    val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 0, currentRequests = persistentListOf()))
+    // Reserve the initial entry so an eager batch-resumer cannot observe idle before the tracked block starts.
+    val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 1, currentRequests = persistentListOf()))
     val parentQuiescenceTracker = currentCoroutineContext()[QuiescenceTracker]
     return withLaunched(taskThatMustOutliveUsage = {
         // Keep publication independent of the collectLatest flush body: that body can intentionally remain inside
@@ -168,14 +169,23 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                 if (isComplete.load()) return@collectLatest
                 if (currentState.activeCoroutineCount == 0 && !currentState.expectingZeroActiveCountBecauseWeJustClearedRequests) {
                     importantCleanup {
-                        var claimedRequests: PersistentList<SuspendedBatchCall<T, R>>
+                        var claimedRequests: PersistentList<SuspendedBatchCall<T, R>>? = null
                         state.updateWithContract { latest ->
-                            claimedRequests = latest.currentRequests
-                            latest.copy(currentRequests = persistentListOf(), expectingZeroActiveCountBecauseWeJustClearedRequests = true)
+                            // Entering importantCleanup may dispatch. The idle snapshot can be stale by the time
+                            // we claim it, so never publish while work has resumed or another turn was claimed.
+                            if (latest.activeCoroutineCount != 0 || latest.expectingZeroActiveCountBecauseWeJustClearedRequests) {
+                                claimedRequests = null
+                                latest
+                            } else {
+                                claimedRequests = latest.currentRequests
+                                latest.copy(currentRequests = persistentListOf(), expectingZeroActiveCountBecauseWeJustClearedRequests = true)
+                            }
                         }
-                        batchResumer(claimedRequests) // No wrapping in coroutineScope because the local scope isn't used above. Risky micro optimization
+                        claimedRequests?.let {
+                            batchResumer(it)
+                            momentOfLastBatch = clock.now()
+                        }
                     }
-                    momentOfLastBatch = clock.now()
                     return@collectLatest
                 }
                 clock.delayUntil(momentOfLastBatch + maximumBatchWaitTime)
@@ -221,6 +231,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                 state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
             },
         ) {
+            state.update { it.copy(activeCoroutineCount = it.activeCoroutineCount - 1) }
             val batchedScope = object : BatchedScope<T, R> {
                     override suspend fun callAutoBatched(request: T): R =
                         suspendCancellableCoroutine { continuation ->

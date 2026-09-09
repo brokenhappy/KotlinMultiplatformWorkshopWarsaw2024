@@ -9,15 +9,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.startCoroutine
 
 suspend fun <T> withInterceptingDispatcher(
     onDispatchScheduled: () -> Unit,
@@ -38,6 +42,21 @@ suspend fun <T> withInterceptingDispatcher(
     @OptIn(InternalCoroutinesApi::class)
     fun wrapDispatcher(delegateDispatcher: CoroutineDispatcher, delegateDelay: Delay): CoroutineDispatcher {
         return object : CoroutineDispatcher(), Delay, WrappingDispatcher {
+            // An immediate dispatcher can enqueue work in the coroutine event loop without calling dispatch().
+            // Enter that loop through the delegate, but count the runnable before it is queued there.
+            private fun dispatchImmediate(context: CoroutineContext, block: Runnable, yielding: Boolean = false) {
+                val runnable = prepareForScheduling(block)
+                val relay: suspend () -> Unit = {
+                    if (yielding) yield()
+                    runnable.run()
+                }
+                relay.startCoroutine(object : Continuation<Unit> {
+                    // Like a dispatched Runnable, the relay must run even when its caller was cancelled.
+                    override val context = context.minusKey(Job) + delegateDispatcher
+                    override fun resumeWith(result: Result<Unit>) = result.getOrThrow()
+                })
+            }
+
             /**
              * This is a bit of a tricky case, since this isn't just a Runnable we can wrap.
              * The Runnable comes later, namely at the moment that our [delegateDispatcher] calls [continuation].
@@ -103,7 +122,11 @@ suspend fun <T> withInterceptingDispatcher(
             }
 
             override fun dispatch(context: CoroutineContext, block: Runnable) {
-                delegateDispatcher.dispatch(context, prepareForScheduling(block))
+                if (delegateDispatcher.isDispatchNeeded(context)) {
+                    delegateDispatcher.dispatch(context, prepareForScheduling(block))
+                } else {
+                    dispatchImmediate(context, block)
+                }
             }
 
             override fun dispatchYield(context: CoroutineContext, block: Runnable) {
@@ -112,11 +135,14 @@ suspend fun <T> withInterceptingDispatcher(
                 // untracked (as before) made the coroutine momentarily invisible to the active-coroutine count,
                 // so a quiescence tracker could declare quiescence while it was merely mid-yield - firing a batch
                 // with only part of a concurrent group, or miscounting into a hang.
-                delegateDispatcher.dispatchYield(context, prepareForScheduling(block))
+                if (delegateDispatcher.isDispatchNeeded(context)) {
+                    delegateDispatcher.dispatchYield(context, prepareForScheduling(block))
+                } else {
+                    dispatchImmediate(context, block, yielding = true)
+                }
             }
 
-            override fun isDispatchNeeded(context: CoroutineContext): Boolean =
-                delegateDispatcher.isDispatchNeeded(context)
+            override fun isDispatchNeeded(context: CoroutineContext): Boolean = true
 
             override fun limitedParallelism(parallelism: Int, name: String?): CoroutineDispatcher =
                 wrapDispatcher(delegateDispatcher.limitedParallelism(parallelism, name), delegateDelay)

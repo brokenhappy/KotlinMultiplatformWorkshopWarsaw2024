@@ -478,11 +478,13 @@ private fun WorkshopClientContent(
 
 private suspend fun <T> withImportantCleanupAndOverriddenGlobalScope(block: suspend CoroutineScope.() -> T): T =
     withImportantCleanup {
-        globalScopeContext = currentCoroutineContext() + SupervisorJob(currentCoroutineContext().job)
+        val globalScopeJob = SupervisorJob(currentCoroutineContext().job)
+        globalScopeContext = currentCoroutineContext() + globalScopeJob
         try {
             coroutineScope { block() }
         } finally {
             globalScopeContext = EmptyCoroutineContext
+            globalScopeJob.cancel()
         }
     }
 

@@ -65,15 +65,15 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
     is CoroutinePuzzleSolutionResult.ExactParallelismMismatchFailure ->
         "You tried to call " + formatCallAttemptsWithMargins(submissions.map(clientMetadata::descriptionFor)) + ".\n" +
         "But you were expected to call exactly " +
-            formatCallAttemptsWithMargins(expectations.map { it.expectedActionDescription() }) + "."
+            formatCallAttemptsWithMargins(expectations.expectedActionDescriptions()) + "."
     is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure ->
         "You made too few function calls. We're still expecting " +
-            formatExpectedAlternatives(expectedFollowups.map { it.expectedActionDescription() }.distinct()) + "."
+            formatExpectedAlternatives(expectedFollowups.expectedActionDescriptions().distinct()) + "."
     is CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure ->
         "You made too many function calls. No more calls were expected right now, but you called " +
             formatCallAttemptsWithMargins(overshotSubmissions.map(clientMetadata::descriptionFor)) + "."
     is CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure -> {
-        val expectedDescriptions = expectations.map { it.expectedActionDescription() }.distinct()
+        val expectedDescriptions = expectations.expectedActionDescriptions().distinct()
         val actionOrActions = if (expectedDescriptions.size == 1) "action is" else "actions are"
         "Currently the expected $actionOrActions " + formatExpectedAlternatives(expectedDescriptions) + ".\n" +
             if (unexpectedSubmissions.isEmpty()) {
@@ -100,6 +100,11 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
     CoroutinePuzzleSolutionResult.FullyQuiescent -> "All coroutines got stuck waiting for each other."
     CoroutinePuzzleSolutionResult.Success -> "The puzzle was solved"
 }
+
+context(clientMetadata: ClientMetadata)
+private fun List<CoroutinePuzzleExpectedFollowup>.expectedActionDescriptions(): List<String> =
+    filterNot { it.endPoint.isHiddenFromHistory() }.ifEmpty { this }
+        .map { it.expectedActionDescription() }
 
 context(clientMetadata: ClientMetadata)
 private fun CoroutinePuzzleExpectedFollowup.expectedActionDescription(): String = when {

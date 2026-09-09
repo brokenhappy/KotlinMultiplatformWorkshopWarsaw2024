@@ -4,6 +4,8 @@ package com.kotlinworkshop.test
 
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import kmpworkshop.client.*
 import kmpworkshop.common.*
@@ -41,7 +43,10 @@ class PuzzleUiQaTest {
     ) {
         onNodeWithTag("puzzle-status").assertTextContains("The puzzle was solved")
         onNodeWithText("Call timeline").assertIsDisplayed()
-        onNodeWithTag("timeline-marker-1-0").assertIsDisplayed()
+        // Higher-order scaffolding has its own hidden call IDs; inspect a visible marker instead.
+        onAllNodes(SemanticsMatcher("a call timeline marker") {
+            it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("timeline-marker-") == true
+        }).onFirst().assertIsDisplayed()
         onNodeWithTag("puzzle-run-button").assertIsEnabled().performClick()
         waitUntil(timeoutMillis = 10_000) {
             runCatching {

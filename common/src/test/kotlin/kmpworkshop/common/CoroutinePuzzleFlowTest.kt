@@ -67,6 +67,39 @@ class CoroutinePuzzleFlowTest {
     }
 
     @Test
+    fun `callback completion publishes one settled turn without an acknowledgement`(): Unit = runBlocking {
+        coroutinePuzzleCommunicationChannel { expectations, submissions ->
+            val parent = submissions.receive().single()
+            expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(listOf(
+                WithCallId(-1, CoroutinePuzzleCallPayload.CallbackInvoked(parent.callId, Json.encodeToJsonElement(7))),
+            )))
+            assertEquals(listOf(WithCallId(-1, Outcome.Returned(Json.encodeToJsonElement("value 7")))), submissions.receive())
+            expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(listOf(
+                WithCallId(parent.callId, Outcome.Returned(Json.encodeToJsonElement("done"))),
+            )))
+            assertEquals(true, submissions.receiveCatching().isClosed)
+            expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(CoroutinePuzzleSolutionResult.Success))
+        }.solve {
+            assertEquals("done", TestApis.callback.submitCall { "value $it" })
+        }.also { assertIs<CoroutinePuzzleSolutionResult.Success>(it.result) }
+    }
+
+    @Test
+    fun `final cancellation outcome is flushed before submissions close`(): Unit = runBlocking {
+        coroutinePuzzleCommunicationChannel { expectations, submissions ->
+            val parent = submissions.receive().single()
+            expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(listOf(
+                WithCallId(parent.callId, CoroutinePuzzleCallPayload.Cancel),
+            )))
+            assertEquals(listOf(WithCallId(parent.callId, Outcome.Cancelled)), submissions.receive())
+            assertEquals(true, submissions.receiveCatching().isClosed)
+            expectations.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(CoroutinePuzzleSolutionResult.Success))
+        }.solve {
+            assertIs<CancellationAcrossRpc>(runCatching { TestApis.callback.submitCall { error("No invocation") } }.exceptionOrNull())
+        }.also { assertIs<CoroutinePuzzleSolutionResult.Success>(it.result) }
+    }
+
+    @Test
     fun `typed callbacks serialize their inputs and outputs independently of the outer result`(): Unit = runBlocking {
         val scope = object : CoroutinePuzzleSolutionScope {
             override suspend fun CoroutinePuzzleEndPoint<*, *>.submitRawCall(t: JsonElement): JsonElement = t

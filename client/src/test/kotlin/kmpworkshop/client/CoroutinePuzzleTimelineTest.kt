@@ -235,7 +235,7 @@ class CoroutinePuzzleTimelineTest {
                 }
             }
         }.asPuzzle().solveAsFlow {
-            val values = TestApis.numbers.asFlows().use { flow -> flow.toList() }
+            val values = TestApis.numbers.asFlow().let { flow -> flow.toList() }
             assertEquals(listOf(7, 8), values)
         }.toResultWithHistory()
 
@@ -258,7 +258,7 @@ class CoroutinePuzzleTimelineTest {
                 }
             }
         }.asPuzzle().solveAsFlow {
-            TestApis.numbers.asFlows().use { flow -> flow.take(1).toList() }
+            TestApis.numbers.asFlow().let { flow -> flow.take(1).toList() }
         }.toResultWithHistory()
 
         assertIs<CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure>(attempt.result)

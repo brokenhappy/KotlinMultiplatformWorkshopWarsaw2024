@@ -7,6 +7,7 @@ import kotlin.time.Clock
 
 internal fun serverStateThatOpened(stage: WorkshopStage): ServerState = ServerState(
     currentStage = stage,
+    participants = listOf(testParticipant),
     puzzleStates = mapOf(
         stage.stageName() to PuzzleState.Opened(Clock.System.now(), emptyMap()),
     ),

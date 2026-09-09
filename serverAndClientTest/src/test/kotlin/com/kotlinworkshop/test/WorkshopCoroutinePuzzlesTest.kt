@@ -613,6 +613,13 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
+    fun `a throwing sum solution preserves its local failure`(): Unit = runPuzzleTest {
+        val failure = IllegalStateException("deliberate sum failure")
+        assertFails { doSimpleSumPuzzle { throw failure } }.message.assertEquals(failure.message)
+        assertFails { doConcurrentSumPuzzle { throw failure } }.message.assertEquals(failure.message)
+    }
+
+    @Test
     fun `coroutineScope sum solution works for every sum stage`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api -> sumWithCoroutineScope(api) }.assertIsOk()
         doConcurrentSumPuzzle { api -> sumWithCoroutineScope(api) }.assertIsOk()
@@ -1284,6 +1291,8 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
             }
         } catch (_: ExceptionAcrossRpc) {
             // The evaluator has already reported the failed nested invocation as the puzzle result.
+        } finally {
+            fakeGlobalScope.cancel()
         }
     }
 }

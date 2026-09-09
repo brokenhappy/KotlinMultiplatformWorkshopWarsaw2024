@@ -15,11 +15,7 @@ suspend fun fileExposureScaffolding(
     withImportantCleanup {
         launch {
             try {
-                emitFileToExpose.asFlows().use { files ->
-                    emitNetworkStrength.asFlows().use { strengths ->
-                        solution(fileToInternetExposingApi(this, files, strengths))
-                    }
-                }
+                solution(fileToInternetExposingApi(this, emitFileToExpose.asFlow(), emitNetworkStrength.asFlow()))
             } finally {
                 importantCleanup { /* lets adapter cleanup finish before this job completes */ }
             }

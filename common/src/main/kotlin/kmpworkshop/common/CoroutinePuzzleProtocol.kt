@@ -42,10 +42,10 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
                     outbox += batch.map { it.query }
                     val (notifications, requests) = batch.partition { it.query.payload is Outcome }
                     requests.forEach { pending[it.query.callId] = it.continuation }
-                    // Outcomes have no reply to await, but the evaluator still needs to receive them. In particular,
-                    // a final higher-order callback outcome may be the last submission of a puzzle attempt.
-                    flush()
-                    notifications.resumeAllQuiescentTrackedScope { it.continuation.resume(JsonNull) }
+                    // Finish one-way senders before publishing this turn, so their cleanup and subsequent calls
+                    // join the same batch. If they finish the solution, the finalizer flushes the remaining outbox.
+                    if (notifications.isEmpty()) flush()
+                    else notifications.resumeAllQuiescentTrackedScope { it.continuation.resume(JsonNull) }
                 },
             )
             withLaunched(taskThatMustOutliveUsage = {
@@ -183,9 +183,9 @@ private suspend fun receivePuzzleMessages(
                             }
                             result.exceptionOrNull()?.takeUnless { it is CancellationException }?.let { parent.failures[id] = it }
                             batching.sendFrom(parent.cleanupScope, id, result.toOutcome(id))
-                            active.remove(id)
                         }
                         active[id] = LocalPuzzleCall(CoroutineScope(parent.scope.coroutineContext + job), parent.cleanupScope)
+                        job.invokeOnCompletion { active.remove(id) }
                     }
                     Cancel -> active[id]?.also {
                         if (!it.cancellationSent) pending.remove(id)

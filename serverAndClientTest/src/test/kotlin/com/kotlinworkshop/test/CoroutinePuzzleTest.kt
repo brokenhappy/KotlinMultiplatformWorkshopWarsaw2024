@@ -116,6 +116,20 @@ class CoroutinePuzzleTest {
     }
 
     @Test
+    fun `a retained callback cannot start work after its parent returns`() = runTestWithRandomizedDispatchOrdering {
+        coroutinePuzzle {
+            var retained: (suspend (Int) -> String)? = null
+            TestApis.callbackInt.expectCall { _, callback ->
+                retained = callback
+                "done"
+            }
+            assertThrows<CancellationException> { checkNotNull(retained)(1) }
+        }.solve {
+            assertEquals("done", TestApis.callbackInt.submitCall(0) { error("The parent call has returned") })
+        }.assertIsOk()
+    }
+
+    @Test
     fun `generic callbacks may overlap and route their own results`() = runTestWithRandomizedDispatchOrdering {
         coroutinePuzzle {
             TestApis.callbackInt.expectCall { _, callback ->
@@ -652,10 +666,25 @@ class CoroutinePuzzleTest {
     }
 
     @Test
-    fun `collector flow resource stops when used without collectors`() = runTestWithRandomizedDispatchOrdering {
+    fun `creating a cold flow does not submit a collector`() = runTestWithRandomizedDispatchOrdering {
         val endpoint = TestApis.flowUnitInt
         coroutinePuzzle { }.solve {
-            endpoint.asFlows().use { }
+            endpoint.asFlow()
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `cancelling an idle higher order flow call cancels collection`() = runTestWithRandomizedDispatchOrdering {
+        coroutinePuzzle {
+            val collection = launch {
+                TestApis.flowUnitInt.expectCall { _, _ -> expectCancellation() }
+            }
+            awaitQuiescenceAndVerifyUnmatchedSubmissions(TestApis.flowUnitInt)
+            collection.cancelAndJoin()
+            TestApis.bar.expectCall(Unit)
+        }.solve {
+            assertThrows<CancellationAcrossRpc> { TestApis.flowUnitInt.asFlow().collect() }
+            TestApis.bar.submitCall(Unit)
         }.assertIsOk()
     }
 
@@ -671,7 +700,7 @@ class CoroutinePuzzleTest {
             }
         }.solve {
             assertEquals(false, bodyEntered.isCompleted)
-            endpoint.asFlows().use { it.toList() }
+            endpoint.asFlow().let { it.toList() }
             bodyEntered.await()
         }.assertIsOk()
     }
@@ -688,7 +717,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            val values = collectorEndpoint.asFlows("initial value").use { flow ->
+            val values = collectorEndpoint.asFlow("initial value").let { flow ->
                 flow.toList()
             }
             assertEquals(listOf(3, 5), values)
@@ -711,7 +740,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 flow.collect { TestApis.bar.submitCall(Unit) }
             }
         }.assertIsOk()
@@ -733,7 +762,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            endpoint.asFlows("requested stream").use { flow ->
+            endpoint.asFlow("requested stream").let { flow ->
                 assertEquals(listOf(7, 8), flow.toList())
             }
         }.assertIsOk()
@@ -749,7 +778,7 @@ class CoroutinePuzzleTest {
             TestApis.bar.expectCall(Unit)
             assertEquals(emptyList(), awaitQuiescenceAndGetUnmatchedSubmissions())
         }.solve {
-            val collection = launch { endpoint.asFlows("waiting stream").use { it.toList() } }
+            val collection = launch { endpoint.asFlow("waiting stream").let { it.toList() } }
             TestApis.bar.submitCall(Unit)
             collection.cancelAndJoin()
             TestApis.bar.submitCall(Unit)
@@ -780,7 +809,7 @@ class CoroutinePuzzleTest {
             }
         }.solve {
             withImportantCleanup {
-                endpoint.asFlows().use { flow ->
+                endpoint.asFlow().let { flow ->
                     val collected = coroutineScope {
                         listOf(async { flow.toList() }, async { flow.toList() }).awaitAll()
                     }
@@ -816,7 +845,7 @@ class CoroutinePuzzleTest {
                 collectors.use { (_, emit) -> emit(7) }
             }
         }.solve {
-            endpoint.asFlows().use { flow -> flow.collect { awaitCancellation() } }
+            endpoint.asFlow().let { flow -> flow.collect { awaitCancellation() } }
         }
         val failure = result.assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
         assertEquals(emptyList(), failure.unexpectedSubmissions)
@@ -841,7 +870,7 @@ class CoroutinePuzzleTest {
                 collector.cancelAndJoin()
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 assertEquals(listOf(7), flow.take(1).toList())
                 TestApis.bar.submitCall(Unit)
                 TestApis.unit.submitCall(Unit)
@@ -859,7 +888,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            TestApis.flowUnitInt.asFlows().use { flow ->
+            TestApis.flowUnitInt.asFlow().let { flow ->
                 assertEquals(listOf(7), flow.take(1).toList())
             }
         }
@@ -890,7 +919,7 @@ class CoroutinePuzzleTest {
                 collector.cancelAndJoin()
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 val collection = launch { flow.collect { TestApis.bar.submitCall(Unit) } }
                 TestApis.unit.submitCall(Unit)
                 collection.cancelAndJoin()
@@ -917,7 +946,7 @@ class CoroutinePuzzleTest {
                 collector.cancelAndJoin()
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 val result = runCatching { flow.collect { throw failure } }
                 check(generateSequence(result.exceptionOrNull()) { it.cause }.any { it === failure })
                 TestApis.bar.submitCall(Unit)
@@ -938,7 +967,7 @@ class CoroutinePuzzleTest {
                 collectors.use { (_, emit) -> emit(7) }
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 val collection = launch { flow.collect() }
                 TestApis.bar.submitCall(Unit)
                 collection.cancelAndJoin()
@@ -962,8 +991,8 @@ class CoroutinePuzzleTest {
         }.solve {
             val collected = coroutineScope {
                 listOf(
-                    async { endpoint.asFlows().use { it.toList() } },
-                    async { endpoint.asFlows().use { it.toList() } },
+                    async { endpoint.asFlow().let { it.toList() } },
+                    async { endpoint.asFlow().let { it.toList() } },
                 ).awaitAll()
             }
             assertEquals(listOf(listOf(10, 11, 12), listOf(20, 21, 22)), collected.sortedBy { it.first() })
@@ -1003,7 +1032,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 val values = mutableListOf<Int>()
                 flow.collect { value ->
                     values += value
@@ -1041,7 +1070,7 @@ class CoroutinePuzzleTest {
                 collector.cancelAndJoin()
             }
         }.solve {
-            endpoint.asFlows().use { flow ->
+            endpoint.asFlow().let { flow ->
                 assertThrows<CancellationAcrossRpc> {
                     flow.collect {
                         try {
@@ -1069,7 +1098,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            endpoint.asFlows().use { flows ->
+            endpoint.asFlow().let { flows ->
                 val collected = coroutineScope {
                     listOf(
                         async { flows.toList() },
@@ -1089,7 +1118,7 @@ class CoroutinePuzzleTest {
                 collectors.use { }
             }
         }.solve {
-            endpoint.asFlows().use { flows ->
+            endpoint.asFlow().let { flows ->
                 coroutineScope {
                     launch { flows.toList() }
                     launch { flows.toList() }
@@ -1112,7 +1141,7 @@ class CoroutinePuzzleTest {
                 }
             }
         }.solve {
-            endpoint.asFlows().use { it.toList() }
+            endpoint.asFlow().let { it.toList() }
         }
 
         result.assertIsNotOk<CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure>()
@@ -1126,7 +1155,7 @@ class CoroutinePuzzleTest {
                 collectors.use { (_, emit) -> emit(7) }
             }
         }.solve {
-            TestApis.flowUnitInt.asFlows().use { flow ->
+            TestApis.flowUnitInt.asFlow().let { flow ->
                 assertEquals(listOf(7), flow.toList())
                 flow.toList()
             }

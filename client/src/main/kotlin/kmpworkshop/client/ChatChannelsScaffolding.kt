@@ -22,21 +22,15 @@ context(_: CoroutinePuzzleSolutionScope)
 suspend fun chatChannelsScaffolding(
     solution: suspend CoroutineScope.(ChatApi) -> Unit,
 ) {
-    emitIncomingChatMessage.asFlows().use { incomingMessages ->
-        emitSentChatMessage.asFlows().use { sentMessages ->
-            emitTypingStatus.asFlows().use { typingStatusUpdates ->
-                val stackTracker = currentCoroutineContext()[StackTrackingContext] ?: NoOpStackTracker
-                withContext(stackTracker) {
-                    solution(
-                        chatApi(
-                            incomingMessages.reportAcceptedMessages(),
-                            sentMessages.reportAcceptedMessages(),
-                            typingStatusUpdates.reportAcceptedTypingStatuses(),
-                        )
-                    )
-                }
-            }
-        }
+    val stackTracker = currentCoroutineContext()[StackTrackingContext] ?: NoOpStackTracker
+    withContext(stackTracker) {
+        solution(
+            chatApi(
+                emitIncomingChatMessage.asFlow().reportAcceptedMessages(),
+                emitSentChatMessage.asFlow().reportAcceptedMessages(),
+                emitTypingStatus.asFlow().reportAcceptedTypingStatuses(),
+            )
+        )
     }
 }
 
