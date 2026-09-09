@@ -2,6 +2,9 @@
 
 package kmpworkshop.client
 
+import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
+
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
@@ -154,27 +157,18 @@ class CoroutineTimelineUiTest {
     }
 
     @Test
-    fun `an unexpected flow emission request has an emission-specific tooltip`() = runComposeUiTest {
+    fun `a callback invocation displays the emitted value`() = runComposeUiTest {
         setContent {
             MaterialTheme {
                 Surface(Modifier.size(900.dp, 560.dp)) {
-                    context(testMetadata) {
-                        CoroutineTimelineWithMetadata(
-                            history = flowHistory(),
-                            result = CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
-                                unexpectedSubmissions = listOf(UiTestApis.numbers.id),
-                                expectations = emptyList(),
-                            ),
-                        )
-                    }
+                    context(testMetadata) { CoroutineTimelineWithMetadata(flowHistory(), null) }
                 }
             }
         }
-
         onNodeWithTag("timeline-marker-1-3").performMouseInput { moveTo(center) }
         waitForIdle()
-        onNodeWithText("Unexpected emission request").assertIsDisplayed()
-        onNodeWithText("Requesting the next element from this flow is not currently expected.").assertIsDisplayed()
+        onNodeWithText("Emitting value").assertIsDisplayed()
+        onNodeWithText("Value: 8").assertIsDisplayed()
     }
 
     @Test
@@ -182,7 +176,7 @@ class CoroutineTimelineUiTest {
         val longHistory = (1L..18L).mapIndexed { index, id ->
             CoroutinePuzzleHistoryBatch.Submission(listOf(entry(
                 id,
-                CoroutinePuzzleSubmissionPayload.CallSubmitted(
+                CoroutinePuzzleCallPayload.CallSubmitted(
                     UiTestApis.callNumber.id,
                     JsonPrimitive(index),
                 ),
@@ -234,7 +228,7 @@ class CoroutineTimelineUiTest {
                                 expectedFollowups = listOf(
                                     CoroutinePuzzleExpectedFollowup(
                                         UiTestApis.numbers.id,
-                                        collectorArgument(42),
+                                        expectedCallbackCompletionOfCallId = -2,
                                     ),
                                 ),
                             ),
@@ -248,8 +242,8 @@ class CoroutineTimelineUiTest {
         onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
         onNodeWithTag("timeline-expected-marker-1").performMouseInput { moveTo(center) }
         waitForIdle()
-        onNodeWithText("Expected request for a new emission").assertIsDisplayed()
-        onNodeWithText("The puzzle expected the next element from this flow to be requested. But that request was never made.").assertIsDisplayed()
+        onNodeWithText("Expected callback to finish").assertIsDisplayed()
+        onNodeWithText("The callback has not finished its work and structured children.").assertIsDisplayed()
     }
 
     @Test
@@ -294,7 +288,7 @@ class CoroutineTimelineUiTest {
                                 expectedFollowups = listOf(
                                     CoroutinePuzzleExpectedFollowup(
                                         UiTestApis.numbers.id,
-                                        collectorArgument(43),
+                                        expectedCallbackCompletionOfCallId = -2,
                                     ),
                                 ),
                             ),
@@ -307,7 +301,7 @@ class CoroutineTimelineUiTest {
         onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
         onNodeWithTag("timeline-expected-marker-2").performMouseInput { moveTo(center) }
         waitForIdle()
-        onNodeWithText("Expected request for a new emission").assertIsDisplayed()
+        onNodeWithText("Expected callback to finish").assertIsDisplayed()
     }
 
     @Test
@@ -321,7 +315,7 @@ class CoroutineTimelineUiTest {
                             result = CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure(
                                 unexpectedSubmissions = listOf(UiTestApis.callNumber.id),
                                 expectations = listOf(
-                                    CoroutinePuzzleExpectedFollowup(UiTestApis.numbers.id, collectorArgument(42)),
+                                    CoroutinePuzzleExpectedFollowup(UiTestApis.numbers.id, expectedCallbackCompletionOfCallId = -2),
                                 ),
                             ),
                         )
@@ -333,7 +327,7 @@ class CoroutineTimelineUiTest {
         onAllNodesWithTag("timeline-expected-marker-0").assertCountEquals(0)
         onNodeWithTag("timeline-expected-marker-1").performMouseInput { moveTo(center) }
         waitForIdle()
-        onNodeWithText("Expected request for a new emission").assertIsDisplayed()
+        onNodeWithText("Expected callback to finish").assertIsDisplayed()
     }
 
     @Test
@@ -347,7 +341,7 @@ class CoroutineTimelineUiTest {
         }
 
         onNodeWithTag("timeline-marker-1-0").assertIsDisplayed()
-        onNodeWithText("↗").assertIsDisplayed()
+        onAllNodesWithText("↗").assertCountEquals(2)
     }
 
     private fun androidx.compose.ui.test.ComposeUiTest.saveScreenshot(name: String, rootIndex: Int = 0) {
@@ -368,51 +362,52 @@ class CoroutineTimelineUiTest {
         val hanging = UiTestApis.waitForUpdate.id
         return listOf(
             CoroutinePuzzleHistoryBatch.Submission(listOf(
-                entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(load, JsonPrimitive(42))),
-                entry(2, CoroutinePuzzleSubmissionPayload.CallSubmitted(save, JsonObject(emptyMap()))),
+                entry(1, CoroutinePuzzleCallPayload.CallSubmitted(load, JsonPrimitive(42))),
+                entry(2, CoroutinePuzzleCallPayload.CallSubmitted(save, JsonObject(emptyMap()))),
             )),
-            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(1, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive("Ada"))))),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(3, CoroutinePuzzleSubmissionPayload.CallSubmitted(hanging, JsonObject(emptyMap()))))),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, CoroutinePuzzleSubmissionPayload.CallShouldCancel))),
-            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(2, CoroutinePuzzleExpectationPayload.CallCancellationCompleted))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(1, Outcome.Returned(JsonPrimitive("Ada"))))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(
+                entry(3, CoroutinePuzzleCallPayload.CallSubmitted(hanging, JsonObject(emptyMap()))),
+            )),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, CoroutinePuzzleCallPayload.Cancel))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(entry(2, Outcome.Cancelled))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(entry(2, Outcome.Cancelled))),
         )
     }
 
-    private fun flowHistory(): List<CoroutinePuzzleHistoryBatch> {
-        val collectorArgument = JsonObject(mapOf(
-            "callId" to JsonPrimitive(42),
-            "payload" to JsonObject(emptyMap()),
-        ))
-        return listOf(
-            CoroutinePuzzleHistoryBatch.Submission(listOf(
-                entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.numbers.id, collectorArgument)),
-            )),
-            CoroutinePuzzleHistoryBatch.Expectation(listOf(
-                entry(1, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive(7))),
-            )),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(
-                entry(2, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.callNumber.id, JsonPrimitive(7))),
-            )),
-            CoroutinePuzzleHistoryBatch.Submission(listOf(
-                entry(3, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.numbers.id, collectorArgument)),
-            )),
-        )
-    }
+    private fun flowHistory(): List<CoroutinePuzzleHistoryBatch> = listOf(
+        CoroutinePuzzleHistoryBatch.Submission(listOf(
+            entry(1, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(UiTestApis.numbers.id, collectorArgument(1))),
+        )),
+        CoroutinePuzzleHistoryBatch.Expectation(listOf(
+            entry(-1, CoroutinePuzzleCallPayload.CallbackInvoked(1, JsonPrimitive(7))),
+        )),
+        CoroutinePuzzleHistoryBatch.Submission(listOf(
+            entry(-1, Outcome.Returned(JsonObject(emptyMap()))),
+            entry(2, CoroutinePuzzleCallPayload.CallSubmitted(UiTestApis.callNumber.id, JsonPrimitive(7))),
+        )),
+        CoroutinePuzzleHistoryBatch.Expectation(listOf(
+            entry(-2, CoroutinePuzzleCallPayload.CallbackInvoked(1, JsonPrimitive(8))),
+        )),
+    )
 
     private fun twoCollectorFlowHistory(): List<CoroutinePuzzleHistoryBatch> = listOf(
         CoroutinePuzzleHistoryBatch.Submission(listOf(
-            entry(1, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.numbers.id, collectorArgument(42))),
-            entry(2, CoroutinePuzzleSubmissionPayload.CallSubmitted(UiTestApis.numbers.id, collectorArgument(43))),
+            entry(1, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(UiTestApis.numbers.id, collectorArgument(1))),
+            entry(2, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(UiTestApis.numbers.id, collectorArgument(2))),
         )),
         CoroutinePuzzleHistoryBatch.Expectation(listOf(
-            entry(1, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive(7))),
-            entry(2, CoroutinePuzzleExpectationPayload.CallAnswered(JsonPrimitive(8))),
+            entry(-1, CoroutinePuzzleCallPayload.CallbackInvoked(1, JsonPrimitive(7))),
+            entry(-2, CoroutinePuzzleCallPayload.CallbackInvoked(2, JsonPrimitive(8))),
+        )),
+        CoroutinePuzzleHistoryBatch.Submission(listOf(
+            entry(-1, Outcome.Returned(JsonObject(emptyMap()))),
         )),
     )
 
     private fun collectorArgument(id: Long) = JsonObject(mapOf(
-        "callId" to JsonPrimitive(id),
-        "payload" to JsonObject(emptyMap()),
+        "first" to JsonObject(emptyMap()),
+        "second" to JsonPrimitive(id),
     ))
 
     private fun <T> entry(id: Long, payload: T) = WithCallId(id, payload)

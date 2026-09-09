@@ -1,12 +1,19 @@
 package kmpworkshop.client
 
+import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
+
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
+import kmpworkshop.common.CoroutinePuzzleExpectationPayload
+import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
+import kmpworkshop.common.CoroutinePuzzleHistoryBatch
+import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
 import kmpworkshop.common.EndpointDescriptorRegistry
-import kmpworkshop.common.ValueOrCompletion
 import kmpworkshop.common.WithCallId
 import kmpworkshop.common.asPuzzle
 import kmpworkshop.common.descriptor
 import kmpworkshop.common.flowDescriptor
+import kmpworkshop.common.higherOrderDescriptor
 import kmpworkshop.common.sideEffect
 import kmpworkshop.common.submitCall
 import kmpworkshop.common.toResultWithHistory
@@ -25,6 +32,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -35,6 +43,7 @@ private object TestApis : EndpointDescriptorRegistry() {
     val hanging by descriptor<Unit, Unit>("hanging")
     val callLifetime by descriptor<Unit, Unit>("callLifetime")
     val numbers by flowDescriptor<Unit, Int>("numbers")
+    val transform by higherOrderDescriptor<String, Int, String, Boolean>("transform")
 
     init { seal() }
 }
@@ -49,6 +58,89 @@ private val testServerMetadata = serverMetadataOf(TestApis) {
 }
 
 class CoroutinePuzzleTimelineTest {
+    @Test
+    fun `generic callbacks retain their own arguments and results`() {
+        val history = listOf(
+            CoroutinePuzzleHistoryBatch.Submission(listOf(
+                WithCallId(1, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(TestApis.transform.id,
+                    kotlinx.serialization.json.JsonObject(mapOf("first" to JsonPrimitive("topic"), "second" to JsonPrimitive(1))))),
+            )),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(
+                WithCallId(-1, CoroutinePuzzleCallPayload.CallbackInvoked(1, JsonPrimitive(7))),
+            )),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(
+                WithCallId(-1, Outcome.Returned(JsonPrimitive("seven"))),
+            )),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(
+                WithCallId(1, Outcome.Returned(JsonPrimitive(true))),
+            )),
+        )
+        val call = context(testMetadata) { coroutineTimeline(history).single() }
+        assertEquals(JsonPrimitive("topic"), call.argument)
+        assertEquals(JsonPrimitive(true), call.returnValue)
+        val callback = call.events.single { it.callId == -1L }
+        assertEquals(JsonPrimitive(7), callback.argument)
+        assertEquals(JsonPrimitive("seven"), callback.returnValue)
+        assertEquals(TimelineCompletion.RETURNED, callback.completion)
+    }
+
+    @Test
+    fun `expectation requested cancellation stays open until submission cleanup completes`() {
+        context(testMetadata) {
+            val submitted = CoroutinePuzzleHistoryBatch.Submission(listOf(
+                WithCallId(99, CoroutinePuzzleCallPayload.CallSubmitted(TestApis.answer.id, JsonPrimitive(1))),
+            ))
+            val cancelled = CoroutinePuzzleHistoryBatch.Expectation(listOf(
+                WithCallId(99, CoroutinePuzzleCallPayload.Cancel),
+            ))
+            val answer = CoroutinePuzzleHistoryBatch.Expectation(listOf(
+                WithCallId(99, Outcome.Returned(JsonPrimitive(7))),
+            ))
+            // Before and after an answer, cancellation ends with exactly the same outcome.
+            listOf(listOf(submitted, cancelled)).forEach { pending ->
+                assertNull(coroutineTimeline(pending).single().endBatch)
+                assertEquals(pending.lastIndex, coroutineTimeline(pending).single().cancellationRequestedBatch)
+                val failure = CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(listOf(
+                    CoroutinePuzzleExpectedFollowup(TestApis.answer.id, expectedCancellationCompletionOfCallId = 99),
+                ))
+                val expected = expectedTimelineCalls(failure)
+                assertEquals(mapOf(99L to expected.single()), placeExpectedCalls(coroutineTimeline(pending), expected).alignedByCallId)
+                assertTrue("Finish cancelling" in failure.toMessage())
+                val completed = pending + CoroutinePuzzleHistoryBatch.Submission(listOf(WithCallId(99, Outcome.Cancelled)))
+                val call = coroutineTimeline(completed).single()
+                assertEquals(pending.size, call.endBatch)
+                assertEquals(TimelineCompletion.CANCELLED, call.completion)
+                assertTrue('c' in renderCoroutinePuzzleHistory(completed))
+            }
+        }
+    }
+
+    @Test
+    fun `higher order call contains separately completed callback invocations`() {
+        context(testMetadata) {
+            val submission = CoroutinePuzzleHistoryBatch.Submission(listOf(
+                WithCallId(99, CoroutinePuzzleCallPayload.HigherOrderCallSubmitted(TestApis.numbers.id,
+                    kotlinx.serialization.json.JsonObject(mapOf("first" to kotlinx.serialization.json.JsonObject(emptyMap()), "second" to JsonPrimitive(99))))),
+            ))
+            val invocation = CoroutinePuzzleHistoryBatch.Expectation(listOf(
+                WithCallId(-1, CoroutinePuzzleCallPayload.CallbackInvoked(99, JsonPrimitive(7))),
+            ))
+            val pending = listOf(submission, invocation)
+            val call = coroutineTimeline(pending).single()
+            assertNull(call.endBatch)
+            assertEquals(JsonPrimitive(7), call.events.single().returnValue)
+            val expected = expectedTimelineCalls(CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure(
+                listOf(CoroutinePuzzleExpectedFollowup(TestApis.numbers.id, expectedCallbackCompletionOfCallId = -1)),
+            ))
+            assertEquals(mapOf(99L to expected.single()), placeExpectedCalls(listOf(call), expected).alignedByCallId)
+            val completed = pending + CoroutinePuzzleHistoryBatch.Submission(listOf(
+                WithCallId(-1, Outcome.Returned(kotlinx.serialization.json.JsonObject(emptyMap()))),
+            ))
+            assertNull(coroutineTimeline(completed).single().endBatch)
+            assertEquals(2, coroutineTimeline(completed).single().events.single().endBatch)
+        }
+    }
+
     @Test
     fun `maps actual returned and thrown calls`() = runBlocking {
         val attempt = coroutinePuzzle(testServerMetadata) {
@@ -111,33 +203,25 @@ class CoroutinePuzzleTimelineTest {
     }
 
     @Test
-    fun `aligns an expected cancellation with a later request in its flow row`() = runBlocking {
-        val collectorId = 41L
+    fun `aligns an expected cancellation with its outer collection`() = runBlocking {
         val attempt = coroutinePuzzle(testServerMetadata) {
-            TestApis.numbers.expectCall(WithCallId(collectorId, ValueOrCompletion.Value(7)))
-            TestApis.numbers.expectCanceledCall {
+            TestApis.numbers.expectCanceledCall { _, callback ->
+                callback(7)
                 TestApis.callLifetime.expectCall(Unit)
                 expectCancellation()
             }
         }.asPuzzle().solveAsFlow {
-            TestApis.numbers.submitCall(WithCallId(collectorId, Unit))
-            launch { TestApis.numbers.submitCall(WithCallId(collectorId, Unit)) }.sideEffect {
+            launch { TestApis.numbers.submitCall { } }.sideEffect {
                 TestApis.callLifetime.submitCall(Unit)
                 TestApis.answer.submitCall(9)
             }
         }.toResultWithHistory()
-
         assertIs<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>(attempt.result)
         val calls = context(testMetadata) { coroutineTimeline(attempt.history) }
         val expectedCalls = context(testMetadata) { expectedTimelineCalls(attempt.result) }
         val flowCall = calls.single { it.endpoint == TestApis.numbers.id }
-        val expectedCall = expectedCalls.single()
-
-        assertEquals(2, flowCall.events.size)
-        assertEquals(flowCall.events.last().callId, expectedCall.expectedCancellationOfCallId)
-        val placement = placeExpectedCalls(calls, expectedCalls)
-        assertEquals(expectedCall, placement.alignedByCallId[flowCall.callId])
-        assertTrue(placement.unaligned.isEmpty())
+        assertEquals(flowCall.callId, expectedCalls.single().expectedCancellationOfCallId)
+        assertEquals(expectedCalls.single(), placeExpectedCalls(calls, expectedCalls).alignedByCallId[flowCall.callId])
     }
 
     @Test

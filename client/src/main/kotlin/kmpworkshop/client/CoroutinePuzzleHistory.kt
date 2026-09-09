@@ -1,7 +1,8 @@
 package kmpworkshop.client
 
-import kmpworkshop.common.CoroutinePuzzleExpectationPayload
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
+import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
+
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 
@@ -21,62 +22,36 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
         alphabeticLabel(endpointLabels.size)
     }
 
-    fun call(callId: Long): RenderedCall = requireNotNull(calls[callId]) {
-        "Event references unknown callId $callId"
-    }
-
     fun activeCall(callId: Long): RenderedCall? {
-        val call = call(callId)
+        val call = requireNotNull(calls[callId]) { "Event references unknown callId $callId" }
         // A cancellation can be delivered after the result it raced with. The first terminal event is the one
         // shown in history; the later transport cleanup belongs to the same call and is intentionally compacted.
         return call.takeIf { it.terminalBatch == null }
     }
 
     batches.forEachIndexed { batchIndex, batch ->
-        when (batch) {
-            is CoroutinePuzzleHistoryBatch.Submission -> {
-                for ((callId, payload) in batch.entries) {
-                    when (payload) {
-                        is CoroutinePuzzleSubmissionPayload.CallSubmitted -> {
-                            require(callId !in calls) {
-                                "Call $callId was submitted more than once"
-                            }
-
-                            calls[callId] = RenderedCall(
-                                endpointLabel = endpointLabel(payload.endPoint),
-                                startBatch = batchIndex,
-                            )
-                        }
-
-                        CoroutinePuzzleSubmissionPayload.CallShouldCancel -> {
-                            // Cancellation can race with a normal response: the cancellation request may only be
-                            // flushed after the response has already been added to the history.
-                            val call = calls[callId] ?: continue
-
-                            require(call.cancelRequestedBatch == null) {
-                                "Cancellation was requested more than once for call $callId"
-                            }
-
-                            call.cancelRequestedBatch = batchIndex
-                        }
+        for ((callId, payload) in batch.entries) {
+            when (payload) {
+                is CoroutinePuzzleCallPayload.Submission -> {
+                    require(callId !in calls) { "Call $callId was submitted more than once" }
+                    calls[callId] = RenderedCall(endpointLabel(payload.endPoint), startBatch = batchIndex)
+                }
+                is CoroutinePuzzleCallPayload.CallbackInvoked -> {
+                    calls[callId] = RenderedCall(checkNotNull(calls[payload.parentCallId]).endpointLabel, startBatch = batchIndex)
+                }
+                CoroutinePuzzleCallPayload.Cancel -> {
+                    // Both sides may cancel concurrently. Keep the first request on the timeline.
+                    calls[callId]?.let {
+                        if (it.terminalBatch == null && it.cancelRequestedBatch == null) it.cancelRequestedBatch = batchIndex
                     }
                 }
-            }
-            is CoroutinePuzzleHistoryBatch.Expectation -> {
-                for ((callId, payload) in batch.entries) {
-                    val call = activeCall(callId) ?: continue
-
-                    when (payload) {
-                        is CoroutinePuzzleExpectationPayload.CallAnswered -> call.finish(batchIndex, '✓')
-                        is CoroutinePuzzleExpectationPayload.CallThrew -> call.finish(batchIndex, '!')
-                        CoroutinePuzzleExpectationPayload.CallCancellationCompleted -> {
-                            require(call.cancelRequestedBatch != null) {
-                                "Cancellation completed without being requested for call $callId"
-                            }
-
-                            call.finish(batchIndex, 'c')
-                        }
-                    }
+                is Outcome -> {
+                    val call = activeCall(callId)
+                    call?.finish(batchIndex, when (payload) {
+                        is Outcome.Returned -> if (call.cancelRequestedBatch != null) 'c' else '✓'
+                        is Outcome.Threw -> '!'
+                        Outcome.Cancelled -> 'c'
+                    })
                 }
             }
         }
@@ -104,7 +79,7 @@ fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): St
             }
 
         appendLine()
-        appendLine("● start  ✓ answer  ! throw")
+        appendLine("● start  ✓ completed  ! throw")
         append("× cancellation requested  c cancellation completed  > still running")
     }
 }

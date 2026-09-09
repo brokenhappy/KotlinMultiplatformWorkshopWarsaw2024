@@ -15,29 +15,28 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-fun fileExposureStepOnePuzzle() = coroutinePuzzle {
-    emitFileToExpose.expectingFlowCollector().use { fileCollectors ->
-        emitNetworkStrength.expectingFlowCollector().use { networkCollectors ->
-            fileCollectors.use { (_, emitFile) ->
-                networkCollectors.use { (_, emitNetwork) -> evaluateNetworkRestart(emitFile, emitNetwork) }
-            }
-        }
-    }
+fun fileExposureStepOnePuzzle() = fileExposurePuzzle { emitFile, emitNetwork ->
+    evaluateNetworkRestart(emitFile, emitNetwork)
 }
-fun fileExposureStepTwoPuzzle() = coroutinePuzzle {
-    emitFileToExpose.expectingFlowCollector().use { fileCollectors ->
-        emitNetworkStrength.expectingFlowCollector().use { networkCollectors ->
-            fileCollectors.use { (_, emitFile) ->
-                networkCollectors.use { (_, emitNetwork) -> evaluateFileReplacement(false, emitFile, emitNetwork) }
-            }
-        }
-    }
+fun fileExposureStepTwoPuzzle() = fileExposurePuzzle { emitFile, emitNetwork ->
+    evaluateFileReplacement(false, emitFile, emitNetwork)
 }
-fun fileExposureStepThreePuzzle() = coroutinePuzzle {
+fun fileExposureStepThreePuzzle() = fileExposurePuzzle { emitFile, emitNetwork ->
+    evaluateFileReplacement(true, emitFile, emitNetwork)
+}
+
+private fun fileExposurePuzzle(
+    evaluate: suspend context(CoroutinePuzzleBuilderScope) (
+        emitFile: suspend (FakeFileId) -> Unit,
+        emitNetwork: suspend (NetworkStrength) -> Unit,
+    ) -> Unit,
+) = coroutinePuzzle {
     emitFileToExpose.expectingFlowCollector().use { fileCollectors ->
         emitNetworkStrength.expectingFlowCollector().use { networkCollectors ->
             fileCollectors.use { (_, emitFile) ->
-                networkCollectors.use { (_, emitNetwork) -> evaluateFileReplacement(true, emitFile, emitNetwork) }
+                networkCollectors.use { (_, emitNetwork) ->
+                    evaluate(emitFile, emitNetwork)
+                }
             }
         }
     }
@@ -61,8 +60,10 @@ private suspend fun evaluateNetworkRestart(
     // Will happen again sometime quite soon, because they don't use structured concurrency, but we don't care about that in this stage yet.
     launch { closeExposedFile.expectArgument(file) }
     emitNetwork(NetworkStrength.WifiWeak)
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList()) {
-        if (advertiseExposedFile in it || makeFileDownloadable in it) {
+    verifyUnmatchedSubmissions(awaitFileExposureCalls(), emptyList()) {
+        if (it.any { submission ->
+                submission.endPoint == advertiseExposedFile || submission.endPoint == makeFileDownloadable
+            }) {
             CoroutinePuzzleErrorMessages.weakWifiExposureStarted()
         } else {
             null
@@ -75,23 +76,29 @@ private suspend fun evaluateNetworkRestart(
             expectCancellation() // We don't care when it cancels. That's a problem for later.
         }
     }
+    val downloadStarted = CompletableDeferred<Unit>()
+    val networkRestart = launch {
+        downloadStarted.await()
+        emitNetwork(NetworkStrength.WifiWeak)
+        emitNetwork(NetworkStrength.WifiStrong)
+    }
     makeFileDownloadable.expectCanceledCall {
         verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the opened file") }
         runOnBiggerScope(this@coroutineScope) {
-            emitNetwork(NetworkStrength.WifiWeak)
-            emitNetwork(NetworkStrength.WifiStrong)
-            awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList()) {
-                CoroutinePuzzleErrorMessages.networkRestartStartedTooEarly(it)
+            downloadStarted.complete(Unit)
+            verifyUnmatchedSubmissions(awaitFileExposureCalls(), emptyList()) {
+                CoroutinePuzzleErrorMessages.networkRestartStartedTooEarly(it.map { submission -> submission.endPoint })
             }
         }
         expectCancellation()
     }
+    networkRestart.join()
     makeFileDownloadable.expectCanceledCall {
         advertiseExposedFile.expectCall {
             verify(it == file) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the opened file") }
             // Advertising cancellation is deliberately not part of this stage.
         }
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
+        verifyUnmatchedSubmissions(awaitFileExposureCalls(), emptyList())
         callLifetimeSignal.complete(Unit) // Cancel only after the advertising result was consumed.
         expectCancellation()
     }
@@ -112,6 +119,11 @@ private suspend fun evaluateFileReplacement(
     emitNetwork(NetworkStrength.WifiStrong)
 
     val second = FakeFileId((1000..1999).random())
+    val firstDownloadStarted = CompletableDeferred<Unit>()
+    val replacement = launch {
+        firstDownloadStarted.await()
+        emitFile(second)
+    }
     coroutineScope {
         val scopeToLaunchOn = if (cancelAdvertising) this else this@evaluatorScope
         scopeToLaunchOn.launch {
@@ -122,15 +134,14 @@ private suspend fun evaluateFileReplacement(
         }
         makeFileDownloadable.expectCanceledCall {
             verify(it == first) { CoroutinePuzzleErrorMessages.wrongFile("make downloadable", "the first opened file") }
-            runOnBiggerScope(this@evaluatorScope) {
-                emitFile(second)
-            }
+            firstDownloadStarted.complete(Unit)
             expectCancellation()
         }
     }
 
     closeExposedFile.expectArgument(first)
     openExposedFile.expectArgument(second)
+    replacement.join()
     emitNetwork(NetworkStrength.WifiStrong)
 
     makeFileDownloadable.expectCanceledCall {
@@ -138,7 +149,7 @@ private suspend fun evaluateFileReplacement(
         advertiseExposedFile.expectCall {
             verify(it == second) { CoroutinePuzzleErrorMessages.wrongFile("advertise", "the replacement file") }
         }
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
+        verifyUnmatchedSubmissions(awaitFileExposureCalls(), emptyList())
         callLifetimeSignal.complete(Unit)
         expectCancellation()
     }
@@ -150,3 +161,10 @@ private suspend inline fun <reified T> CoroutinePuzzleEndPoint<T, Unit>.expectAr
     val actual = expectCall(Unit)
     verify(actual == expected) { CoroutinePuzzleErrorMessages.wrongEndpointArgument(expected, actual) }
 }
+
+/** File and network sources may already be waiting for their next value while work is being checked. */
+context(_: CoroutinePuzzleBuilderScope)
+private suspend fun awaitFileExposureCalls(): List<UnmatchedSubmission<*>> =
+    awaitQuiescenceAndGetUnmatchedSubmissions().filterNot {
+        it.endPoint == emitFileToExpose || it.endPoint == emitNetworkStrength
+    }

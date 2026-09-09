@@ -49,6 +49,16 @@ object CoroutinePuzzleErrorMessages {
         |Submit the value received by the current collector invocation.
     """.trimMargin()
 
+    fun flowMustKeepCollectingWhileSubmitting(): String = """
+        The collector is waiting for the current submission to finish before requesting another number.
+        Keep listening for newer numbers while a submission is running, so a newer value can replace its work.
+    """.trimIndent()
+
+    fun flowCancellationMustFinishBeforeNextValue(): String = """
+        A new submission started before the previous submission finished cancelling.
+        Wait for the previous submission's cleanup before starting work for a newer number.
+    """.trimIndent()
+
     fun chatTranscriptCallsMustBeSerialized(): String = """
         |Two chat-message collectors started appending to the transcript at once.
         |The transcript must have one active writer: do not start another append while one is still running.

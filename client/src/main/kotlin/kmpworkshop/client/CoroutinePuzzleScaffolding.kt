@@ -1,18 +1,12 @@
 package kmpworkshop.client
 
-import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.requestedValuesAfterCompletion
 import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.stoppedBeforeAllValues
 import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.tooFewCollectors
 import kmpworkshop.client.CoroutinePuzzleFlowErrorMessages.tooManyCollectors
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleExpectedFollowup
-import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory
 import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
-import kmpworkshop.common.WithCallId
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromJsonElement
 
 /**
  * Endpoints whose calls are internal scaffolding, not something the user themselves called - showing them in the
@@ -35,9 +29,6 @@ object CoroutinePuzzleFlowErrorMessages {
     fun tooFewCollectors(flowName: String): String =
         "Your solution started too few collectors of $flowName. Another collector was expected."
 
-    fun requestedValuesAfterCompletion(flowName: String): String =
-        "A collector of $flowName requested more values after that Flow had completed."
-
     fun stoppedBeforeAllValues(flowName: String): String =
         "A collector of $flowName stopped requesting values before all expected values were emitted."
 }
@@ -46,7 +37,10 @@ context(clientMetadata: ClientMetadata)
 private fun CoroutinePuzzleResultWithHistory.flowCollectorMismatchMessage(): String? {
     if ((result as? CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure)
             ?.expectedFollowups
-            ?.any { it.expectedCancellationOfCallId != null } == true
+            ?.any {
+                it.expectedCancellationOfCallId != null || it.expectedCallbackCompletionOfCallId != null ||
+                    it.expectedCancellationCompletionOfCallId != null
+            } == true
     ) return null
     val mismatchedEndpoints = when (val failure = result) {
         is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure -> failure.expectedFollowups.map { it.endPoint }
@@ -56,18 +50,9 @@ private fun CoroutinePuzzleResultWithHistory.flowCollectorMismatchMessage(): Str
     val endpoint = mismatchedEndpoints.distinct().singleOrNull() ?: return null
     if (!clientMetadata.isFlowEndpoint(endpoint)) return null
     val flowName = clientMetadata.descriptionFor(endpoint)
-    val calls = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
-        .flatMap { it.entries }
-        .mapNotNull { entry ->
-            val call = entry.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted ?: return@mapNotNull null
-            if (call.endPoint != endpoint) return@mapNotNull null
-            entry.callId to Json.decodeFromJsonElement<WithCallId<Unit>>(call.arg).callId
-        }
-
     return when (val failure = result) {
         is CoroutinePuzzleSolutionResult.MoreSubmissionsThanExpectationsFailure ->
-            if (calls.map { it.second }.distinct().size > 1) tooManyCollectors(flowName)
-            else requestedValuesAfterCompletion(flowName)
+            tooManyCollectors(flowName)
         is CoroutinePuzzleSolutionResult.MoreExpectationsThanSubmissionsFailure ->
             if (failure.expectedFollowups.any { it.expectedArgument != null }) stoppedBeforeAllValues(flowName)
             else tooFewCollectors(flowName)
@@ -118,7 +103,9 @@ fun CoroutinePuzzleSolutionResult.toMessage(): String = when (this) {
 
 context(clientMetadata: ClientMetadata)
 private fun CoroutinePuzzleExpectedFollowup.expectedActionDescription(): String = when {
+    expectedCancellationCompletionOfCallId != null -> "Finish cancelling ${clientMetadata.descriptionFor(endPoint)}"
     expectedCancellationOfCallId != null -> "Cancel ${clientMetadata.descriptionFor(endPoint)}"
+    expectedCallbackCompletionOfCallId != null -> "Finish the callback from ${clientMetadata.descriptionFor(endPoint)}"
     clientMetadata.isFlowEndpoint(endPoint) -> "Request an element from ${clientMetadata.descriptionFor(endPoint)}"
     else -> clientMetadata.descriptionFor(endPoint)
 }

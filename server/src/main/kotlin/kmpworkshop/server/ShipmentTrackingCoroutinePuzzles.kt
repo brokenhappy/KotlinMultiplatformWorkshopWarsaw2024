@@ -17,7 +17,7 @@ private val secondUpdate = ShipmentUpdate("Out for delivery", 12)
 fun shipmentTrackingIndependentViewsPuzzle() = withVisibilityCollectors { emitMapVisibility, emitEtaVisibility ->
     emitMapVisibility(false)
     emitEtaVisibility(false)
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList()) {
+    awaitQuiescenceAndVerifyUnmatchedSubmissions(emitShouldMapBeVisible, emitShouldEtaCardBeVisible) {
         CoroutinePuzzleErrorMessages.hiddenShipmentWidgetsStartedTracking()
     }
     emitMapVisibility(true)
@@ -45,8 +45,10 @@ fun shipmentTrackingIndependentViewsPuzzle() = withVisibilityCollectors { emitMa
 fun shipmentTrackingSharedConnectionPuzzle() = withVisibilityCollectors { emitMapVisibility, emitEtaVisibility ->
     emitMapVisibility(true)
     emitEtaVisibility(true)
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(shipmentTrackingConnectionLifetime) { submissions ->
-        if (submissions.count { it == shipmentTrackingConnectionLifetime } != 1) {
+    awaitQuiescenceAndVerifyUnmatchedSubmissions(
+        shipmentTrackingConnectionLifetime, shipmentTrackingUpdates, emitShouldMapBeVisible, emitShouldEtaCardBeVisible,
+    ) { submissions ->
+        if (submissions.count { it.endPoint == shipmentTrackingConnectionLifetime } != 1) {
             CoroutinePuzzleErrorMessages.shipmentTrackingMustBeShared()
         } else {
             null
@@ -74,7 +76,9 @@ fun shipmentTrackingLateEtaCardPuzzle() = coroutinePuzzle {
                     emitUpdate(firstUpdate)
                     renderShipmentOnMap.expectUpdate(firstUpdate)
                     emitEtaVisibility(true)
-                    awaitQuiescenceAndVerifyUnmatchedSubmissions(updateShipmentEtaCard) {
+                    awaitQuiescenceAndVerifyUnmatchedSubmissions(
+                        updateShipmentEtaCard, shipmentTrackingUpdates, emitShouldMapBeVisible, emitShouldEtaCardBeVisible,
+                    ) {
                         CoroutinePuzzleErrorMessages.shipmentTrackingNeedsReplay()
                     }
                     updateShipmentEtaCard.expectUpdate(firstUpdate)
@@ -90,7 +94,7 @@ fun shipmentTrackingLateEtaCardPuzzle() = coroutinePuzzle {
 fun shipmentTrackingLazyConnectionPuzzle() = withVisibilityCollectors { emitMapVisibility, emitEtaVisibility ->
     emitMapVisibility(false)
     emitEtaVisibility(false)
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList()) {
+    awaitQuiescenceAndVerifyUnmatchedSubmissions(emitShouldMapBeVisible, emitShouldEtaCardBeVisible) {
         CoroutinePuzzleErrorMessages.shipmentTrackingStartedWhileHidden()
     }
     emitMapVisibility(true)
@@ -109,7 +113,7 @@ fun shipmentTrackingLazyConnectionPuzzle() = withVisibilityCollectors { emitMapV
 fun shipmentTrackingWhileSubscribedPuzzle() = withVisibilityCollectors { emitMapVisibility, emitEtaVisibility ->
     emitMapVisibility(false)
     emitEtaVisibility(false)
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList()) {
+    awaitQuiescenceAndVerifyUnmatchedSubmissions(emitShouldMapBeVisible, emitShouldEtaCardBeVisible) {
         CoroutinePuzzleErrorMessages.shipmentTrackingStartedWhileHidden()
     }
     emitMapVisibility(true)
@@ -125,10 +129,11 @@ fun shipmentTrackingWhileSubscribedPuzzle() = withVisibilityCollectors { emitMap
                 updateShipmentEtaCard.expectUpdate(firstUpdate)
                 emitMapVisibility(false)
                 emitEtaVisibility(false)
-                awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
+                val submissions = awaitQuiescenceAndGetUnmatchedSubmissions()
                 verify(connectionLifetime.isCompleted) {
                     CoroutinePuzzleErrorMessages.shipmentTrackingDidNotStop()
                 }
+                verifyUnmatchedSubmissions(submissions, listOf(emitShouldMapBeVisible, emitShouldEtaCardBeVisible))
             }
         }
     }

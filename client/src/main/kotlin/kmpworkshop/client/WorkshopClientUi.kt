@@ -712,6 +712,8 @@ internal fun CoroutineTimelineWithMetadata(
                     val alignedExpectedCall = expectedCallPlacement.alignedByCallId[call.callId]
                     val expectedCallContinuesFlow = alignedExpectedCall != null &&
                         alignedExpectedCall.expectedCancellationOfCallId == null &&
+                        alignedExpectedCall.expectedCallbackCompletionOfCallId == null &&
+                        alignedExpectedCall.expectedCancellationCompletionOfCallId == null &&
                         clientMetadata.isFlowEndpoint(call.endpoint) &&
                         call.flowEndBatch() == null
                     Row {
@@ -736,6 +738,16 @@ internal fun CoroutineTimelineWithMetadata(
                         }
                         TimelineMarkerCell(
                             marker = when {
+                                alignedExpectedCall?.expectedCancellationCompletionOfCallId != null -> Marker(
+                                    "c",
+                                    "Expected cancellation cleanup to finish",
+                                    "Cancellation was requested, but this call has not finished its cleanup.",
+                                )
+                                alignedExpectedCall?.expectedCallbackCompletionOfCallId != null -> Marker(
+                                    "✓",
+                                    "Expected callback to finish",
+                                    "The callback has not finished its work and structured children.",
+                                )
                                 alignedExpectedCall?.expectedCancellationOfCallId != null -> Marker(
                                     "×",
                                     "Expected cancellation request",
@@ -767,20 +779,28 @@ internal fun CoroutineTimelineWithMetadata(
                 expectedCallPlacement.unaligned.forEachIndexed { index, expectedCall ->
                     val isFlowEndpoint = clientMetadata.isFlowEndpoint(expectedCall.endpoint)
                     val expectsCancellation = expectedCall.expectedCancellationOfCallId != null
+                    val expectsCallbackCompletion = expectedCall.expectedCallbackCompletionOfCallId != null
+                    val expectsCancellationCompletion = expectedCall.expectedCancellationCompletionOfCallId != null
                     val expectsNewFlowCollector = isFlowEndpoint && expectedCall.expectedArgument == null
                     val expectsFlowEmission = isFlowEndpoint && expectedCall.expectedArgument != null
                     val expectedMarker = when {
+                        expectsCancellationCompletion -> "c"
+                        expectsCallbackCompletion -> "✓"
                         expectsCancellation -> "×"
                         expectsFlowEmission -> "↗"
                         else -> "●"
                     }
                     val expectedTitle = when {
+                        expectsCancellationCompletion -> "Expected cancellation cleanup to finish"
+                        expectsCallbackCompletion -> "Expected callback to finish"
                         expectsCancellation -> "Expected cancellation request"
                         expectsFlowEmission -> "Expected request for a new emission"
                         expectsNewFlowCollector -> "Unmatched expected flow collector"
                         else -> "Unmatched expected call"
                     }
                     val expectedDetail = when {
+                        expectsCancellationCompletion -> "Cancellation was requested, but this call has not finished its cleanup."
+                        expectsCallbackCompletion -> "The callback has not finished its work and structured children."
                         expectsCancellation -> "The puzzle expected this call to be cancelled. But the cancellation request was never made."
                         expectsFlowEmission -> "The puzzle expected the next element from this flow to be requested. But that request was never made."
                         expectsNewFlowCollector -> "The puzzle expected this flow to be started. But the flow was never started."
@@ -822,7 +842,7 @@ internal fun CoroutineTimelineWithMetadata(
             HorizontalScrollbar(rememberScrollbarAdapter(horizontal), Modifier.align(Alignment.BottomStart).fillMaxWidth())
         }
         Column {
-            Text("● started   ↗ requested next element   ✓ returned   ! threw   × cancellation requested   ⊘ cancelled", style = MaterialTheme.typography.caption, color = Color(0xFF5F6368))
+            Text("● started   ↗ emitting value   ✓ returned   ! threw   × cancellation requested   ⊘ cancelled", style = MaterialTheme.typography.caption, color = Color(0xFF5F6368))
         }
     }
 }
@@ -852,8 +872,10 @@ private fun Marker.asUnexpectedRequest(call: CoroutineTimelineCall): Marker = wh
     )
 }
 
+context(clientMetadata: ClientMetadata)
 private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): Marker {
-    if (call.events.isNotEmpty()) {
+    if (clientMetadata.isFlowEndpoint(call.endpoint) && call.events.isNotEmpty()) {
+        if (batch == call.startBatch && call.endBatch != batch) return Marker("●", "Flow collection started")
         val emission = call.events.firstOrNull { it.endBatch == batch }
         if (emission != null) {
             return when (emission.completion) {
@@ -874,7 +896,7 @@ private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): M
             return if (batch == call.startBatch) {
                 Marker("●", "Started and requested an element", "The flow collector started and requested its first element.")
             } else {
-                Marker("↗", "Requested next element", "The collect block finished, so the client requested another element.")
+                Marker("↗", "Emitting value", "Value: ${displayValue(request.returnValue)}")
             }
         }
         val lastBatchForFlow = call.flowEndBatch() ?: lastBatch
@@ -894,8 +916,9 @@ private fun markerAt(call: CoroutineTimelineCall, batch: Int, lastBatch: Int): M
         batch == event.cancellationRequestedBatch -> Marker("×", "Cancellation requested", "Your coroutine asked the puzzle to cancel this call.")
         batch == event.startBatch -> Marker(
             "●",
-            "Started",
-            if (call.argument.isUnitValue()) "This call has no argument." else "Argument: ${displayValue(call.argument)}",
+            if (event.callId == call.callId) "Started" else "Callback invoked",
+            if ((event.argument ?: call.argument).isUnitValue()) "This call has no argument."
+            else "Argument: ${displayValue(event.argument ?: call.argument)}",
         )
         event.endBatch == null && batch == lastBatch -> Marker("━", "Running", "This call was still in progress when the attempt ended.")
         batch in event.startBatch..(event.endBatch ?: lastBatch) -> Marker("━", "Running", "This call was in progress during this exchange.")
@@ -942,7 +965,8 @@ internal fun placeExpectedCalls(
     val alignedIndexes = mutableSetOf<Int>()
 
     expectedCalls.forEachIndexed { index, expectedCall ->
-        val call = expectedCall.expectedCancellationOfCallId?.let { expectedCallId ->
+        val call = (expectedCall.expectedCancellationOfCallId ?: expectedCall.expectedCallbackCompletionOfCallId
+            ?: expectedCall.expectedCancellationCompletionOfCallId)?.let { expectedCallId ->
             calls.singleOrNull { call ->
                 call.callId == expectedCallId || call.events.any { it.callId == expectedCallId }
             }
@@ -969,7 +993,7 @@ private fun CoroutineTimelineCall.flowEndBatch(): Int? =
         it.flowCompleted || it.completion == TimelineCompletion.THREW || it.completion == TimelineCompletion.CANCELLED
     }?.endBatch
 
-private fun CoroutineTimelineCall.asEvent() = CoroutineTimelineEvent(callId, startBatch, cancellationRequestedBatch, endBatch, completion, returnValue, exceptionMessage, flowCompleted)
+private fun CoroutineTimelineCall.asEvent() = CoroutineTimelineEvent(callId, startBatch, cancellationRequestedBatch, endBatch, completion, returnValue, exceptionMessage, flowCompleted, argument)
 
 private fun displayValue(value: JsonElement?): String = when {
     value == null -> "null"

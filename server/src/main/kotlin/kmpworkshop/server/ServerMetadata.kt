@@ -1,5 +1,6 @@
 package kmpworkshop.server
 
+import kmpworkshop.common.CoroutinePuzzleCallPayload
 import kmpworkshop.common.CoroutinePuzzleEndPoint
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.DefaultApis
@@ -10,6 +11,8 @@ import kmpworkshop.common.DefaultApis.shipmentTrackingUpdates
 import kmpworkshop.common.DefaultApis.emitShouldMapBeVisible
 import kmpworkshop.common.DefaultApis.emitShouldEtaCardBeVisible
 import kmpworkshop.common.EndpointDescriptorRegistry
+import kmpworkshop.common.UnmatchedSubmission
+import kmpworkshop.common.WithCallId
 
 data class EndpointRegistration(
     val actionDescriptionInErrors: String? = null,
@@ -26,6 +29,13 @@ class ServerMetadata internal constructor(
 
     fun endpointFor(descriptor: CoroutinePuzzleEndPointId): CoroutinePuzzleEndPoint<*, *> =
         collection.endpointFor(descriptor)
+
+    internal fun unmatchedSubmission(
+        submission: WithCallId<CoroutinePuzzleCallPayload.Submission>,
+    ): UnmatchedSubmission<*> = collection.unmatchedSubmission(
+        submission.payload.endPoint,
+        submission.payload.arg,
+    )
 
     fun isFlowEndpoint(descriptor: CoroutinePuzzleEndPointId): Boolean =
         registrations[collection.endpointFor(descriptor)]?.flowFunctionCall != null

@@ -151,6 +151,9 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
         val activeCoroutineCount: Int,
         val currentRequests: PersistentList<SuspendedBatchCall<T, R>>,
         val expectingZeroActiveCountBecauseWeJustClearedRequests: Boolean = false,
+        // StateFlow may conflate an entire active -> idle cycle while the previous batch is being
+        // sent. Distinguish those cycles even when neither of them contains a new request.
+        val activityVersion: Long = 0,
     )
 
     val isComplete = AtomicBoolean(false)
@@ -209,6 +212,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                 state.update {
                     it.copy(
                         activeCoroutineCount = it.activeCoroutineCount + 1,
+                        activityVersion = it.activityVersion + 1,
                         expectingZeroActiveCountBecauseWeJustClearedRequests = false
                     )
                 }
@@ -226,6 +230,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                             state.update {
                                 it.copy(
                                     currentRequests = it.currentRequests.add(batchCall),
+                                    activityVersion = it.activityVersion + 1,
                                     // A request made by an undispatched resumption is itself new work, even if the
                                     // dispatcher did not publish another active -> idle transition in between.
                                     expectingZeroActiveCountBecauseWeJustClearedRequests = false,
@@ -248,6 +253,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
                         state.update {
                             it.copy(
                                 activeCoroutineCount = it.activeCoroutineCount + 1,
+                                activityVersion = it.activityVersion + 1,
                                 expectingZeroActiveCountBecauseWeJustClearedRequests = false,
                             )
                         }

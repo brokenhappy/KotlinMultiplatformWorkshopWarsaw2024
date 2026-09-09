@@ -2,6 +2,9 @@
 
 package kmpworkshop.client
 
+import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
+
 import kmpworkshop.common.WithCallId
 import kmpworkshop.common.CoroutinePuzzleExpectationPayload
 import kmpworkshop.common.CoroutinePuzzleSubmissionPayload
@@ -29,52 +32,43 @@ private val testMetadata = clientMetadataOf(TestApis) { }
 class CoroutinePuzzleHistoryRendererTest {
 
     @Test
-    fun `renders an answer returned after cancellation was requested`() {
-        val endpoint = TestApis.endpoint.id
-
-        val actual = context(testMetadata) {
-            renderCoroutinePuzzleHistory(listOf(
-                CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
-                CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
-                CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
-            ))
-        }
-
+    fun `an answer crossing cancellation confirms the cancelled call finished`() {
+        val actual = context(testMetadata) { renderCoroutinePuzzleHistory(listOf(
+            CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, TestApis.endpoint.id))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
+        )) }
         assertEquals(
             """
                 batch 123
-                A     ●×✓
+                A     ●×c
 
                 A endpoint
 
-                ● start  ✓ answer  ! throw
+                ● start  ✓ completed  ! throw
                 × cancellation requested  c cancellation completed  > still running
-            """.trimIndent(),
-            actual,
+            """.trimIndent(), actual,
         )
     }
 
     @Test
-    fun `renders a cancellation request flushed after an answer`() {
-        val endpoint = TestApis.endpoint.id
-
+    fun `a cancellation flushed after an answer does not reopen the completed call`() {
         val actual = context(testMetadata) { renderCoroutinePuzzleHistory(listOf(
-            CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, endpoint))),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(submitted(1, TestApis.endpoint.id))),
             CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
             CoroutinePuzzleHistoryBatch.Submission(listOf(cancellationRequested(1))),
+            CoroutinePuzzleHistoryBatch.Expectation(listOf(answered(1))),
         )) }
-
         assertEquals(
             """
-                batch 123
-                A     ●✓×
+                batch 1234
+                A     ●✓${" ".repeat(2)}
 
                 A endpoint
 
-                ● start  ✓ answer  ! throw
+                ● start  ✓ completed  ! throw
                 × cancellation requested  c cancellation completed  > still running
-            """.trimIndent(),
-            actual,
+            """.trimIndent(), actual,
         )
     }
 
@@ -93,7 +87,7 @@ class CoroutinePuzzleHistoryRendererTest {
                     submitted(101, fetchUser),
                     submitted(102, loadAvatar),
                 )),
-                // Batch 2: both fetchUser calls complete together.
+                // Batch 2: both fetchUser calls receive their answers together.
                 CoroutinePuzzleHistoryBatch.Expectation(listOf(
                     answered(100),
                     answered(101),
@@ -143,21 +137,21 @@ class CoroutinePuzzleHistoryRendererTest {
         val expected = """
                            1
             batch 1234567890
-            A     ●✓        
-            A     ●✓        
-            B     ●──✓      
-            C       ●!      
+            A     ●✓${" ".repeat(8)}
+            A     ●✓${" ".repeat(8)}
+            B     ●──✓${" ".repeat(6)}
+            C       ●!${" ".repeat(6)}
             D       ●──────>
-            B       ●─×c    
-            A         ●✓    
-            C         ●──✓  
-            D           ●✓  
+            B       ●─×c${" ".repeat(4)}
+            A         ●✓${" ".repeat(4)}
+            C         ●──✓${" ".repeat(2)}
+            D           ●✓${" ".repeat(2)}
             A             ●✓
 
             A fetchUser   B loadAvatar
             C saveAudit   D refreshToken
 
-            ● start  ✓ answer  ! throw
+            ● start  ✓ completed  ! throw
             × cancellation requested  c cancellation completed  > still running
         """.trimIndent()
 
@@ -169,26 +163,26 @@ class CoroutinePuzzleHistoryRendererTest {
         endPoint: CoroutinePuzzleEndPointId,
     ) = WithCallId<CoroutinePuzzleSubmissionPayload>(
         callId = callId,
-        payload = CoroutinePuzzleSubmissionPayload.CallSubmitted(endPoint, arg = JsonNull),
+        payload = CoroutinePuzzleCallPayload.CallSubmitted(endPoint, arg = JsonNull),
     )
 
     private fun cancellationRequested(callId: Long) = WithCallId<CoroutinePuzzleSubmissionPayload>(
         callId = callId,
-        payload = CoroutinePuzzleSubmissionPayload.CallShouldCancel,
+        payload = CoroutinePuzzleCallPayload.Cancel,
     )
 
     private fun answered(callId: Long) = WithCallId<CoroutinePuzzleExpectationPayload>(
         callId = callId,
-        payload = CoroutinePuzzleExpectationPayload.CallAnswered(JsonNull),
+        payload = Outcome.Returned(JsonNull),
     )
 
     private fun threw(callId: Long) = WithCallId<CoroutinePuzzleExpectationPayload>(
         callId = callId,
-        payload = CoroutinePuzzleExpectationPayload.CallThrew("Boom"),
+        payload = Outcome.Threw("Boom"),
     )
 
-    private fun cancellationCompleted(callId: Long) = WithCallId<CoroutinePuzzleExpectationPayload>(
+    private fun cancellationCompleted(callId: Long) = WithCallId(
         callId = callId,
-        payload = CoroutinePuzzleExpectationPayload.CallCancellationCompleted,
+        payload = Outcome.Cancelled,
     )
 }

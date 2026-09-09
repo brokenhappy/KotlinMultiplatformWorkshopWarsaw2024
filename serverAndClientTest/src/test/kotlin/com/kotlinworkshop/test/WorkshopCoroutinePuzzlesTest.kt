@@ -1,5 +1,8 @@
 package com.kotlinworkshop.test
 
+import kmpworkshop.common.CoroutinePuzzleCallPayload
+import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
+
 import com.woutwerkman.calltreevisualizer.StackTrackingContext
 import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
 import kmpworkshop.client.runCoroutinePuzzleClient
@@ -100,8 +103,10 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     fun `first solution should not work for first file exposure puzzle`(): Unit = runPuzzleTest {
         // Step 1: a weak -> strong transition must wait for cancellation of the previous network task.
         // The workshop scaffold reacts from a non-suspending callback, so it cancels without joining before restart.
-        doFileExposureStepOne { withContext(NoOpStackTracker) { allowPeopleToDownloadExposedFile(it) } }
-            .assertIsNotOk()
+        // The observer launches in the API's scope, so that scope also needs the test stack tracker.
+        withContext(NoOpStackTracker) {
+            doFileExposureStepOne { allowPeopleToDownloadExposedFile(it) }.assertIsNotOk()
+        }
     }
 
     @Test
@@ -118,9 +123,11 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
         replacementFailure.unexpectedSubmissions.assertEquals(listOf(closeExposedFile.id))
         replacementFailure.expectations.map { it.endPoint }.toSet().assertEquals(
-            setOf(DefaultApis.advertiseExposedFile.id, DefaultApis.makeFileDownloadable.id),
+            setOf(DefaultApis.advertiseExposedFile.id, DefaultApis.makeFileDownloadable.id, emitFileToExpose.id),
         )
-        replacementFailure.expectations.all { it.expectedCancellationOfCallId != null }.assertEquals(true)
+        replacementFailure.expectations.filter { it.endPoint != emitFileToExpose.id }
+            .all { it.expectedCancellationOfCallId != null }.assertEquals(true)
+        checkNotNull(replacementFailure.expectations.single { it.endPoint == emitFileToExpose.id }.expectedCallbackCompletionOfCallId)
         doFileExposureStepThree { allowPeopleToDownloadExposedFile2(it) }.assertIsNotOk()
 
         // Step 3: advertising must be joined as well. Solution 3 fixes the download lifetime, but its launch still
@@ -129,10 +136,11 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doFileExposureStepTwo { allowPeopleToDownloadExposedFile3(it) }.assertIsOk()
         val advertisingFailure = doFileExposureStepThree { allowPeopleToDownloadExposedFile3(it) }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
-        advertisingFailure.expectations.single().apply {
+        advertisingFailure.expectations.single { it.expectedCancellationOfCallId != null }.apply {
             endPoint.assertEquals(DefaultApis.advertiseExposedFile.id)
             checkNotNull(expectedCancellationOfCallId)
         }
+        checkNotNull(advertisingFailure.expectations.single { it.endPoint == emitFileToExpose.id }.expectedCallbackCompletionOfCallId)
         advertisingFailure.unexpectedSubmissions.assertEquals(listOf(closeExposedFile.id))
 
         // Solution 4 gives the task a lexical coroutineScope receiver; both download and advertising are children.
@@ -206,9 +214,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
                 }
             }
         }
-        val expected = solved.returnedValues(emitFileToExpose)
-            .mapNotNull { (it.payload as? ValueOrCompletion.Value)?.value }
-            .last()
+        val expected = solved.callbackArguments<FakeFileId>(emitFileToExpose.id).last()
         val actual = solved.arguments(openExposedFile).last()
         solved.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
             .message
@@ -216,11 +222,28 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `regular collect produces a generic quiescent failure`(): Unit = runPuzzleTest {
+    fun `regular collect explains that collection must continue while submitting`(): Unit = runPuzzleTest {
         doCollectLatestPuzzle { api ->
             api.numbers().collect { api.submit(it) }
         }
-            .assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
+            .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.flowMustKeepCollectingWhileSubmitting())
+    }
+
+    @Test
+    fun `custom collect latest impl that forgets to join should fail`(): Unit = runPuzzleTest {
+        doCollectLatestPuzzle { api ->
+            var job: Job? = null
+            api.numbers().collect {
+                job?.cancel()
+                job = this@doCollectLatestPuzzle.launch {
+                    api.submit(it)
+                }
+            }
+        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+            .message
+            .assertEquals(CoroutinePuzzleErrorMessages.flowCancellationMustFinishBeforeNextValue())
     }
 
     @Test
@@ -231,14 +254,16 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
             }
         }
         val failure = result.assertIsNotOk<CoroutinePuzzleSolutionResult.UnexpectedSubmissionsFailure>()
-        failure.unexpectedSubmissions.assertEquals(listOf(DefaultApis.emitNumber.id))
         failure.expectations.single().apply {
             endPoint.assertEquals(DefaultApis.submitNumber.id)
             checkNotNull(expectedCancellationOfCallId)
         }
         context(defaultClientMetadata) { failure.toMessage() }.assertEquals(
             "Currently the expected action is Cancel Call submit(number: Int): Unit.\n" +
-                "But instead, your solution made this request: Request the next element from numbers().",
+                "But your solution was quiescent:\n" +
+                "  - All its coroutines were suspended.\n" +
+                "  - No new requests were made to the server.\n\n" +
+                "In other words, it was waiting for a server response.",
         )
     }
 
@@ -247,6 +272,26 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
         doCollectLatestPuzzle { api ->
             api.numbers().collectLatest {
                 api.submit(it)
+            }
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `buffered collectLatest still waits for cancellation before starting replacement work`(): Unit = runPuzzleTest {
+        doCollectLatestPuzzle { api ->
+            api.numbers().buffer(1).collectLatest { api.submit(it) }
+        }.assertIsOk()
+    }
+
+    @Test
+    fun `custom collect latest that cancels and joins is correct`(): Unit = runPuzzleTest {
+        doCollectLatestPuzzle { api ->
+            coroutineScope {
+                var job: Job? = null
+                api.numbers().collect { value ->
+                    job?.cancelAndJoin()
+                    job = launch { api.submit(value) }
+                }
             }
         }.assertIsOk()
     }
@@ -1317,13 +1362,23 @@ private suspend fun UserDatabaseWithLegacyQueryUser.queryUserHappyPath(id: Int):
     }
 }
 
+private inline fun <reified T> ResultsWHistory.callbackArguments(endpoint: CoroutinePuzzleEndPointId): List<T> {
+    val outerIds = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>().flatMap { it.entries }
+        .filter { (it.payload as? CoroutinePuzzleCallPayload.Submission)?.endPoint == endpoint }
+        .map { it.callId }.toSet()
+    return history.filterIsInstance<CoroutinePuzzleHistoryBatch.Expectation>().flatMap { it.entries }
+        .mapNotNull { it.payload as? CoroutinePuzzleCallPayload.CallbackInvoked }
+        .filter { it.parentCallId in outerIds }
+        .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
+}
+
 private inline fun <reified T> ResultsWHistory.returnedValues(
     endpoint: CoroutinePuzzleEndPoint<*, T>,
 ): List<T> {
     val callIds = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
         .flatMap { it.entries }
         .mapNotNull { entry ->
-            (entry.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted)
+            (entry.payload as? CoroutinePuzzleCallPayload.CallSubmitted)
                 ?.takeIf { it.endPoint == endpoint.id }
                 ?.let { entry.callId }
         }
@@ -1331,7 +1386,7 @@ private inline fun <reified T> ResultsWHistory.returnedValues(
     return history.filterIsInstance<CoroutinePuzzleHistoryBatch.Expectation>()
         .flatMap { it.entries }
         .filter { it.callId in callIds }
-        .mapNotNull { it.payload as? CoroutinePuzzleExpectationPayload.CallAnswered }
+        .mapNotNull { it.payload as? Outcome.Returned }
         .map { Json.decodeFromJsonElement(serializer<T>(), it.result) }
 }
 
@@ -1339,7 +1394,7 @@ private inline fun <reified T> ResultsWHistory.arguments(
     endpoint: CoroutinePuzzleEndPoint<T, *>,
 ): List<T> = history.filterIsInstance<CoroutinePuzzleHistoryBatch.Submission>()
     .flatMap { it.entries }
-    .mapNotNull { it.payload as? CoroutinePuzzleSubmissionPayload.CallSubmitted }
+    .mapNotNull { it.payload as? CoroutinePuzzleCallPayload.CallSubmitted }
     .filter { it.endPoint == endpoint.id }
     .map { Json.decodeFromJsonElement(serializer<T>(), it.arg) }
 

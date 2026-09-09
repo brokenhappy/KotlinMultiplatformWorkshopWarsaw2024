@@ -4,6 +4,7 @@ import kmpworkshop.client.clientMetadataOf
 import kmpworkshop.client.toMessage
 import kmpworkshop.common.EndpointDescriptorRegistry
 import kmpworkshop.common.descriptor
+import kmpworkshop.common.higherOrderDescriptor
 import kmpworkshop.common.submitCall
 import kmpworkshop.common.asPuzzle
 import kmpworkshop.common.solve
@@ -44,6 +45,23 @@ private val testClientMetadata = clientMetadataOf(MetadataTestApis) {
 }
 
 class CoroutinePuzzleMetadataTest {
+    @Test
+    fun `endpoint hashes include callback input and output types`() {
+        val original = object : EndpointDescriptorRegistry() {
+            val callback by higherOrderDescriptor<Unit, Int, String, Unit>("callback")
+            init { seal() }
+        }
+        val changedInput = object : EndpointDescriptorRegistry() {
+            val callback by higherOrderDescriptor<Unit, Long, String, Unit>("callback")
+            init { seal() }
+        }
+        val changedOutput = object : EndpointDescriptorRegistry() {
+            val callback by higherOrderDescriptor<Unit, Int, Boolean, Unit>("callback")
+            init { seal() }
+        }
+        assertEquals(3, listOf(original, changedInput, changedOutput).map { it.endpointHash() }.distinct().size)
+    }
+
     @Test
     fun `test api uses server and client metadata blocks`() = runTest {
         val puzzle: Resource<CoroutinePuzzleProtocol> = context(testServerMetadata) {

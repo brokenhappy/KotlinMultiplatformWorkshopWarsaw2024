@@ -3,6 +3,7 @@ package kmpworkshop.server
 import kmpworkshop.api.ChatMessage
 import kmpworkshop.api.TypingStatus
 import kmpworkshop.common.CoroutinePuzzleEndPoint
+import kmpworkshop.common.UnmatchedSubmission
 import kmpworkshop.common.DefaultApis.appendChatMessageToTranscript
 import kmpworkshop.common.DefaultApis.chatMessageAccepted
 import kmpworkshop.common.DefaultApis.chatTypingStatusAccepted
@@ -79,14 +80,14 @@ private suspend fun evaluateSerializedTranscriptWrites(
         }
     }
 
-    emitIncoming(firstIncomingMessage)
+    val incomingEmission = launch { emitIncoming(firstIncomingMessage) }
     firstWriteStarted.await()
-    emitSent(sentMessage)
+    val sentEmission = launch { emitSent(sentMessage) }
 
-    val submissionsWhileWriting = awaitQuiescenceAndGetUnmatchedSubmissions()
-    val concurrentTranscriptWrite = appendChatMessageToTranscript in submissionsWhileWriting
+    val submissionsWhileWriting = awaitChatCalls()
+    val concurrentTranscriptWrite = submissionsWhileWriting.any { it.endPoint == appendChatMessageToTranscript }
     verifyOnlyAcceptanceCalls(
-        submissionsWhileWriting.filterNot { it == appendChatMessageToTranscript },
+        submissionsWhileWriting.filterNot { it.endPoint == appendChatMessageToTranscript },
         chatMessageAccepted,
     )
     acceptedMessages += consumeMessageAcceptances(submissionsWhileWriting)
@@ -95,6 +96,8 @@ private suspend fun evaluateSerializedTranscriptWrites(
     firstWrite.join()
     acceptedMessages += drainSerializedTranscript(listOf(sentMessage))
     acceptedMessages += consumeRemainingMessageAcceptances()
+    incomingEmission.join()
+    sentEmission.join()
     verifySameValues(acceptedMessages, listOf(firstIncomingMessage, sentMessage)) {
         CoroutinePuzzleErrorMessages.wrongChatMessage(
             actual = acceptedMessages.firstOrNull() ?: firstIncomingMessage,
@@ -121,22 +124,25 @@ private suspend fun evaluateBufferedTranscriptWrites(
         }
     }
 
-    emitIncoming(firstIncomingMessage)
+    val firstEmission = launch { emitIncoming(firstIncomingMessage) }
     firstWriteStarted.await()
 
-    val firstAcceptance = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val firstAcceptance = awaitChatCalls()
     verifyMessageAcceptances(firstAcceptance, expectedCount = 1) {
         CoroutinePuzzleErrorMessages.chatMessageCollectorsMustNotWaitForTranscript()
     }
     val acceptedMessages = consumeMessageAcceptances(firstAcceptance).toMutableList()
+    firstEmission.join()
 
-    emitIncoming(secondIncomingMessage)
-    emitSent(sentMessage)
-    val bufferedAcceptances = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val secondEmission = launch { emitIncoming(secondIncomingMessage) }
+    val sentEmission = launch { emitSent(sentMessage) }
+    val bufferedAcceptances = awaitChatCalls()
     verifyMessageAcceptances(bufferedAcceptances, expectedCount = 2) {
         CoroutinePuzzleErrorMessages.chatMessageCollectorsMustNotWaitForTranscript()
     }
     acceptedMessages += consumeMessageAcceptances(bufferedAcceptances)
+    secondEmission.join()
+    sentEmission.join()
     verifySameValues(
         acceptedMessages,
         listOf(firstIncomingMessage, secondIncomingMessage, sentMessage),
@@ -154,11 +160,11 @@ private suspend fun drainSerializedTranscript(expectedMessages: List<ChatMessage
     val acceptedMessages = mutableListOf<ChatMessage>()
     val appendedMessages = mutableListOf<ChatMessage>()
     repeat(expectedMessages.size) {
-        val submissions = awaitQuiescenceAndGetUnmatchedSubmissions()
-        val appendCount = submissions.count { it == appendChatMessageToTranscript }
+        val submissions = awaitChatCalls()
+        val appendCount = submissions.count { it.endPoint == appendChatMessageToTranscript }
         if (appendCount != 1) fail(CoroutinePuzzleErrorMessages.chatTranscriptCallsMustBeSerialized())
         verifyOnlyAcceptanceCalls(
-            submissions.filterNot { it == appendChatMessageToTranscript },
+            submissions.filterNot { it.endPoint == appendChatMessageToTranscript },
             chatMessageAccepted,
         )
         acceptedMessages += consumeMessageAcceptances(submissions)
@@ -175,23 +181,23 @@ private suspend fun drainSerializedTranscript(expectedMessages: List<ChatMessage
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun consumeRemainingMessageAcceptances(): List<ChatMessage> {
-    val submissions = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val submissions = awaitChatCalls()
     verifyOnlyAcceptanceCalls(submissions, chatMessageAccepted)
     return consumeMessageAcceptances(submissions)
 }
 
 context(_: CoroutinePuzzleBuilderScope)
 private fun verifyMessageAcceptances(
-    submissions: List<CoroutinePuzzleEndPoint<*, *>>,
+    submissions: List<UnmatchedSubmission<*>>,
     expectedCount: Int,
     message: () -> String,
 ) {
-    if (submissions.size != expectedCount || submissions.any { it != chatMessageAccepted }) fail(message())
+    if (submissions.size != expectedCount || submissions.any { it.endPoint != chatMessageAccepted }) fail(message())
 }
 
 context(_: CoroutinePuzzleBuilderScope)
 private fun verifyOnlyAcceptanceCalls(
-    submissions: List<CoroutinePuzzleEndPoint<*, *>>,
+    submissions: List<UnmatchedSubmission<*>>,
     acceptanceEndpoint: CoroutinePuzzleEndPoint<*, *>,
 ) {
     verifyUnmatchedSubmissions(submissions, List(submissions.size) { acceptanceEndpoint })
@@ -199,9 +205,9 @@ private fun verifyOnlyAcceptanceCalls(
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun consumeMessageAcceptances(
-    submissions: List<CoroutinePuzzleEndPoint<*, *>>,
+    submissions: List<UnmatchedSubmission<*>>,
 ): List<ChatMessage> = coroutineScope {
-    List(submissions.count { it == chatMessageAccepted }) {
+    List(submissions.count { it.endPoint == chatMessageAccepted }) {
         async { chatMessageAccepted.expectCall(Unit) }
     }.awaitAll()
 }
@@ -232,34 +238,37 @@ private suspend fun evaluateDropOldestTypingStatus(
         }
     }
 
-    emitTypingStatus(activeStatus)
+    val activeEmission = launch { emitTypingStatus(activeStatus) }
     activeUpdateStarted.await()
     expectAcceptedTypingStatus(
         activeStatus,
         CoroutinePuzzleErrorMessages.chatTypingStatusMustKeepCollecting(),
     )
+    activeEmission.join()
 
-    emitTypingStatus(staleStatus)
-    val afterStaleStatus = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val staleEmission = launch { emitTypingStatus(staleStatus) }
+    val afterStaleStatus = awaitChatCalls()
     failIfTypingUpdateWasReplaced(afterStaleStatus, activeUpdateWasCanceled)
     verifyTypingAcceptance(afterStaleStatus) {
         CoroutinePuzzleErrorMessages.chatTypingStatusMustKeepCollecting()
     }
     consumeTypingAcceptance(staleStatus)
+    staleEmission.join()
 
-    emitTypingStatus(newestStatus)
-    val afterNewestStatus = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val newestEmission = launch { emitTypingStatus(newestStatus) }
+    val afterNewestStatus = awaitChatCalls()
     failIfTypingUpdateWasReplaced(afterNewestStatus, activeUpdateWasCanceled)
     verifyTypingAcceptance(afterNewestStatus) {
         CoroutinePuzzleErrorMessages.chatTypingStatusMustDropStaleValues()
     }
     consumeTypingAcceptance(newestStatus)
+    newestEmission.join()
 
     releaseActiveUpdate.complete(Unit)
     activeUpdate.join()
     if (activeUpdateWasCanceled.await()) fail(CoroutinePuzzleErrorMessages.chatTypingUpdatesMustNotBeCanceled())
 
-    val nextUpdate = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val nextUpdate = awaitChatCalls()
     verifyUnmatchedSubmissions(nextUpdate, listOf(updateCurrentTypingStatus))
     val actual = updateCurrentTypingStatus.expectCall(Unit)
     verify(actual == newestStatus) {
@@ -269,7 +278,7 @@ private suspend fun evaluateDropOldestTypingStatus(
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun expectAcceptedTypingStatus(status: TypingStatus, failureMessage: String) {
-    val submissions = awaitQuiescenceAndGetUnmatchedSubmissions()
+    val submissions = awaitChatCalls()
     failIfTypingUpdateWasReplaced(submissions, null)
     verifyTypingAcceptance(submissions) { failureMessage }
     consumeTypingAcceptance(status)
@@ -277,10 +286,10 @@ private suspend fun expectAcceptedTypingStatus(status: TypingStatus, failureMess
 
 context(_: CoroutinePuzzleBuilderScope)
 private fun verifyTypingAcceptance(
-    submissions: List<CoroutinePuzzleEndPoint<*, *>>,
+    submissions: List<UnmatchedSubmission<*>>,
     message: () -> String,
 ) {
-    if (submissions != listOf(chatTypingStatusAccepted)) fail(message())
+    if (submissions.map { it.endPoint } != listOf(chatTypingStatusAccepted)) fail(message())
 }
 
 context(_: CoroutinePuzzleBuilderScope)
@@ -291,20 +300,19 @@ private suspend fun consumeTypingAcceptance(expected: TypingStatus) {
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun failIfTypingUpdateWasReplaced(
-    submissions: List<CoroutinePuzzleEndPoint<*, *>>,
+    submissions: List<UnmatchedSubmission<*>>,
     activeUpdateWasCanceled: CompletableDeferred<Boolean>?,
 ) {
-    val replacementUpdateCount = submissions.count { it == updateCurrentTypingStatus }
+    val replacementUpdateCount = submissions.count { it.endPoint == updateCurrentTypingStatus }
     val activeUpdateCanceled = activeUpdateWasCanceled?.let { it.isCompleted && it.await() } == true
     if (replacementUpdateCount > 0 || activeUpdateCanceled) {
         coroutineScope {
-            List(submissions.count { it == chatTypingStatusAccepted }) {
-                async { chatTypingStatusAccepted.expectCall(Unit) }
-            }.plus(
-                List(replacementUpdateCount) {
-                    async { updateCurrentTypingStatus.expectCall(Unit) }
-                }
-            ).awaitAll()
+            repeat(submissions.count { it.endPoint == chatTypingStatusAccepted }) {
+                launch { chatTypingStatusAccepted.expectCall(Unit) }
+            }
+            repeat(replacementUpdateCount) {
+                launch { updateCurrentTypingStatus.expectCall(Unit) }
+            }
         }
         fail(
             CoroutinePuzzleErrorMessages.chatTypingUpdatesMustNotBeCanceled(),
@@ -317,3 +325,10 @@ context(_: CoroutinePuzzleBuilderScope)
 private fun <T> verifySameValues(actual: List<T>, expected: List<T>, message: () -> String) {
     verify(actual.groupingBy { it }.eachCount() == expected.groupingBy { it }.eachCount(), message)
 }
+
+/** Idle chat sources may request their next value; these checks concern downstream writes and acceptances. */
+context(_: CoroutinePuzzleBuilderScope)
+private suspend fun awaitChatCalls(): List<UnmatchedSubmission<*>> =
+    awaitQuiescenceAndGetUnmatchedSubmissions().filterNot {
+        it.endPoint == emitIncomingChatMessage || it.endPoint == emitSentChatMessage || it.endPoint == emitTypingStatus
+    }
