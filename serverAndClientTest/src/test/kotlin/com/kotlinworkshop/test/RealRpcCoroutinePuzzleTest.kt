@@ -3,18 +3,16 @@ package com.kotlinworkshop.test
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.http.*
+import kmpworkshop.api.*
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
 import kmpworkshop.client.connectWorkshopService
 import kmpworkshop.client.runCoroutinePuzzleClient
-import kmpworkshop.api.*
 import kmpworkshop.common.*
 import kmpworkshop.server.rpcServer
 import kmpworkshop.server.rpcService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import testWorkshopService
 import kotlin.time.Duration.Companion.seconds
@@ -72,7 +70,7 @@ internal suspend fun runRealRpcTestClient(
             }
 
             runCoroutinePuzzleClient(
-                puzzleProvider = service.asServer(ApiKey("1234-5678")),
+                puzzleProvider = service.asServer(testParticipant.apiKey),
                 stage,
                 solution,
             )

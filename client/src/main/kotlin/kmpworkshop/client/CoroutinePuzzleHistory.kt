@@ -6,7 +6,7 @@ import kmpworkshop.common.CoroutinePuzzleCallPayload.Outcome
 import kmpworkshop.common.CoroutinePuzzleEndPointId
 import kmpworkshop.common.CoroutinePuzzleHistoryBatch
 
-/** This function is completely slopcoded, but it works I believe. */
+/** This function is completely slopcoded, but it works. I believe. */
 context(clientMetadata: ClientMetadata)
 fun renderCoroutinePuzzleHistory(batches: List<CoroutinePuzzleHistoryBatch>): String {
     if (batches.isEmpty()) return "No calls have been made"

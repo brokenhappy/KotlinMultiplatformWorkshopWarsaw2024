@@ -144,7 +144,6 @@ private suspend fun AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPa
     }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 private suspend fun receivePuzzleMessages(
     incoming: ReceiveChannel<CoroutinePuzzleExpectationBatchOrCompletion>,
     batching: AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPayload>, JsonElement>,

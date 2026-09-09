@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kmpworkshop.client.ClientEntryPoint
@@ -528,7 +529,7 @@ private fun ReportDetails(
     }
 
     selectedImage?.let { decoded ->
-        Dialog(onCloseRequest = { selectedImage = null }, title = "Bug report image") {
+        DialogWindow(onCloseRequest = { selectedImage = null }, title = "Bug report image") {
             Surface(Modifier.padding(16.dp)) {
                 Image(makeFromEncoded(decoded.bytes).toComposeImageBitmap(), "Decoded bug report image")
             }

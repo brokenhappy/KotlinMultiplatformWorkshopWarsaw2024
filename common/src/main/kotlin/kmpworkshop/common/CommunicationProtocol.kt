@@ -39,7 +39,7 @@ fun <Outgoing, Incoming> communicationProtocol(
 }
 
 /**
- * Adapts a flow-based transport to a channel-based [CommunicationProtocol].
+ * Adapts flow-based transport to a channel-based [CommunicationProtocol].
  *
  * The transport receives the client's incoming messages as a [Flow] and returns its outgoing messages as a [Flow].
  */

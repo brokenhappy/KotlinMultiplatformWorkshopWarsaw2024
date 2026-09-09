@@ -1,5 +1,6 @@
 package bugreproducer
 
+import kmpworkshop.common.BugImageAttachment
 import kotlinx.serialization.json.Json
 import workshop.adminaccess.StoredClientBugReport
 import java.awt.image.BufferedImage
@@ -71,12 +72,12 @@ fun bugDirectoryFromEnvironment(environment: Map<String, String> = System.getenv
     environment["BUG_DIRECTORY"]?.takeIf { it.isNotBlank() }?.let(Path::of)
         ?: error("BUG_DIRECTORY is not configured. Set it to the directory containing client_bug_reports.")
 
-data class DecodedBugImage(
+class DecodedBugImage(
     val bytes: ByteArray,
     val image: BufferedImage,
 )
 
-fun decodeBugImage(attachment: kmpworkshop.common.BugImageAttachment): Result<DecodedBugImage> = runCatching {
+fun decodeBugImage(attachment: BugImageAttachment): Result<DecodedBugImage> = runCatching {
     val bytes = Base64.getDecoder().decode(attachment.dataBase64)
     val image = ImageIO.read(ByteArrayInputStream(bytes))
         ?: error("${attachment.fileName} is not a supported image")

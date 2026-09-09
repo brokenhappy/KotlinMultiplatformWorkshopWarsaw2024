@@ -108,7 +108,7 @@ class WorktreeTest {
             repository.write("client/src/client.txt", "client local change")
             val capturedDiff = repository.diff().replaceFirst(
                 Regex("(?m)^index ([0-9a-f]+)\\.([0-9a-f]+)"),
-                "index ${'$'}1.${"f".repeat(40)}",
+                $$"index $1.$${"f".repeat(40)}",
             )
             repository.discardChanges()
             repository.write("server/src/server.txt", "server version")
@@ -188,7 +188,7 @@ class WorktreeTest {
     @Test
     fun `retains shared merge conflicts as unmerged git state`() = runTest {
         val repository = GitFixture.create()
-        try {
+        repository.use { repository ->
             val base = repository.commit("base")
             repository.write("common/src/shared.txt", "client version\n")
             val client = repository.commit("client")
@@ -221,8 +221,6 @@ class WorktreeTest {
             assertEquals("resolved\n", ready.prepared.directory.resolve("common/src/shared.txt").readText())
             assertTrue(ready.prepared.directory.logSubjects().contains("Captured client local changes"))
             manager.cleanup(result.worktree)
-        } finally {
-            repository.close()
         }
     }
 

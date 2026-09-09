@@ -127,8 +127,7 @@ internal data class ServerProvenance(
     val untrackedChangesTruncated: Boolean,
     val untrackedChangesSha256: String?,
     val failures: List<String>,
-) {
-}
+)
 
 @Serializable
 private data class ServerProvenanceFile(

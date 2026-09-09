@@ -84,7 +84,7 @@ class CoroutinePuzzleMetadataTest {
     fun `incorrect client metadata hash is rejected before puzzle startup`() = runTest {
         testWorkshopService(serverStateThatOpened(SumOfTwoIntsSlow)).use { (service) ->
             val completions = service.doCoroutinePuzzleSolveAttempt(
-                ApiKey("1234-5678"),
+                testParticipant.apiKey,
                 SumOfTwoIntsSlow.name,
                 "incorrect-hash",
                 emptyFlow(),

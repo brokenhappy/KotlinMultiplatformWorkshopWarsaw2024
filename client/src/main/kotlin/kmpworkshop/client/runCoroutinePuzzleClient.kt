@@ -20,7 +20,7 @@ fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePu
     when (stage) {
         SumOfTwoIntsSlow,
         SumOfTwoIntsFast, -> sumSolution(getNumberAndSubmit())
-        SumOfTwoIntsCancellation, -> sumWithLifecycleScaffolding(sumSolution)
+        SumOfTwoIntsCancellation -> sumWithLifecycleScaffolding(sumSolution)
         SumOfTwoIntsException,
         SumOfTwoIntsExceptionAfterCancellation -> sumWithLifecycleScaffolding(
             sumSolution,

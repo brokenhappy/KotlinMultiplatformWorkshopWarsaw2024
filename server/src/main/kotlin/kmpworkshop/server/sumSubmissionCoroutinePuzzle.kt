@@ -1,7 +1,6 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleProtocol
-import kmpworkshop.common.DefaultApis
 import kmpworkshop.common.DefaultApis.callIsDone
 import kmpworkshop.common.DefaultApis.callLifetime
 import kmpworkshop.common.DefaultApis.getNumber
@@ -10,7 +9,6 @@ import kmpworkshop.common.DefaultApis.queryExceptionThrown
 import kmpworkshop.common.DefaultApis.submitNumber
 import kmpworkshop.common.Resource
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 

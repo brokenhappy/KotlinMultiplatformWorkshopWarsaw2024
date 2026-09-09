@@ -4,14 +4,13 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import io.ktor.client.*
-import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.*
 import io.ktor.http.*
 import kmpworkshop.common.*
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
+import kotlinx.coroutines.runBlocking
 import kotlinx.rpc.krpc.ktor.client.Krpc
+import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json

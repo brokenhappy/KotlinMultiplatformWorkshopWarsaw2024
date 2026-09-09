@@ -50,7 +50,7 @@ class KotlinBasicsPuzzleTestWithoutRpcService : WorkshopKotlinBasicsPuzzleTest()
         stage: KotlinBasicsPuzzleStage,
         solutions: KotlinBasicsPuzzleSolutions,
     ): KotlinBasicsPuzzleResult =
-        runKotlinBasicsPuzzle(puzzleProvider = { KotlinBasicsPuzzleType.findPuzzleFor(it).asKotlinBasicsPuzzle() }, stage, solutions,)
+        runKotlinBasicsPuzzle(puzzleProvider = { KotlinBasicsPuzzleType.findPuzzleFor(it).asKotlinBasicsPuzzle() }, stage, solutions)
 }
 
 class KotlinBasicsPuzzleTestWithRpcService : WorkshopKotlinBasicsPuzzleTest() {
@@ -58,6 +58,6 @@ class KotlinBasicsPuzzleTestWithRpcService : WorkshopKotlinBasicsPuzzleTest() {
         stage: KotlinBasicsPuzzleStage,
         solutions: KotlinBasicsPuzzleSolutions,
     ): KotlinBasicsPuzzleResult = testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
-        runKotlinBasicsPuzzle(service.asServer(ApiKey("1234-5678")), stage, solutions)
+        runKotlinBasicsPuzzle(service.asServer(testParticipant.apiKey), stage, solutions)
     }
 }

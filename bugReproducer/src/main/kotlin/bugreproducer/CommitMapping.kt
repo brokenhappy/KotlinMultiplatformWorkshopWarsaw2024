@@ -89,9 +89,7 @@ class CommitHashMapper(
         }
         val olderMatch = orderedDumpEntries
             .drop(sourceIndex + 1)
-            .asSequence()
-            .mapNotNull { entry -> resolve(entry.hash).getOrNull() }
-            .firstOrNull()
+            .firstNotNullOfOrNull { entry -> resolve(entry.hash).getOrNull() }
             ?: error(exact.exceptionOrNull()?.message ?: "No older commit can be mapped by subject.")
         olderMatch.copy(
             sourceHash = sourceHash,

@@ -1,6 +1,5 @@
 package com.kotlinworkshop.test
 
-import kmpworkshop.common.DefaultApis
 import kmpworkshop.common.DefaultApis.advertiseExposedFile
 import kmpworkshop.common.DefaultApis.makeFileDownloadable
 import kmpworkshop.server.CoroutinePuzzleErrorMessages

@@ -130,7 +130,7 @@ inline fun <reified A, reified T, reified U, reified R> EndpointDescriptorRegist
     description: String,
 ): PropertyDelegateProvider<Any?, ReadOnlyProperty<Any?, CoroutinePuzzleEndPoint<Pair<A, (T) -> U>, R>>> =
     endpointDelegate { name ->
-        endpoint(name, description, PairSerializer(serializer<A>(), CallbackReferenceSerializer<T, U>()), serializer<R>(),
+        endpoint(name, description, PairSerializer(serializer<A>(), CallbackReferenceSerializer()), serializer<R>(),
             callbackTypes = listOf(serializer<T>().descriptor, serializer<U>().descriptor))
     }
 
@@ -263,7 +263,7 @@ class CoroutinePuzzleResultWithHistory(
     val endPoint: CoroutinePuzzleEndPointId,
     /** Allows an expectation to optionally expose what the expected argument is. */
     val expectedArgument: JsonElement? = null,
-    /** The already matched call that the evaluator expected to be cancelled. */
+    /** The already matched the call that the evaluator expected to be cancelled. */
     val expectedCancellationOfCallId: Long? = null,
     /** A callback invocation whose structured work has not finished. */
     val expectedCallbackCompletionOfCallId: Long? = null,

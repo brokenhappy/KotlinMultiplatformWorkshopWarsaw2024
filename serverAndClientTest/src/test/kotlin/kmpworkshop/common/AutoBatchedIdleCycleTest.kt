@@ -11,7 +11,7 @@ class AutoBatchedIdleCycleTest {
     fun `an empty idle cycle is not conflated while the previous batch is being sent`() = runTestWithRandomizedDispatchOrdering {
         val batches = Channel<List<SuspendedBatchCall<Unit, Unit>>>(Channel.UNLIMITED)
         val releaseBatch = Channel<Unit>(Channel.UNLIMITED)
-        val function = AutoBatchedFunctionId<Unit, Unit> { batch ->
+        val function = AutoBatchedFunctionId { batch ->
             batches.send(batch)
             if (batch.isEmpty()) releaseBatch.receive()
         }

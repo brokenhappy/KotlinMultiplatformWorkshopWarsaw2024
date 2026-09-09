@@ -10,19 +10,15 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.isMetaPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.awt.LocalAwtWindow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kmpworkshop.common.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import java.awt.Image
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
@@ -31,10 +27,6 @@ import java.awt.dnd.DropTarget
 import java.awt.dnd.DropTargetAdapter
 import java.awt.dnd.DropTargetDropEvent
 import java.io.File
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 
 @Composable
@@ -290,6 +282,6 @@ private fun pasteImage(
         val image = Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.imageFlavor) as? Image
             ?: error("There is no image in the clipboard.")
         imageAttachmentFromImage(image, existingCount)
-    }.getOrElse { Result.failure<BugImageAttachment>(it) }
+    }.getOrElse { Result.failure(it) }
         .let(onResult)
 }

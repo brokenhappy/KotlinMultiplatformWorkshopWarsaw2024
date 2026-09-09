@@ -16,9 +16,9 @@ import kotlin.time.Duration.Companion.seconds
  * requests and resume their continuations a second time, blowing up with `IllegalStateException: Already resumed`.
  *
  * Under `runTest`'s virtual time the scheduler serializes every same-instant task into a single interleaving, so
- * that restart never overlaps a resume and the bug stays invisible. It only surfaces on a real, multi-threaded
+ * that restart never overlaps a resume and the bug stays invisible. It only surfaces on a real, multithreaded
  * dispatcher where dispatch/complete events (and therefore state emissions) genuinely race the resume - which is
- * exactly what real RPC traffic produces. Hence this deliberately runs off virtual time on [Dispatchers.Default].
+ * exactly what real RPC traffic produces. Hence, this deliberately runs off virtual time on [Dispatchers.Default].
  */
 class AutoBatchedOnQuiescenceStressTest {
     @Test

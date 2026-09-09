@@ -60,7 +60,7 @@ private interface QuiescenceTracker : CoroutineContext.Element {
 class AutoBatchedFunctionId<T, R>(
     /**
      * If somehow at some point [batched] is called outside of an [autoBatchedOnQuiescence] scope,
-     * this function will be called instead. By default it throws an error.
+     * this function will be called instead. By default, it throws an error.
      */
     private val fallbackOutOfBatchScope: suspend CoroutineScope.(T) -> R = {
         error("batched function calls MUST run on an autoBatchedOnCoroutineDeadlocks scope")
@@ -160,7 +160,7 @@ suspend fun <U, T, R> AutoBatchedFunctionId<T, R>.autoBatchedOnQuiescence(
     val state = MutableStateFlow(StateOfCoroutines(activeCoroutineCount = 0, currentRequests = persistentListOf()))
     val parentQuiescenceTracker = currentCoroutineContext()[QuiescenceTracker]
     return withLaunched(taskThatMustOutliveUsage = {
-        // Keep publication independent from the collectLatest flush body: that body can intentionally remain inside
+        // Keep publication independent of the collectLatest flush body: that body can intentionally remain inside
         // importantCleanup while a batch resumer waits for its peer, but raw-idle transitions must still be visible.
         withImportantCleanup {
             var momentOfLastBatch = clock.now()

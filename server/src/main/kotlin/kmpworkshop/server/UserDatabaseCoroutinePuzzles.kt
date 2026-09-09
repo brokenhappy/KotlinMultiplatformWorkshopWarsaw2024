@@ -1,7 +1,6 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.*
-import kmpworkshop.common.DefaultApis
+import kmpworkshop.common.CoroutinePuzzleProtocol
 import kmpworkshop.common.DefaultApis.callIsDone
 import kmpworkshop.common.DefaultApis.callLifetime
 import kmpworkshop.common.DefaultApis.getAllUserIds
@@ -9,7 +8,12 @@ import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
 import kmpworkshop.common.DefaultApis.queryExceptionThrown
 import kmpworkshop.common.DefaultApis.queryUserById
 import kmpworkshop.common.DefaultApis.submitNumber
-import kotlinx.coroutines.*
+import kmpworkshop.common.Resource
+import kmpworkshop.common.SerializableUser
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 fun maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent: Boolean): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     val database = generateUserDatabase()

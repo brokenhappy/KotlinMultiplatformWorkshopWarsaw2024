@@ -52,7 +52,7 @@ class WorkshopCoroutinePuzzleTestWithRpcService : WorkshopCoroutinePuzzleTest() 
         solution: CoroutinePuzzleSolution
     ): ResultsWHistory = coroutineScope {
         testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
-            runCoroutinePuzzleClient(puzzleProvider = service.asServer(ApiKey("1234-5678")), stage, solution)
+            runCoroutinePuzzleClient(puzzleProvider = service.asServer(testParticipant.apiKey), stage, solution)
         }
     }
 }

@@ -1,7 +1,6 @@
 @file:OptIn(
     DelicateHotReloadApi::class,
     ExperimentalFoundationApi::class,
-    ExperimentalComposeUiApi::class,
 )
 
 package kmpworkshop.client
@@ -14,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester

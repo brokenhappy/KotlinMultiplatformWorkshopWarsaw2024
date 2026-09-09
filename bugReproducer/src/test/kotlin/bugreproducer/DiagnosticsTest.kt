@@ -2,7 +2,6 @@ package bugreproducer
 
 import kmpworkshop.common.ClientBugDiagnostics
 import kmpworkshop.common.ClientBugReport
-import kotlinx.serialization.json.Json
 import workshop.adminaccess.ServerBugDiagnostics
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StoredClientBugReport

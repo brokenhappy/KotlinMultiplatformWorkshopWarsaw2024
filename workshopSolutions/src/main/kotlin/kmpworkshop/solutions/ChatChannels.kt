@@ -2,7 +2,6 @@ package kmpworkshop.solutions
 
 import kmpworkshop.api.ChatApi
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /** The intentionally incomplete starting point for the chat channel puzzles. */

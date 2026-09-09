@@ -4,46 +4,28 @@ package com.kotlinworkshop.test
 
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
-import androidx.compose.ui.test.ComposeUiTest
-import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.runComposeUiTest
-import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions
-import kmpworkshop.client.WorkshopClient
-import kmpworkshop.client.defaultClientMetadata
-import kmpworkshop.client.kotlinBasicsPuzzleSolutions
-import kmpworkshop.client.workshopSolutions
-import kmpworkshop.common.ApiKey
-import kmpworkshop.common.CoroutinePuzzle
-import kmpworkshop.common.CoroutinePuzzleSolutionResult
-import kmpworkshop.common.CoroutinePuzzleSolveState
-import kmpworkshop.common.KotlinBasicsPuzzle
-import kmpworkshop.common.KotlinBasicsPuzzleResult
-import kmpworkshop.common.WorkshopStage
-import kmpworkshop.common.WorkshopServer
-import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
+import androidx.compose.ui.test.*
+import kmpworkshop.client.*
+import kmpworkshop.common.*
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
-import kmpworkshop.common.asServer
-import kotlinx.coroutines.CoroutineScope
+import kmpworkshop.common.WorkshopStage.KotlinBasicsPuzzleStage
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import testWorkshopService
+import workshop.adminaccess.Participant
+import workshop.adminaccess.PuzzleStartEvent
 import workshop.adminaccess.PuzzleState
+import workshop.adminaccess.RegistrationStartEvent
+import workshop.adminaccess.RegistrationVerificationEvent
 import workshop.adminaccess.ServerState
+import workshop.adminaccess.after
 import kotlin.test.Test
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 class PuzzleUiQaTest {
     @Test
@@ -232,7 +214,7 @@ private fun runPuzzleUiTest(
         runComposeUiTest {
             setContent {
                 MaterialTheme {
-                    Surface { WorkshopClient(service.asServer(ApiKey("test")), solutions, clientMetadata = defaultClientMetadata) }
+                    Surface { WorkshopClient(service.asServer(testParticipant.apiKey), solutions, clientMetadata = defaultClientMetadata) }
                 }
             }
 
@@ -252,7 +234,7 @@ private fun runPuzzleUiTest(
 }
 
 private class UiTestWorkshopServer(
-    private val stages: MutableStateFlow<WorkshopStage>,
+    private val stages: Flow<WorkshopStage>,
     private val puzzleFactory: (KotlinBasicsPuzzleStage) -> KotlinBasicsPuzzle = { stage ->
         error("The UI test did not expect a Kotlin basics puzzle for $stage")
     },
@@ -267,5 +249,8 @@ private class UiTestWorkshopServer(
 
 internal fun serverStateThatOpened(stage: CoroutinePuzzleStage): ServerState = ServerState(
     currentStage = stage,
-    puzzleStates = mapOf(stage.name to PuzzleState.Opened(Clock.System.now(), emptyMap())),
-)
+    participants = listOf(testParticipant),
+).after(PuzzleStartEvent(stage.name, startTime), onSoundEvent = {})
+
+internal val testParticipant = Participant("testParticipant", ApiKey("test-key"))
+private val startTime = Instant.fromEpochMilliseconds(0)

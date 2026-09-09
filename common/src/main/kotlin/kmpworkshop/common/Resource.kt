@@ -330,7 +330,7 @@ private fun <T> sharedResource(
         is StopMode.Stop -> mode.graceful
         StopMode.DoNotStop -> true
     }
-    val resource = resource<T> { cc ->
+    val resource = resource { cc ->
         while (true) {
             val r: Pair<SharedResourceState.Running<T>?, Job?> = store.update { state ->
                 when (val s = state.value) {
@@ -385,7 +385,7 @@ private fun <T> sharedResource(
                                             is StopMode.Stop -> {
                                                 if (mode.stopTimeout == Duration.ZERO) {
                                                     s.runnning.shutDown(mode.graceful)
-                                                    SharedResourceState.Stopping<T>(
+                                                    SharedResourceState.Stopping(
                                                         job = s.runnning.job,
                                                         finalStop = false,
                                                     )

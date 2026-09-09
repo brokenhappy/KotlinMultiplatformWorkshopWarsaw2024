@@ -27,13 +27,13 @@ internal fun openCodexSession(
     }
     val failures = mutableListOf<Throwable>()
     commands.forEach { command ->
-        try {
+        failures += try {
             startProcess(command, worktree)
             return
         } catch (failure: IOException) {
-            failures += failure
+            failure
         } catch (failure: SecurityException) {
-            failures += failure
+            failure
         }
     }
 

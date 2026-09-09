@@ -51,7 +51,7 @@ internal fun CoroutineDebuggerPanel(
         var pauseAtNextBatch = false
         var eventChannelClosed = false
         while (true) {
-            select<Unit> {
+            select {
                 eventChannel.onReceiveCatching { result ->
                     val event = result.getOrNull()
                     if (event == null) {

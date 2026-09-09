@@ -147,7 +147,7 @@ class GitBugReproducerWorktreeManager(
         val finalDirectory = createTemporaryWorktreeDirectory()
         val helperDirectories = mutableListOf<Path>()
         val temporaryBranches = temporaryBranchNames(finalDirectory)
-        var warnings = diagnostics.warnings
+        val warnings = diagnostics.warnings.toMutableList()
         var retainFinalDirectory = false
         var resolvedClientCommit: String? = null
         var resolvedServerCommit: String? = null
@@ -422,12 +422,11 @@ class GitBugReproducerWorktreeManager(
             .takeIf { it.exitCode == 0 }
             ?.output
             ?.lineSequence()
-            ?.mapNotNull { line ->
+            ?.firstNotNullOfOrNull { line ->
                 val separator = line.indexOf('\t')
                 if (separator <= 0 || line.substring(separator + 1) != subject) null
                 else line.substring(0, separator)
             }
-            ?.firstOrNull()
     }
 
     private suspend fun applyCapturedPatch(worktree: Path, patch: String, label: String): String? {
@@ -629,8 +628,9 @@ fun apiKeyFromAppliedClientFiles(worktree: Path): Result<String> = runCatching {
     }.distinct()
     candidates.asSequence()
         .filter { it.isRegularFile() }
-        .mapNotNull { path -> runCatching { apiKeyFromAppliedClientSource(path.readText()).getOrNull() }.getOrNull() }
-        .firstOrNull()
+        .firstNotNullOfOrNull { path ->
+            runCatching { apiKeyFromAppliedClientSource(path.readText()).getOrNull() }.getOrNull()
+        }
         ?: error("The applied client source does not contain a usable client API key.")
 }
 

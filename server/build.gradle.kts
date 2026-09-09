@@ -141,7 +141,6 @@ val generateServerProvenance by tasks.registering {
             ?: System.getenv("BUILD_CHANGES")
             ?: run { failures += failureFor("git changes", changesResult); null }
         val changesSha256 = sha256(changesSource)
-        val changes = changesSource
         val changesTruncated = false
 
         val untrackedResult = git(
@@ -187,7 +186,6 @@ val generateServerProvenance by tasks.registering {
             System.getenv("BUILD_UNTRACKED_CHANGES")
         }
         val untrackedChangesSha256 = sha256(untrackedChangesSource)
-        val untrackedChanges = untrackedChangesSource
         val untrackedChangesTruncated = false
 
         val escapedFailures = failures.joinToString(",") { jsonOrNull(it) }
@@ -195,10 +193,10 @@ val generateServerProvenance by tasks.registering {
         output.parentFile.mkdirs()
         output.writeText(
             "{\"commit\":${jsonOrNull(commit)}," +
-                "\"changes\":${jsonOrNull(changes)}," +
+                "\"changes\":${jsonOrNull(changesSource)}," +
                 "\"changesTruncated\":$changesTruncated," +
                 "\"changesSha256\":${jsonOrNull(changesSha256)}," +
-                "\"untrackedChanges\":${jsonOrNull(untrackedChanges)}," +
+                "\"untrackedChanges\":${jsonOrNull(untrackedChangesSource)}," +
                 "\"untrackedChangesTruncated\":$untrackedChangesTruncated," +
                 "\"untrackedChangesSha256\":${jsonOrNull(untrackedChangesSha256)}," +
                 "\"failures\":[$escapedFailures]}"

@@ -18,7 +18,7 @@ class KotlinBasicsPuzzleServiceTest {
     @Test
     fun `provider maps a successful server attempt to domain success`(): Unit = runBlocking {
         testWorkshopService(serverStateThatOpened(KotlinBasicsPuzzleStage.PalindromeCheckTask)).use { (service) ->
-            val result = service.asServer(ApiKey("1234-5678"))
+            val result = service.asServer(testParticipant.apiKey)
                 .kotlinBasicsPuzzle(KotlinBasicsPuzzleStage.PalindromeCheckTask)
                 .solve<String, Boolean> { it == it.reversed() }
 
@@ -29,7 +29,7 @@ class KotlinBasicsPuzzleServiceTest {
     @Test
     fun `provider maps a wrong answer to domain failure`(): Unit = runBlocking {
         testWorkshopService(serverStateThatOpened(KotlinBasicsPuzzleStage.PalindromeCheckTask)).use { (service) ->
-            val result = service.asServer(ApiKey("1234-5678"))
+            val result = service.asServer(testParticipant.apiKey)
                 .kotlinBasicsPuzzle(KotlinBasicsPuzzleStage.PalindromeCheckTask)
                 .solve<String, Boolean> { false }
 
@@ -44,7 +44,7 @@ class KotlinBasicsPuzzleServiceTest {
     fun `a throwing solution remains a caller failure`(): Unit = runBlocking {
         testWorkshopService(serverStateThatOpened(KotlinBasicsPuzzleStage.PalindromeCheckTask)).use { (service) ->
             val exception = kotlin.test.assertFailsWith<IllegalStateException> {
-                service.asServer(ApiKey("1234-5678"))
+                service.asServer(testParticipant.apiKey)
                     .kotlinBasicsPuzzle(KotlinBasicsPuzzleStage.PalindromeCheckTask)
                     .solve<String, Boolean> { error("solution exploded") }
             }
@@ -56,7 +56,7 @@ class KotlinBasicsPuzzleServiceTest {
     @Test
     fun `a serialization failure becomes a custom puzzle failure`(): Unit = runBlocking {
         testWorkshopService(serverStateThatOpened(KotlinBasicsPuzzleStage.PalindromeCheckTask)).use { (service) ->
-            val result = service.asServer(ApiKey("1234-5678"))
+            val result = service.asServer(testParticipant.apiKey)
                 .kotlinBasicsPuzzle(KotlinBasicsPuzzleStage.PalindromeCheckTask)
                 .solveRaw { throw SerializationException("answer cannot be serialized") }
 

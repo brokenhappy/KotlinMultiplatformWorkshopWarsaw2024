@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 //    id("io.ktor.plugin")
     alias(libs.plugins.ksp)
-    alias(libs.plugins.kotlinx.rpc) // Don't ask my why I need all of this, I'm just trying to make my build pass okay? :((
+    alias(libs.plugins.kotlinx.rpc) // Don't ask me why I need all of this, I'm just trying to make my build pass okay? :((
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.compose)
 }
