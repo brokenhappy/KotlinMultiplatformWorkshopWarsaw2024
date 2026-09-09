@@ -2,6 +2,7 @@ package kmpworkshop.client
 
 import kmpworkshop.api.*
 import kmpworkshop.common.*
+import kmpworkshop.common.DefaultApis.runSumSolution
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kotlinx.coroutines.CoroutineScope
 
@@ -19,15 +20,16 @@ data class CoroutinePuzzleWorkshopSolutions(
 fun CoroutinePuzzleWorkshopSolutions.asSolution(stage: WorkshopStage.CoroutinePuzzleStage): CoroutinePuzzleSolution = {
     when (stage) {
         SumOfTwoIntsSlow,
-        SumOfTwoIntsFast, -> sumSolution(getNumberAndSubmit())
-        SumOfTwoIntsCancellation -> sumWithLifecycleScaffolding(sumSolution)
+        SumOfTwoIntsFast,
+        SumOfTwoIntsCancellation,
         SumOfTwoIntsException,
-        SumOfTwoIntsExceptionAfterCancellation -> sumWithLifecycleScaffolding(
-            sumSolution,
-            reportEscapedCancellation = true,
-            cancelWhenLifetimeEnds = false,
-            reportCancellationCompletion = true,
-        )
+        SumOfTwoIntsExceptionAfterCancellation -> try {
+            runSumSolution.submitCall {
+                sumSolution(getNumberAndSubmit())
+            }
+        } catch (_: ExceptionAcrossRpc) {
+            // The evaluator has already reported the failed nested invocation as the puzzle result.
+        }
         FindMaximumAgeCoroutines,
         FastFindMaximumAgeCoroutines, -> maximumAgeFindingTheSecondCoroutineSolution(getUserDatabase())
         MappingFromLegacyApisStepOne -> mappingLegacyApiCoroutineSolution(getUserDatabaseWithLegacyQueryUser(this))

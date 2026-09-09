@@ -1,84 +1,124 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.CoroutinePuzzleProtocol
-import kmpworkshop.common.DefaultApis.callIsDone
-import kmpworkshop.common.DefaultApis.callLifetime
-import kmpworkshop.common.DefaultApis.getNumber
-import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
-import kmpworkshop.common.DefaultApis.queryExceptionThrown
+import kmpworkshop.common.DefaultApis.getNumber1
+import kmpworkshop.common.DefaultApis.getNumber2
+import kmpworkshop.common.DefaultApis.runSumSolution
 import kmpworkshop.common.DefaultApis.submitNumber
+import kmpworkshop.common.ExceptionAcrossRpc
 import kmpworkshop.common.Resource
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
+// The callback-invocation turn must be queued before this evaluator installs nested expectations. With the default
+// start mode, the Compose UI can send a nested expectation batch while the actor is still waiting for the callback's
+// submission batch (`Expected a submission batch, but received an expectation batch`).
+// PuzzleUiQaTest's completed sum timeline fails if this is changed back to a default-started async.
+private fun CoroutineScope.startSumSolution(runSumSolution: suspend (Unit) -> Unit): Deferred<Result<Unit>> =
+    async(start = CoroutineStart.UNDISPATCHED) { runCatching { runSumSolution(Unit) } }
 
 fun simpleSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
-    val number1 = (0..100).random()
-    getNumber.expectCall(number1)
-    val number2 = (0..100).random()
-    getNumber.expectCall(number2)
-    val actual = submitNumber.expectCall(Unit)
-    verify(actual == number1 + number2) {
-        CoroutinePuzzleErrorMessages.incorrectSum(listOf(number1, number2), actual)
+    runSumSolution.expectCall { _, runSolution ->
+        repeat(2) {
+            coroutineScope {
+                startSumSolution(runSolution)
+                val number1 = (0..100).random()
+                getNumber1.expectCall(number1)
+                val number2 = (0..100).random()
+                getNumber2.expectCall(number2)
+                val actual = submitNumber.expectCall(Unit)
+                verify(actual == number1 + number2) {
+                    CoroutinePuzzleErrorMessages.incorrectSum(listOf(number1, number2), actual)
+                }
+            }
+        }
     }
 }
 
 fun concurrentSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
-    val randomNumbers = List(2) { (0..100).random() }
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(List(randomNumbers.size) { getNumber }) {
-        CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()
-    }
-    coroutineScope { randomNumbers.forEach { number -> launch { getNumber.expectCall(number) } } }
-    val sum = randomNumbers.sum()
+    runSumSolution.expectCall { _, runSolution ->
+        repeat(2) {
+            coroutineScope {
+                startSumSolution(runSolution)
+                val number1 = (0..100).random()
+                val number2 = (0..100).random()
+                awaitQuiescenceAndVerifyUnmatchedSubmissions(getNumber1, getNumber2) {
+                    CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()
+                }
+                coroutineScope {
+                    launch { getNumber1.expectCall(number1) }
+                    launch { getNumber2.expectCall(number2) }
+                }
 
-    val actual = submitNumber.expectCall(Unit)
-    verify(actual == sum) { CoroutinePuzzleErrorMessages.incorrectSum(randomNumbers, actual) }
+                val actual = submitNumber.expectCall(Unit)
+                verify(actual == number1 + number2) {
+                    CoroutinePuzzleErrorMessages.incorrectSum(listOf(number1, number2), actual)
+                }
+            }
+        }
+    }
 }
 
 fun cancellationSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
-    val endLifetime = CompletableDeferred<Unit>()
-    launch { callLifetime.expectCall { endLifetime.await() } }
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(getNumber, getNumber) {
-        CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()
-    }
-    val cancellations = List(2) {
-        launch { getNumber.expectCanceledCall { expectCancellation() } }
-    }
-    launch { callIsDone.expectCall(Unit) }
-
-    // Both getNumber expectations are now installed and waiting, so ending the lifetime cannot race them.
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
-    endLifetime.complete(Unit)
-    awaitQuiescenceAndGetUnmatchedSubmissions()
-
-    verify(cancellations.all { it.isCompleted }) {
-        CoroutinePuzzleErrorMessages.sumCancellationMustCancelBothCalls()
+    runSumSolution.expectCall { _, runSolution ->
+        repeat(2) {
+            coroutineScope {
+                val sumSolution = startSumSolution(runSolution)
+                awaitQuiescenceAndVerifyUnmatchedSubmissions(getNumber1, getNumber2) {
+                    CoroutinePuzzleErrorMessages.sumCallsMustBeConcurrent()
+                }
+                val cancellations = listOf(
+                    launch { getNumber1.expectCanceledCall { expectCancellation() } },
+                    launch { getNumber2.expectCanceledCall { expectCancellation() } },
+                )
+                awaitQuiescenceAndVerifyUnmatchedSubmissions(emptyList())
+                sumSolution.cancelAndJoin()
+                // The enclosing higher-order call is idle while its cancelled callback unwinds.
+                awaitQuiescenceAndVerifyUnmatchedSubmissions(runSumSolution)
+                verify(cancellations.all { it.isCompleted }) {
+                    CoroutinePuzzleErrorMessages.sumCancellationMustCancelBothCalls()
+                }
+            }
+        }
     }
 }
 
-fun exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes: Boolean): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
-    val exceptionMessage = "getNumber() could not provide a number"
+fun exceptionSumPuzzle(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
+    runSumSolution.expectCall { _, runSolution ->
+        repeat(2) { invocation ->
+            coroutineScope {
+                val submittedSolution = startSumSolution(runSolution)
+                val (throwingNumber, cancelledNumber, exceptionMessage) = if (invocation == 0) {
+                    Triple(getNumber1, getNumber2, "sum-$invocation-getNumber1-${(0..Int.MAX_VALUE).random()}")
+                } else {
+                    Triple(getNumber2, getNumber1, "sum-$invocation-getNumber2-${(0..Int.MAX_VALUE).random()}")
+                }
 
-    launch { callIsDone.expectCall(Unit) }
-    val cancellation = launch { getNumber.expectCanceledCall { expectCancellation() } }
-    awaitQuiescenceAndVerifyUnmatchedSubmissions(callLifetime, getNumber)
-    launch { callLifetime.expectCall(Unit) }
-    getNumber.expectThrowingCall(exceptionMessage)
-
-    if (waitForCancellationBeforeExceptionEscapes) {
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(legacyCancellationCompletion) {
-            CoroutinePuzzleErrorMessages.sumCancellationMustFinishBeforeExceptionEscapes()
-        }
-        legacyCancellationCompletion.expectCall(Unit)
-    } else {
-        // Cancellation is the lesson here; its cleanup marker may arrive in a later protocol batch.
-        launch { legacyCancellationCompletion.expectCall(Unit) }
-        launch { queryExceptionThrown.expectCall(Unit) }
-        cancellation.join()
-        verify(!cancellation.isCancelled) {
-            CoroutinePuzzleErrorMessages.sumExceptionMustCancelOtherCall()
+                val cancellation = launch {
+                    cancelledNumber.expectCanceledCall { expectCancellation() }
+                }
+                awaitQuiescenceAndVerifyUnmatchedSubmissions(throwingNumber)
+                try {
+                    throwingNumber.expectCall { throw ExceptionAcrossRpc(exceptionMessage) }
+                } catch (failure: ExceptionAcrossRpc) {
+                    check(failure.message == exceptionMessage)
+                }
+                val result = submittedSolution.await()
+                val escapedFailure = result.exceptionOrNull() as? ExceptionAcrossRpc
+                verify(escapedFailure?.message == exceptionMessage) {
+                    CoroutinePuzzleErrorMessages.sumExceptionMustEscape()
+                }
+                // The enclosing higher-order call is idle while its failed callback unwinds.
+                awaitQuiescenceAndVerifyUnmatchedSubmissions(runSumSolution)
+                verify(cancellation.isCompleted) {
+                    CoroutinePuzzleErrorMessages.sumExceptionMustCancelOtherCall()
+                }
+            }
         }
     }
-    if (waitForCancellationBeforeExceptionEscapes) queryExceptionThrown.expectCall(Unit)
 }

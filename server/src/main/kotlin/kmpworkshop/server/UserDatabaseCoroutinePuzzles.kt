@@ -4,7 +4,6 @@ import kmpworkshop.common.CoroutinePuzzleProtocol
 import kmpworkshop.common.DefaultApis.callIsDone
 import kmpworkshop.common.DefaultApis.callLifetime
 import kmpworkshop.common.DefaultApis.getAllUserIds
-import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
 import kmpworkshop.common.DefaultApis.queryExceptionThrown
 import kmpworkshop.common.DefaultApis.queryUserById
 import kmpworkshop.common.DefaultApis.submitNumber
@@ -69,24 +68,20 @@ fun mappingLegacyApiCoroutinePuzzleWithException(): Resource<CoroutinePuzzleProt
 
 fun mappingLegacyApiCoroutinePuzzleWithEscapingCancellation(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
-        expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
-        // We don't care yet that cancellation happens is fully awaited for in this step.
-        launch { legacyCancellationCompletion.expectCall(Unit) }
-        callIsDone.expectCall(Unit)
+        // This step only establishes that the legacy query is cancelled. The completion of the mapping function
+        // may race that cancellation; the next step makes the completion ordering part of the contract.
+        coroutineScope {
+            launch { expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal) }
+            callIsDone.expectCall(Unit)
+        }
     }
 }
 
 fun mappingLegacyApiCoroutinePuzzleStepFour(): Resource<CoroutinePuzzleProtocol> = coroutinePuzzle {
     expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExceptLastOne { cancellationSignal ->
         expectQueryUserByIdCallThatShouldGetCanceled(cancellationSignal)
-        /**
-         * Unlike the previous step, we want an explicit guarantee that the cancellation is awaited for.
-         * That means that [callIsDone] and [legacyCancellationCompletion] MUST NOT run concurrently.
-         */
-        awaitQuiescenceAndVerifyUnmatchedSubmissions(legacyCancellationCompletion) {
-            CoroutinePuzzleErrorMessages.cancellationMustFinishFirst()
-        }
-        legacyCancellationCompletion.expectCall(Unit)
+        // expectCanceledCall does not return until the peer has completed its cancellation cleanup. Therefore
+        // observing callIsDone afterwards proves the suspending wrapper waited for onCancellationFinished.
         callIsDone.expectCall(Unit)
     }
 }
@@ -106,8 +101,9 @@ private suspend fun expectationsOfLifetimeAndIdQueryAndSuccessfulQueryCallsExcep
         cancellationSignal: CompletableDeferred<Unit>
     ) -> Unit
 ): Unit = coroutineScope {
-    // Completing this hook signals to the submission that it should get canceled.
-    // This cancellation happens in scaffolding.
+    // The lifetime call and the trailing query are separate protocol calls. This is the one bridge between their
+    // independent producer lifetimes: matching the query releases the lifetime call, whose client scaffolding then
+    // cancels the mapping function.
     val cancellationSignal = CompletableDeferred<Unit>()
     launch {
         callLifetime.expectCall {

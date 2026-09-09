@@ -33,8 +33,8 @@ class PuzzleUiQaTest {
         stage = CoroutinePuzzleStage.SumOfTwoIntsFast,
         solutions = workshopSolutions.copy(
             sumSolution = { api ->
-                val first = async { api.getNumber() }
-                val second = async { api.getNumber() }
+                val first = async { api.getNumber1() }
+                val second = async { api.getNumber2() }
                 api.submit(first.await() + second.await())
             },
         ),
@@ -66,12 +66,12 @@ class PuzzleUiQaTest {
     fun `an incorrect solution renders protocol guidance and its timeline`() = runPuzzleUiTest(
         stage = CoroutinePuzzleStage.SumOfTwoIntsSlow,
         solutions = workshopSolutions.copy(
-            sumSolution = { api -> api.submit(api.getNumber()) },
+            sumSolution = { api -> api.submit(api.getNumber1()) },
         ),
     ) {
         waitForIdle()
         onNodeWithText(
-            "Currently the expected action is Call getNumber(): Int.\n" +
+            "Currently the expected action is Call getNumber2(): Int.\n" +
                 "But instead, your solution made this request: Call submit(number: Int): Unit.",
         ).assertIsDisplayed()
         onNodeWithText("Call timeline").assertIsDisplayed()

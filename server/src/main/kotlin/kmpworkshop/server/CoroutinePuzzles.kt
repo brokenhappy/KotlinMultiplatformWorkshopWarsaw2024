@@ -800,21 +800,18 @@ suspend inline fun <reified A, reified T, reified U, reified R> CoroutinePuzzleE
 context(_: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified T, reified R> CoroutinePuzzleEndPoint<T, R>.expectThrowingCall(message: String) {
     try {
-        expectCall { throw ExpectedCallException(message) }
-    } catch (failure: ExpectedCallException) {
+        expectCall { throw ExceptionAcrossRpc(message) }
+    } catch (failure: ExceptionAcrossRpc) {
         if (failure.message != message) throw failure
     }
 }
-
-@PublishedApi
-internal class ExpectedCallException(message: String) : Exception(message)
 
 @JvmName("expectThrowingHigherOrderCall")
 context(_: CoroutinePuzzleBuilderScope)
 suspend inline fun <reified A, reified T, reified U, reified R> CoroutinePuzzleEndPoint<Pair<A, (T) -> U>, R>.expectThrowingCall(message: String) {
     try {
-        expectCall { _, _ -> throw ExpectedCallException(message) }
-    } catch (failure: ExpectedCallException) {
+        expectCall { _, _ -> throw ExceptionAcrossRpc(message) }
+    } catch (failure: ExceptionAcrossRpc) {
         if (failure.message != message) throw failure
     }
 }

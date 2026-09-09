@@ -42,8 +42,10 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
                     outbox += batch.map { it.query }
                     val (notifications, requests) = batch.partition { it.query.payload is Outcome }
                     requests.forEach { pending[it.query.callId] = it.continuation }
-                    if (notifications.isEmpty()) flush()
-                    else notifications.resumeAllQuiescentTrackedScope { it.continuation.resume(JsonNull) }
+                    // Outcomes have no reply to await, but the evaluator still needs to receive them. In particular,
+                    // a final higher-order callback outcome may be the last submission of a puzzle attempt.
+                    flush()
+                    notifications.resumeAllQuiescentTrackedScope { it.continuation.resume(JsonNull) }
                 },
             )
             withLaunched(taskThatMustOutliveUsage = {
@@ -70,7 +72,17 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
     }
 }
 
-class ExceptionAcrossRpc(message: String, val originCallId: Long? = null) : Exception(message, null, false, false)
+/**
+ * Deliberately opt in to exposing an exception message to the other side of a coroutine-puzzle RPC call.
+ *
+ * The protocol serializes only [message], stack trace, cause, or suppressed failures.
+ * Other [Throwable]s are reported as `Call failed` instead, so implementation details cannot leak through an
+ * attendee-facing endpoint.
+ */
+class ExceptionAcrossRpc(
+    message: String,
+    val originCallId: Long? = null,
+) : Exception(message, null, false, false)
 class CancellationAcrossRpc : CancellationException(null)
 
 private class LocalPuzzleCall(
@@ -184,8 +196,9 @@ private suspend fun receivePuzzleMessages(
             }
             val replies = message.batch.mapNotNull { (id, payload) ->
                 if (payload !is Outcome) return@mapNotNull null
+                val call = active[id]
                 pending.remove(id)?.to(
-                    if (active[id]?.cancellationSent == true) Result.success(JsonNull)
+                    if (call?.cancellationSent == true) Result.success(JsonNull)
                     else payload.toResult(active[id]?.failures.orEmpty()),
                 )
             }
@@ -208,7 +221,7 @@ fun Result<JsonElement>.toOutcome(originCallId: Long? = null): Outcome<JsonEleme
         when (it) {
             is CancellationException -> Outcome.Cancelled
             is ExceptionAcrossRpc -> Outcome.Threw(it.message ?: "Call failed", it.originCallId ?: originCallId)
-            else -> Outcome.Threw(it.message ?: "Call failed", originCallId)
+            else -> Outcome.Threw("Call failed", originCallId)
         }
     },
 )

@@ -18,8 +18,8 @@ object CoroutinePuzzleType : PuzzleType<CoroutinePuzzleStage, BatchOrCompletion,
         SumOfTwoIntsSlow -> simpleSumPuzzle()
         SumOfTwoIntsFast -> concurrentSumPuzzle()
         SumOfTwoIntsCancellation -> cancellationSumPuzzle()
-        SumOfTwoIntsException -> exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes = false)
-        SumOfTwoIntsExceptionAfterCancellation -> exceptionSumPuzzle(waitForCancellationBeforeExceptionEscapes = true)
+        SumOfTwoIntsException,
+        SumOfTwoIntsExceptionAfterCancellation -> exceptionSumPuzzle()
         FindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = false)
         FastFindMaximumAgeCoroutines -> maximumAgeFindingTheSecondCoroutinePuzzle(mustBeConcurrent = true)
         MappingFromLegacyApisStepOne -> mappingLegacyApiHappyPathCoroutinePuzzle()

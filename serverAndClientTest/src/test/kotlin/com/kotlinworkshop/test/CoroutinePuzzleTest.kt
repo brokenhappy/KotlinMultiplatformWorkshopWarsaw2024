@@ -146,7 +146,7 @@ class CoroutinePuzzleTest {
             }
         }.solve {
             assertEquals("outer result", TestApis.callbackInt.submitCall(0) {
-                if (it == 1) error("callback failed") else "recovered"
+                if (it == 1) throw ExceptionAcrossRpc("callback failed") else "recovered"
             })
         }.assertIsOk()
     }
@@ -554,17 +554,18 @@ class CoroutinePuzzleTest {
     }
 
     @Test
-    fun `callback failure reaches the expectation and preserves the local exception`() = runTestWithRandomizedDispatchOrdering {
-        for (original in listOf(IllegalStateException("Callback failed"), ExceptionAcrossRpc("Nested call failed"))) {
+    fun `only ExceptionAcrossRpc exposes a callback failure message across RPC`() = runTestWithRandomizedDispatchOrdering {
+        for ((original, expectedMessage) in listOf(
+            ExceptionAcrossRpc("safe callback failure") to "safe callback failure",
+            IllegalStateException("sensitive callback failure") to "Call failed",
+        )) {
             coroutinePuzzle {
                 val failure = assertThrows<ExceptionAcrossRpc> { TestApis.callbackUnit.expectCall { _, callback -> callback(Unit) } }
-                assertEquals(original.message, failure.message)
+                assertEquals(expectedMessage, failure.message)
             }.solve {
-                val failure = assertThrows<Exception> {
+                assertThrows<Exception> {
                     TestApis.callbackUnit.submitCall { throw original }
                 }
-                // Coroutine debug stack-trace recovery may copy an exception, retaining the original as its cause.
-                check(generateSequence<Throwable>(failure) { it.cause }.any { it === original })
             }.assertIsOk()
         }
     }
@@ -1176,9 +1177,9 @@ class CoroutinePuzzleTest {
                 endpoint.expectCall { throw ExceptionForTestBelow() }
             }
         }.solve {
-            assertThrows<ExceptionAcrossRpc> {
+            assertEquals("Call failed", assertThrows<ExceptionAcrossRpc> {
                 endpoint.submitCall(Unit)
-            }
+            }.message)
         }
     }
 

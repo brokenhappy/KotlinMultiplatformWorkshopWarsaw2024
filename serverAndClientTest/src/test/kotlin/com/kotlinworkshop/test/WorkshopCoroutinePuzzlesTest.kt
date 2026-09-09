@@ -8,6 +8,7 @@ import kmpworkshop.common.*
 import kmpworkshop.common.DefaultApis.closeExposedFile
 import kmpworkshop.common.DefaultApis.emitFileToExpose
 import kmpworkshop.common.DefaultApis.openExposedFile
+import kmpworkshop.common.DefaultApis.runSumSolution
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage
 import kmpworkshop.common.WorkshopStage.CoroutinePuzzleStage.*
 import kmpworkshop.server.CoroutinePuzzleErrorMessages
@@ -553,29 +554,29 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun simpleSumCorrectSolution(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
-            api.submit(api.getNumber() + api.getNumber())
+            api.submit(api.getNumber1() + api.getNumber2())
         }.assertIsOk()
     }
 
     @Test
     fun `sum of too many numbers`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
-            api.submit(api.getNumber() + api.getNumber() + api.getNumber())
+            api.submit(api.getNumber1() + api.getNumber2() + api.getNumber1())
         }.assertIsNotOk()
         doConcurrentSumPuzzle { api ->
-            val firstSum = async { api.getNumber() }
-            val secondSum = async { api.getNumber() }
-            api.submit(api.getNumber() + firstSum.await() + secondSum.await())
+            val firstSum = async { api.getNumber1() }
+            val secondSum = async { api.getNumber2() }
+            api.submit(api.getNumber1() + firstSum.await() + secondSum.await())
         }.assertIsNotOk()
     }
 
     @Test
     fun `submitting incorrect sum is not ok`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
-            api.submit(api.getNumber())
+            api.submit(api.getNumber1())
         }.assertIsNotOk()
         doSimpleSumPuzzle { api ->
-            api.submit(api.getNumber() + api.getNumber() + 1)
+            api.submit(api.getNumber1() + api.getNumber2() + 1)
         }.assertIsNotOk()
         doSimpleSumPuzzle { api ->
             api.submit(123123123)
@@ -586,8 +587,8 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     fun `incorrect sum gives specific guidance`(): Unit = runPuzzleTest {
         val numbers = mutableListOf<Int>()
         doSimpleSumPuzzle { api ->
-            numbers += api.getNumber()
-            numbers += api.getNumber()
+            numbers += api.getNumber1()
+            numbers += api.getNumber2()
             api.submit(numbers.sum() + 1)
         }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
             .message
@@ -597,8 +598,8 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun `submitting in parallel is ok`(): Unit = runPuzzleTest {
         doSimpleSumPuzzle { api ->
-            val firstSum = async { api.getNumber() }
-            val asd = api.getNumber() + firstSum.await()
+            val firstSum = async { api.getNumber1() }
+            val asd = api.getNumber2() + firstSum.await()
             api.submit(asd)
         }.assertIsOk()
     }
@@ -606,8 +607,8 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun `concurrent sum correct solution`(): Unit = runPuzzleTest {
         doConcurrentSumPuzzle { api ->
-            val firstSum = async { api.getNumber() }
-            api.submit(api.getNumber() + firstSum.await())
+            val firstSum = async { api.getNumber1() }
+            api.submit(api.getNumber2() + firstSum.await())
         }.assertIsOk()
     }
 
@@ -636,7 +637,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun `sequential sum solution fails`(): Unit = runPuzzleTest {
         doConcurrentSumPuzzle { api ->
-            api.submit(api.getNumber() + api.getNumber())
+            api.submit(api.getNumber1() + api.getNumber2())
         }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
             .message
@@ -656,7 +657,7 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `global scope sum waits for sibling cancellation before rethrowing`(): Unit = runPuzzleTest {
+    fun `global scope sum can wait for sibling cancellation before rethrowing`(): Unit = runPuzzleTest {
         doExceptionAfterCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeAndCleanup(api, globalScope) }
             .assertIsOk()
     }
@@ -672,32 +673,36 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     @Test
     fun `cancelling due to an exception is required before rethrowing it`(): Unit = runPuzzleTest {
         doExceptionSumPuzzle { api, globalScope -> sumWithGlobalScopeWithoutCleanup(api, globalScope) }
-            .assertIsNotOk()
-    }
-
-    @Test
-    fun `exception cancellation must finish before it escapes`(): Unit = runPuzzleTest {
-        doExceptionAfterCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeCancellationWithoutJoin(api, globalScope) }
             .assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
             .message
-            .assertEquals(CoroutinePuzzleErrorMessages.sumCancellationMustFinishBeforeExceptionEscapes())
+            .assertEquals(CoroutinePuzzleErrorMessages.sumExceptionMustCancelOtherCall())
     }
 
     @Test
-    fun `manual try catch finally sum solution`(): Unit = runPuzzleTest {
+    fun `exception stage also accepts cancellation that finishes after the error escapes`(): Unit = runPuzzleTest {
+        doExceptionAfterCancellationSumPuzzle { api, globalScope -> sumWithGlobalScopeCancellationWithoutJoin(api, globalScope) }
+            .assertIsOk()
+    }
+
+    @Test
+    fun `manual try catch finally sum solution cancels both calls`(): Unit = runPuzzleTest {
         doCancellationSumPuzzle { api, globalScope ->
             sumWithManualTryCatchFinally(api, globalScope)
         }.assertIsOk()
+    }
 
+    @Test
+    fun `manual try catch finally sum solution handles either failed number call`(): Unit = runPuzzleTest {
         doExceptionSumPuzzle { api, globalScope ->
             sumWithManualTryCatchFinally(api, globalScope)
         }.assertIsOk()
+    }
 
-        // The manual cancellation can race the exception. The stronger stage requires cancellation to finish before
-        // the original exception escapes, which this solution deliberately does not join.
+    @Test
+    fun `manual try catch finally sum solution can rethrow before cancellation completes`(): Unit = runPuzzleTest {
         doExceptionAfterCancellationSumPuzzle { api, globalScope ->
             sumWithManualTryCatchFinally(api, globalScope)
-        }.assertIsNotOk()
+        }.assertIsOk()
     }
 
     @Test
@@ -1077,33 +1082,21 @@ private suspend fun solveChatMessagesAndCollectLatestTypingStatus(api: ChatApi) 
 }
 
 private suspend fun sumWithGlobalScopeWithoutCleanup(api: GetNumberAndSubmit, globalScope: CoroutineScope) {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async { api.getNumber() }
+    val first = globalScope.async { api.getNumber1() }
+    val second = globalScope.async { api.getNumber2() }
     api.submit(awaitAll(first, second).sum())
 }
 
 private suspend fun sumWithGlobalScopeWithoutCleanupManually(api: GetNumberAndSubmit, globalScope: CoroutineScope) {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async { api.getNumber() }
+    val first = globalScope.async { api.getNumber1() }
+    val second = globalScope.async { api.getNumber2() }
     api.submit(first.await() + second.await())
 }
 
 private suspend fun sumWithManualTryCatchFinally(api: GetNumberAndSubmit, globalScope: CoroutineScope) {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async {
-        try {
-            api.getNumber()
-        } catch (t: Exception) {
-            first.cancel()
-            throw t
-        }
-    }
+    val (first, second) = globalScope.startNumberCallsWithManualSiblingCancellation(api)
     try {
-        api.submit(first.await() + second.await())
-    } catch (failure: CancellationException) {
-        // Could be because second threw, and first got canceled
-        second.await() // So we rethrow second's exception, or we throw cancellation if we got canceled.
-        throw failure
+        api.submit(awaitManualSum(first, second))
     } finally {
         first.cancel()
         second.cancel()
@@ -1111,16 +1104,16 @@ private suspend fun sumWithManualTryCatchFinally(api: GetNumberAndSubmit, global
 }
 
 private suspend fun sumWithCoroutineScope(api: GetNumberAndSubmit) = coroutineScope {
-    val first = async { api.getNumber() }
-    api.submit(api.getNumber() + first.await())
+    val first = async { api.getNumber1() }
+    api.submit(api.getNumber2() + first.await())
 }
 
 private suspend fun sumWithGlobalScopeCancellationWithoutJoin(
     api: GetNumberAndSubmit,
     globalScope: CoroutineScope,
 ) {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async { api.getNumber() }
+    val first = globalScope.async { api.getNumber1() }
+    val second = globalScope.async { api.getNumber2() }
     try {
         api.submit(awaitAll(first, second).sum())
     } finally {
@@ -1133,20 +1126,9 @@ private suspend fun sumWithGlobalScopeCancellationWithoutJoinManually(
     api: GetNumberAndSubmit,
     globalScope: CoroutineScope,
 ) {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async {
-        try {
-            api.getNumber()
-        } catch (t: Exception) {
-            first.cancel()
-            throw t
-        }
-    }
+    val (first, second) = globalScope.startNumberCallsWithManualSiblingCancellation(api)
     try {
-        api.submit(first.await() + second.await())
-    } catch (failure: CancellationException) {
-        second.await()
-        throw failure
+        api.submit(awaitManualSum(first, second))
     } finally {
         first.cancel()
         second.cancel()
@@ -1157,8 +1139,8 @@ private suspend fun sumWithGlobalScopeAndCleanup(
     api: GetNumberAndSubmit,
     globalScope: CoroutineScope,
 ) = coroutineScope {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async { api.getNumber() }
+    val first = globalScope.async { api.getNumber1() }
+    val second = globalScope.async { api.getNumber2() }
     try {
         api.submit(awaitAll(first, second).sum())
     } finally {
@@ -1173,26 +1155,52 @@ private suspend fun sumWithGlobalScopeAndManualCleanup(
     api: GetNumberAndSubmit,
     globalScope: CoroutineScope,
 ) {
-    val first = globalScope.async { api.getNumber() }
-    val second = globalScope.async {
-        try {
-            api.getNumber()
-        } catch (t: Exception) {
-            first.cancel()
-            throw t
-        }
-    }
+    val (first, second) = globalScope.startNumberCallsWithManualSiblingCancellation(api)
     try {
-        api.submit(first.await() + second.await())
-    } catch (failure: CancellationException) {
-        second.await()
-        throw failure
+        api.submit(awaitManualSum(first, second))
     } finally {
         first.cancel()
         second.cancel()
         first.join()
         second.join()
     }
+}
+
+private fun CoroutineScope.startNumberCallsWithManualSiblingCancellation(
+    api: GetNumberAndSubmit,
+): Pair<Deferred<Int>, Deferred<Int>> {
+    lateinit var first: Deferred<Int>
+    lateinit var second: Deferred<Int>
+    first = async(start = CoroutineStart.LAZY) {
+        try {
+            api.getNumber1()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            second.cancel()
+            throw failure
+        }
+    }
+    second = async(start = CoroutineStart.LAZY) {
+        try {
+            api.getNumber2()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            first.cancel()
+            throw failure
+        }
+    }
+    first.start()
+    second.start()
+    return first to second
+}
+
+private suspend fun awaitManualSum(first: Deferred<Int>, second: Deferred<Int>): Int = try {
+    first.await() + second.await()
+} catch (cancelled: CancellationException) {
+    second.await()
+    throw cancelled
 }
 
 abstract class WorkshopCoroutinePuzzlesTestBase {
@@ -1270,12 +1278,13 @@ abstract class WorkshopCoroutinePuzzlesTestBase {
     ): ResultsWHistory = runCoroutinePuzzle(stage) {
         val outerContext = currentCoroutineContext()
         val fakeGlobalScope = CoroutineScope(outerContext + SupervisorJob(outerContext.job))
-        sumWithLifecycleScaffolding(
-            sumNumbers = { api -> block(api, fakeGlobalScope) },
-            reportEscapedCancellation = stage != SumOfTwoIntsCancellation,
-            cancelWhenLifetimeEnds = stage == SumOfTwoIntsCancellation,
-            reportCancellationCompletion = stage != SumOfTwoIntsCancellation,
-        )
+        try {
+            runSumSolution.submitCall {
+                block(getNumberAndSubmit(), fakeGlobalScope)
+            }
+        } catch (_: ExceptionAcrossRpc) {
+            // The evaluator has already reported the failed nested invocation as the puzzle result.
+        }
     }
 }
 

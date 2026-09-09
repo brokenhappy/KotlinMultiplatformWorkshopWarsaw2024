@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmInline
 
 interface GetNumberAndSubmit {
-    suspend fun getNumber(): Int
+    suspend fun getNumber1(): Int
+    suspend fun getNumber2(): Int
     suspend fun submit(sum: Int)
 }
 

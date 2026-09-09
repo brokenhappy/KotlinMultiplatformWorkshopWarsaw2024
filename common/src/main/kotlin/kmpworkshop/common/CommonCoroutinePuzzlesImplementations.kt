@@ -2,8 +2,8 @@ package kmpworkshop.common
 
 import kmpworkshop.api.*
 import kmpworkshop.common.DefaultApis.getAllUserIds
-import kmpworkshop.common.DefaultApis.getNumber
-import kmpworkshop.common.DefaultApis.legacyCancellationCompletion
+import kmpworkshop.common.DefaultApis.getNumber1
+import kmpworkshop.common.DefaultApis.getNumber2
 import kmpworkshop.common.DefaultApis.queryUserById
 import kmpworkshop.common.DefaultApis.renderShipmentOnMap
 import kmpworkshop.common.DefaultApis.submitNumber
@@ -18,7 +18,8 @@ class QueryFetchFailedForSomeReasonException(message: String? = null) : Exceptio
 
 context(solutionScope: CoroutinePuzzleSolutionScope)
 fun getNumberAndSubmit(): GetNumberAndSubmit = object : GetNumberAndSubmit {
-    override suspend fun getNumber(): Int = getNumber.submitCall(Unit)
+    override suspend fun getNumber1(): Int = getNumber1.submitCall(Unit)
+    override suspend fun getNumber2(): Int = getNumber2.submitCall(Unit)
     override suspend fun submit(sum: Int) { submitNumber.submitCall(sum) }
 }
 
@@ -75,16 +76,11 @@ fun getUserDatabaseWithLegacyQueryUser(topLevelScope: CoroutineScope): UserDatab
             onSuccess: (User) -> Unit,
             onError: (Throwable) -> Unit,
         ): QueryHandle {
-            val isDone = CompletableDeferred<Unit>()
             return topLevelScope.launch {
                 try {
-                    try {
-                        queryUserById.submitCall(id).let { onSuccess(User(it.name, it.age)) }
-                    } catch (failure: ExceptionAcrossRpc) {
-                        onError(QueryFetchFailedForSomeReasonException(failure.message))
-                    }
-                } finally {
-                    isDone.complete(Unit)
+                    queryUserById.submitCall(id).let { onSuccess(User(it.name, it.age)) }
+                } catch (failure: ExceptionAcrossRpc) {
+                    onError(QueryFetchFailedForSomeReasonException(failure.message))
                 }
             }.let { job ->
                 object : QueryHandle {
@@ -92,8 +88,6 @@ fun getUserDatabaseWithLegacyQueryUser(topLevelScope: CoroutineScope): UserDatab
                         topLevelScope.launch {
                             try {
                                 job.cancelAndJoin()
-                                isDone.await()
-                                legacyCancellationCompletion.submitCall(Unit)
                             } finally {
                                 onCancellationFinished()
                             }

@@ -58,6 +58,7 @@ fun clientMetadataOf(
 val defaultClientMetadata: ClientMetadata = clientMetadataOf(DefaultApis) {
     DefaultApis.callLifetime.register(isHiddenInHistory = true)
     DefaultApis.callIsDone.register(isHiddenInHistory = true)
+    DefaultApis.runSumSolution.register(isHiddenInHistory = true)
     DefaultApis.emitNumber.register(isFlowEndpoint = true)
     DefaultApis.emitIncomingChatMessage.register(isFlowEndpoint = true)
     DefaultApis.emitSentChatMessage.register(isFlowEndpoint = true)

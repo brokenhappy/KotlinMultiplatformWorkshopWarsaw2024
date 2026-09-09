@@ -8,27 +8,27 @@ import kmpworkshop.common.CoroutinePuzzleEndPoint
 object CoroutinePuzzleErrorMessages {
     fun incorrectSum(numbers: List<Int>, actual: Int): String = """
         |You submitted $actual, but ${numbers.joinToString(" + ")} = ${numbers.sum()}.
-        |Submit the sum of the values returned by getNumber().
+        |Submit the sum of the values returned by getNumber1() and getNumber2().
     """.trimMargin()
 
     fun sumCallsMustBeConcurrent(): String = """
-        Both getNumber() calls must be in progress at the same time. Start them in separate child coroutines
+        Both getNumber1() and getNumber2() calls must be in progress at the same time. Start them in separate child coroutines
         (for example with async), then await both results before submitting their sum.
     """.trimIndent()
 
     fun sumCancellationMustCancelBothCalls(): String = """
-        Your function was cancelled while getNumber() calls were still running. Cancel every in-flight call too, so no
+        Your function was cancelled while getNumber1() and getNumber2() calls were still running. Cancel every in-flight call too, so no
         work remains after your function stops.
     """.trimIndent()
 
     fun sumExceptionMustCancelOtherCall(): String = """
-        A getNumber() call failed, but another call was left running. Cancel the other in-flight call, then let the
+        A getNumber1() or getNumber2() call failed, but the other call was left running. Cancel it, then let the
         original error escape from your function.
     """.trimIndent()
 
-    fun sumCancellationMustFinishBeforeExceptionEscapes(): String = """
-        Your function reported the failure before the other getNumber() call finished cancelling. Wait for cancellation
-        to complete before letting the original error escape.
+    fun sumExceptionMustEscape(): String = """
+        |A getNumber1() or getNumber2() call failed, but your function completed normally. Let the original error
+        |escape from your function after cancelling the other in-flight call.
     """.trimIndent()
 
     fun wrongOldestAge(actual: Int, expected: Int): String = """
