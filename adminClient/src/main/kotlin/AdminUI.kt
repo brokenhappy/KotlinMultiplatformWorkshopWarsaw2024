@@ -70,12 +70,12 @@ import kotlin.time.Duration.Companion.seconds
 fun main() {
     require(System.getenv("BUG_DIRECTORY") != null) { "BUG_DIRECTORY env is not set up" }
 
+    val adminPassword = validateConfiguredAdminPassword(System.getenv("ADMIN_PASSWORD"))
     application {
-        AdminApp(onExit = ::exitApplication)
+        AdminApp(adminPassword, onExit = ::exitApplication)
     }
 }
 
-private val adminPassword by lazy { requireAdminPassword(System.getenv("ADMIN_PASSWORD")) }
 private val isMacOs = System.getProperty("os.name").contains("mac", ignoreCase = true)
 private val adminSettingsShortcut = KeyShortcut(
     Key.Comma,
@@ -144,18 +144,17 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
 }
 
 @Composable
-fun AdminApp(onExit: () -> Unit) {
-    var adminAccessService: AdminAccess? by remember { mutableStateOf(null) }
-    LaunchedEffect(Unit) {
+private class AdminConnection(val serverState: Flow<ServerState>, val onEvent: OnEvent)
+
+private fun AdminApp(adminPassword: String, onExit: () -> Unit) {
+    var connection: AdminConnection? by remember(adminPassword) { mutableStateOf(null) }
+    LaunchedEffect(adminPassword) {
         try {
             withAdminAccessService { adminAccess ->
                 val serverState = adminAccess
                     .serverState(adminPassword)
                     .shareIn(this, SharingStarted.Eagerly, replay = 1)
 
-                val adminAccessWithSharedStateFlow = object: AdminAccess by adminAccess {
-                    override fun serverState(password: String): Flow<ServerState> = serverState
-                }
                 launch {
                     System.getenv("SERVER_EVENT_BACKUP_DIRECTORY")?.let(::Path)?.sideEffect { backupDir ->
                         backupDir.toFile().mkdirs()
@@ -196,40 +195,37 @@ fun AdminApp(onExit: () -> Unit) {
                         soundEvent.play()
                     }
                 }
-                adminAccessService = adminAccessWithSharedStateFlow
+                connection = AdminConnection(serverState) { scheduledEvent ->
+                    launch {
+                        when (scheduledEvent) {
+                            is AwaitingResult<*> -> adminAccess.continueWithEventResult(adminPassword, scheduledEvent)
+                            is IgnoringResult -> adminAccess.fire(adminPassword, scheduledEvent.event)
+                        }
+                    }
+                }
                 awaitCancellation()
             }
         } finally {
-            adminAccessService = null
+            connection = null
         }
     }
 
-    adminAccessService
-        ?.let { AdminApp(it, onExit) }
-        ?: Window(title = "Kotlin Workshop", onCloseRequest = { onExit() }) {
+    val activeConnection = connection
+    if (activeConnection == null) {
+        Window(title = "Kotlin Workshop", onCloseRequest = onExit) {
             Text("Workshop is starting!")
         }
 }
+    } else {
+        val state by activeConnection.serverState.collectAsState(initial = ServerState())
+        AdminApp(state, activeConnection.onEvent, onExit)
+    }
 
-@Composable
-fun AdminApp(adminAccessService: AdminAccess, onExit: () -> Unit) {
-    val state by remember { adminAccessService.serverState(adminPassword) }.collectAsState(initial = ServerState())
-    val scope = rememberCoroutineScope()
-    AdminApp(state, onEvent = { scheduledEvent ->
-        scope.launch {
-            when (scheduledEvent) {
-                is AwaitingResult<*> -> adminAccessService.continueWithEventResult(scheduledEvent)
-                is IgnoringResult -> adminAccessService.fire(adminPassword, scheduledEvent.event)
-            }
-        }
-    }, onExit)
-}
-
-private suspend fun <T> AdminAccess.continueWithEventResult(scheduledEvent: AwaitingResult<T>) {
+private suspend fun <T> AdminAccess.continueWithEventResult(password: String, scheduledEvent: AwaitingResult<T>) {
     scheduledEvent.continuation.resumeWith(runCatching {
         Json.decodeFromJsonElement(
             scheduledEvent.event.serializer,
-            fire(adminPassword, scheduledEvent.event) ?: error("Event with result did not return a result??")
+            fire(password, scheduledEvent.event) ?: error("Event with result did not return a result??")
         )
     })
 }

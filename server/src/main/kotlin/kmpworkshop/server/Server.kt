@@ -15,11 +15,13 @@ import kotlin.random.Random
 import kotlin.time.Clock
 
 suspend fun main() {
-    hostServer()
+    val adminAccessPassword = requireAdminAccessPassword(
+        System.getenv("admin_access_password") ?: System.getenv("ADMIN_PASSWORD"),
+    )
+    hostServer(adminAccessPassword)
 }
 
-suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
-    val adminAccessPassword = requireAdminAccessPassword(System.getenv("admin_access_password") ?: System.getenv("ADMIN_PASSWORD"))
+private suspend fun hostServer(adminAccessPassword: String): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     val soundEvents = MutableSharedFlow<SoundPlayEvent>(

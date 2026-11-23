@@ -8,13 +8,13 @@ class AdminPasswordTest {
     @Test
     fun `missing and blank admin passwords are rejected`() {
         for (password in listOf(null, "", " \t")) {
-            val failure = assertFailsWith<IllegalStateException> { requireAdminPassword(password) }
+            val failure = assertFailsWith<IllegalStateException> { validateConfiguredAdminPassword(password) }
             assertEquals("ADMIN_PASSWORD must be set to a non-blank value.", failure.message)
         }
     }
 
     @Test
     fun `configured admin password is used verbatim`() {
-        assertEquals(" fixture with spaces ", requireAdminPassword(" fixture with spaces "))
+        assertEquals(" fixture with spaces ", validateConfiguredAdminPassword(" fixture with spaces "))
     }
 }
