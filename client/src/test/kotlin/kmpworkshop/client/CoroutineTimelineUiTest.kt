@@ -102,6 +102,42 @@ class CoroutineTimelineUiTest {
     }
 
     @Test
+    fun `a custom failure marks the second pending call to the same endpoint`() = runComposeUiTest {
+        val endpoint = UiTestApis.callNumber.id
+        val history = listOf(
+            CoroutinePuzzleHistoryBatch.Submission(listOf(
+                entry(1, CoroutinePuzzleCallPayload.CallSubmitted(endpoint, JsonPrimitive(1))),
+            )),
+            CoroutinePuzzleHistoryBatch.Submission(listOf(
+                entry(2, CoroutinePuzzleCallPayload.CallSubmitted(endpoint, JsonPrimitive(2))),
+            )),
+        )
+        setContent {
+            MaterialTheme {
+                Surface(Modifier.size(900.dp, 560.dp)) {
+                    context(testMetadata) {
+                        CoroutineTimelineWithMetadata(
+                            history,
+                            CoroutinePuzzleSolutionResult.CustomFailure(
+                                "Wait for the first call to finish.",
+                                incorrectSubmissions = listOf(endpoint),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        onNodeWithTag("timeline-marker-1-0").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Started").assertIsDisplayed()
+
+        onNodeWithTag("timeline-marker-2-1").performMouseInput { moveTo(center) }
+        waitForIdle()
+        onNodeWithText("Unexpected function call").assertIsDisplayed()
+    }
+
+    @Test
     fun `an unmatched request with no matching expectation is red`() = runComposeUiTest {
         setContent {
             MaterialTheme {

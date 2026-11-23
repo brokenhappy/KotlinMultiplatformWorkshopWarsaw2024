@@ -5,6 +5,7 @@ import com.woutwerkman.calltreevisualizer.StackTrackingMetadata
 import kmpworkshop.api.*
 import kmpworkshop.client.*
 import kmpworkshop.common.*
+import kmpworkshop.common.DefaultApis.appendChatMessageToTranscript
 import kmpworkshop.common.DefaultApis.closeExposedFile
 import kmpworkshop.common.DefaultApis.emitFileToExpose
 import kmpworkshop.common.DefaultApis.openExposedFile
@@ -33,6 +34,7 @@ import testWorkshopService
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.test.assertFails
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kmpworkshop.client.CoroutinePuzzleWorkshopSolutions as Solutions
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
@@ -309,12 +311,24 @@ abstract class WorkshopCoroutinePuzzleTest: WorkshopCoroutinePuzzlesTestBase() {
     }
 
     @Test
-    fun `chat messages cannot be written concurrently`(): Unit = runPuzzleTest {
-        doChatMessagesRendezvous { api ->
+    fun `chat puzzle fails as soon as a second append starts`(): Unit = runPuzzleTest {
+        val attempt = doChatMessagesRendezvous { api ->
             writeChatUpdatesDirectly(api)
-        }.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
-            .message
-            .assertEquals(CoroutinePuzzleErrorMessages.chatTranscriptCallsMustBeSerialized())
+        }
+        val failure = attempt.assertIsNotOk<CoroutinePuzzleSolutionResult.CustomFailure>()
+        failure.message.assertEquals(CoroutinePuzzleErrorMessages.chatTranscriptCallsMustBeSerialized())
+        failure.incorrectSubmissions.assertEquals(listOf(appendChatMessageToTranscript.id))
+
+        val appends = context(defaultClientMetadata) { coroutineTimeline(attempt.history) }
+            .filter { it.endpoint == appendChatMessageToTranscript.id }
+        appends.size.assertEquals(2)
+        val (first, second) = appends
+        (first.startBatch < second.startBatch).assertEquals(true)
+        val eventsAfterOverlap = attempt.history.drop(second.startBatch + 1).flatMap { it.entries }
+        assertTrue(eventsAfterOverlap.isEmpty(), "Unexpected events after the second append: $eventsAfterOverlap")
+        first.endBatch.assertEquals(null)
+        second.endBatch.assertEquals(null)
+        second.cancellationRequestedBatch.assertEquals(null)
     }
 
     @Test
