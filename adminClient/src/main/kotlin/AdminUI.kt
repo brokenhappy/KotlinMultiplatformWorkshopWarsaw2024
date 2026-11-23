@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,8 +70,8 @@ import kotlin.time.Duration.Companion.seconds
 
 fun main() {
     require(System.getenv("BUG_DIRECTORY") != null) { "BUG_DIRECTORY env is not set up" }
-
     val adminPassword = validateConfiguredAdminPassword(System.getenv("ADMIN_PASSWORD"))
+
     application {
         AdminApp(adminPassword, onExit = ::exitApplication)
     }
@@ -143,9 +144,9 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
     }
 }
 
-@Composable
 private class AdminConnection(val serverState: Flow<ServerState>, val onEvent: OnEvent)
 
+@Composable
 private fun AdminApp(adminPassword: String, onExit: () -> Unit) {
     var connection: AdminConnection? by remember(adminPassword) { mutableStateOf(null) }
     LaunchedEffect(adminPassword) {
@@ -215,11 +216,11 @@ private fun AdminApp(adminPassword: String, onExit: () -> Unit) {
         Window(title = "Kotlin Workshop", onCloseRequest = onExit) {
             Text("Workshop is starting!")
         }
-}
     } else {
         val state by activeConnection.serverState.collectAsState(initial = ServerState())
         AdminApp(state, activeConnection.onEvent, onExit)
     }
+}
 
 private suspend fun <T> AdminAccess.continueWithEventResult(password: String, scheduledEvent: AwaitingResult<T>) {
     scheduledEvent.continuation.resumeWith(runCatching {
@@ -278,7 +279,7 @@ fun WorkshopWindow(
         MaterialTheme(
             colors = AdminColors,
             typography = Typography(
-                defaultFontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                defaultFontFamily = FontFamily.SansSerif,
                 h5 = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = AdminInk),
                 h6 = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AdminInk),
                 body1 = TextStyle(fontSize = 14.sp, color = AdminInk),
@@ -325,7 +326,7 @@ internal fun SettingsDialog(settings: ServerSettings, onDismiss: () -> Unit, onS
                 .clip(RoundedCornerShape(4.dp))
                 .border(
                     2.dp,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                    shape = RoundedCornerShape(4.dp),
                     color = Color.DarkGray
                 )
                 .background(Color.White)
