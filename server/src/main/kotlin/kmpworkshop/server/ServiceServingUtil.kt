@@ -38,11 +38,10 @@ suspend fun serve(services: List<RpcService<*>>): Nothing {
 /**
  * Builds the workshop's RPC server without starting it, so callers control the lifecycle (start/stop) themselves.
  * [port] defaults to the production port, but tests can pass `0` to bind an ephemeral port and read it back via
- * `engine.resolvedConnectors()`. This is the same wiring [serve] runs in production, so exercising it keeps
- * end-to-end tests honest about the real ktor + kotlinx-rpc setup.
+ * `engine.resolvedConnectors()`. Set [host] to a loopback address to keep a local QA server isolated.
  */
-fun rpcServer(port: Int = 8080, services: List<RpcService<*>>) =
-    embeddedServer(Netty, port = port) {
+fun rpcServer(port: Int = 8080, services: List<RpcService<*>>, host: String = "0.0.0.0") =
+    embeddedServer(Netty, port = port, host = host) {
         install(WebSockets) {
             maxFrameSize = WorkshopMaxWebSocketFrameSize
         }

@@ -21,6 +21,24 @@ of `JAVA_HOME`. The checked-in Gradle daemon criteria and Compose Hot Reload
 also pin JBR 25. No system-wide Java installation, Temurin, Corretto, or second
 local JDK is required.
 
+## Local QA
+
+Run the workshop smoke checks after setup.
+
+```shell
+./gradlew :serverAndClientTest:test --tests '*WorkshopLifecycleQaTest' --tests '*PuzzleUiQaTest'
+```
+
+The lifecycle check starts an empty workshop on a loopback port and exercises
+the health endpoint, participant registration, host stage controls, and
+submission tracking over real RPC. It uses a test-only password and in-memory
+state. The Compose checks exercise the participant screen, including stage
+changes, puzzle results, and the call timeline.
+
+Run the full JVM suite with `./gradlew test --continue`. Gradle writes HTML
+reports to each tested module's `build/reports/tests/test/index.html` and JUnit
+XML to `build/test-results/test/` in the same module.
+
 Here are the attributions for the sound snippets I used:
 
 success.wav by sophieciruela -- https://freesound.org/s/634450/ -- License: Creative Commons 0
