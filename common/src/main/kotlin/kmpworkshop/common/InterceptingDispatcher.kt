@@ -23,6 +23,8 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.startCoroutine
 
+// TODO: Figure out whether unintercepted coroutines would break this.
+
 suspend fun <T> withInterceptingDispatcher(
     onDispatchScheduled: () -> Unit,
     onDispatchedRunnableComplete: () -> Unit,
