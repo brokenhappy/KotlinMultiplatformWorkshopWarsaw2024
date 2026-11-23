@@ -187,7 +187,7 @@ class WorktreeTest {
     }
 
     @Test
-    fun `retains shared merge conflicts as unmerged git state`() = runTest {
+    fun `retains and resolves shared conflicts without the configured commit signer`() = runTest {
         val repository = GitFixture.create()
         repository.use { repository ->
             val base = repository.commit("base")
@@ -198,6 +198,7 @@ class WorktreeTest {
             repository.discardChanges()
             repository.write("common/src/shared.txt", "server version\n")
             val server = repository.commit("server")
+            repository.configureUnavailableCommitSigner()
 
             val manager = GitBugReproducerWorktreeManager(repository.directory)
             val result = assertIs<WorktreePreparationResult.Conflicts>(
@@ -302,12 +303,18 @@ private class GitFixture private constructor(val directory: Path) : AutoCloseabl
 
     fun commit(message: String): String {
         run("add", ".")
-        run("commit", "-m", message)
+        run("commit", "--no-gpg-sign", "-m", message)
         return run("rev-parse", "HEAD").trim()
     }
 
     fun checkout(commit: String) {
         run("checkout", "--detach", commit)
+    }
+
+    fun configureUnavailableCommitSigner() {
+        run("config", "commit.gpgSign", "true")
+        run("config", "gpg.format", "openpgp")
+        run("config", "gpg.openpgp.program", directory.resolve("unavailable-signer").toString())
     }
 
     fun read(relative: String): String = Files.readString(directory.resolve(relative))

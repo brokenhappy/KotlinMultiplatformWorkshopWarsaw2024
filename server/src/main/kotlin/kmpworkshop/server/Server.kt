@@ -19,7 +19,7 @@ suspend fun main() {
 }
 
 suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
-    val adminAccessPassword = requireAdminAccessPassword(System.getenv("admin_access_password"))
+    val adminAccessPassword = requireAdminAccessPassword(System.getenv("admin_access_password") ?: System.getenv("ADMIN_PASSWORD"))
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     val soundEvents = MutableSharedFlow<SoundPlayEvent>(

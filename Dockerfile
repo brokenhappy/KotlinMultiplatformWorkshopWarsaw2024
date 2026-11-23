@@ -1,27 +1,16 @@
 # Stage 1: Build the application using a Gradle image
-FROM gradle:9.3.0-jdk23-alpine AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /home/gradle/src
 
-# Copy only the necessary files to leverage Docker layer caching
-COPY build.gradle.kts settings.gradle.kts gradle.properties ./
-COPY gradlew ./
-COPY gradle ./gradle
-COPY .git .git
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# Make the Gradle wrapper executable
-RUN chmod +x ./gradlew # <-- ADDED THIS LINE to ensure permissions are correct
+# Gradle configures every included project before building the server.
+COPY . .
 
-# Copy the source code of all modules
-COPY common ./common
-COPY server ./server
-COPY serverAndAdminCommon ./serverAndAdminCommon
-
-# Build the server application and create a runnable distribution
-# The --no-daemon flag is recommended for CI/CD environments
 RUN ./gradlew :server:installDist --no-daemon
 
 # Stage 2: Create the final, lightweight runtime image
-FROM amazoncorretto:25-alpine-jdk
+FROM amazoncorretto:25
 WORKDIR /app
 
 # Copy the built application from the 'build' stage

@@ -1,3 +1,6 @@
 package kmpworkshop.common
 
-fun superSecretFallbackPassword(): String = error("No admin password configured")
+fun requireAdminPassword(password: String?): String {
+    check(!password.isNullOrBlank()) { "ADMIN_PASSWORD must be set to a non-blank value." }
+    return password
+}

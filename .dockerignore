@@ -1,0 +1,16 @@
+.env
+.env.*
+**/.env
+**/.env.*
+.workshop-api-key
+.workshop-api-key.*
+**/Secrets.ini
+.git/config
+.gradle
+.idea
+.jdk
+.kotlin
+**/build
+local.properties
+savedBugs
+serverEventBackup

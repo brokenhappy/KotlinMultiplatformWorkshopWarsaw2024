@@ -1,6 +1,7 @@
 package bugreproducer
 
 import kmpworkshop.client.ClientSettings
+import workshop.adminaccess.ReportingParticipantIndexDiagnostic
 import workshop.adminaccess.StoredClientBugReport
 
 private const val MinimumZoom = 0.3f
@@ -82,6 +83,12 @@ fun parseReproductionDiagnostics(report: StoredClientBugReport): Result<ParsedRe
 private val apiKeyDeclaration = Regex(
     "\\bclientApiKey\\b\\s*:\\s*String\\s*\\?\\s*=\\s*(?:\"([^\"]*)\"|(null))",
 )
+
+internal fun reportingParticipantApiKey(report: StoredClientBugReport): String? {
+    val index = report.serverDiagnostics.values[ReportingParticipantIndexDiagnostic]?.toIntOrNull() ?: return null
+    val participants = report.serverState.participants + report.serverState.deactivatedParticipants
+    return participants.getOrNull(index)?.apiKey?.stringRepresentation
+}
 
 /** Finds the API key in the applied historical source, including a `null` declaration. */
 fun apiKeyFromAppliedClientSource(source: String): Result<String> = runCatching {

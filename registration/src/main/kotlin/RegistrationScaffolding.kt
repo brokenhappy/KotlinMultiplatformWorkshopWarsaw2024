@@ -3,8 +3,8 @@ import kmpworkshop.common.ApiKey
 import kmpworkshop.common.ApiKeyRegistrationResult
 import kmpworkshop.common.NameVerificationResult
 import kmpworkshop.common.clientApiKey
+import kmpworkshop.common.saveClientApiKey
 import kotlinx.coroutines.runBlocking
-import java.io.File
 
 fun main() {
     try {
@@ -43,7 +43,7 @@ internal fun registerMyselfByNameThatIWillUseForTheRestOfTheSessions(name: Strin
             println("Registration is currently full. Please ask the workshop host for help.")
         }
         is ApiKeyRegistrationResult.Success -> {
-            prepareApiKey(result.key.stringRepresentation)
+            saveClientApiKey(result.key)
             println("""
                 Welcome! To verify your registration, run the following:
                 ```kotlin
@@ -65,7 +65,7 @@ internal fun verifyMyApiKey() {
     }
     println(
         when (runBlocking { workshopService.verifyRegistration(ApiKey(apiKey)) }) {
-            NameVerificationResult.ApiKeyDoesNotExist -> "Hmm, somehow your client-api-key is invalid, you tried to register with $apiKey. Please restart the process!"
+            NameVerificationResult.ApiKeyDoesNotExist -> "Hmm, your client API key is invalid. Please restart the process!"
             NameVerificationResult.NameAlreadyExists -> "Oh no, someone who registered with the same name verified before you! Please try again with a different name!"
             NameVerificationResult.Success -> "Congratulations! You've now been verified! You can now help the others to register!"
             NameVerificationResult.AlreadyRegistered -> "You have already registered yourself before, you're good! Please consider helping your peers :)"
@@ -91,15 +91,4 @@ private fun suggestRunningCode() {
              }
         |    - If this wasn't clear, you wouldn't be the only one! Please ask the workshop host for help, or ask someone around you.
     """.trimMargin())
-}
-
-private fun prepareApiKey(apiKeyString: String) {
-    val s = File.separatorChar
-    val file = File("..${s}common${s}src${s}main${s}kotlin${s}kmpworkshop${s}common${s}Secrets.kt")
-    file.createNewFile()
-    file.readLines()
-        .filterNot { it.startsWith("val clientApiKey: String? =") }
-        .plus("val clientApiKey: String? = \"$apiKeyString\"")
-        .joinToString("\n")
-        .let { file.writeText(it) }
 }

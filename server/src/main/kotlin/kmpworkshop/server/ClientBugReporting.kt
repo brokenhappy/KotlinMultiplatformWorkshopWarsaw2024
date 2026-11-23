@@ -4,6 +4,7 @@ import kmpworkshop.common.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import workshop.adminaccess.ReportingParticipantIndexDiagnostic
 import workshop.adminaccess.ServerBugDiagnostics
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StoredClientBugReport
@@ -19,9 +20,6 @@ internal const val MaxBugAttachmentEncodedLength = 4 * ((MaxBugAttachmentBytes +
 
 // Each attachment can add up to two padding bytes before rounding to Base64 groups.
 internal const val MaxBugAttachmentTotalEncodedLength = 4 * ((MaxBugAttachmentTotalBytes + 2 * MaxBugAttachmentCount) / 3)
-
-internal fun ServerState.acceptsBugReportFrom(key: ApiKey): Boolean =
-    (participants + deactivatedParticipants).any { it.apiKey == key }
 
 internal suspend fun validateClientBugReport(report: ClientBugReport): String? {
     if (report.description.length > MaxBugDescriptionLength) {
@@ -91,15 +89,16 @@ internal fun buildStoredClientBugReport(
     report: ClientBugReport,
     serverState: ServerState,
     provenance: ServerProvenance,
+    reporterIndex: Int,
 ): StoredClientBugReport = StoredClientBugReport(
     clientReport = report,
-    serverDiagnostics = collectServerBugDiagnostics(provenance),
+    serverDiagnostics = collectServerBugDiagnostics(provenance, reporterIndex),
     serverState = serverState,
     receivedAt = Clock.System.now(),
 )
 
-private fun collectServerBugDiagnostics(provenance: ServerProvenance): ServerBugDiagnostics {
-    val values = linkedMapOf<String, String>()
+private fun collectServerBugDiagnostics(provenance: ServerProvenance, reporterIndex: Int): ServerBugDiagnostics {
+    val values = linkedMapOf(ReportingParticipantIndexDiagnostic to reporterIndex.toString())
     val failures = provenance.failures.take(MaxBugDiagnosticFieldCount).toMutableList()
     fun collect(name: String, value: () -> String) {
         runCatching { value() }
@@ -129,14 +128,15 @@ internal suspend fun submitClientBugReport(
     serverState: ServerState,
     clientBugReports: MutableSharedFlow<StoredClientBugReport>,
 ): ClientBugReportSubmissionResult {
-    if (!serverState.acceptsBugReportFrom(key)) {
+    val reporterIndex = (serverState.participants + serverState.deactivatedParticipants).indexOfFirst { it.apiKey == key }
+    if (reporterIndex < 0) {
         return ClientBugReportSubmissionResult.Rejected("The client API key is not registered.")
     }
     validateClientBugReport(report)?.let { return ClientBugReportSubmissionResult.Rejected(it) }
     if (clientBugReports.subscriptionCount.value == 0) {
         return ClientBugReportSubmissionResult.AdminUiNotConnected
     }
-    val storedReport = buildStoredClientBugReport(report, serverState, coroutinesToLoom { loadServerProvenance() })
+    val storedReport = buildStoredClientBugReport(report, serverState, coroutinesToLoom { loadServerProvenance() }, reporterIndex)
     return if (clientBugReports.tryEmit(storedReport)) {
         ClientBugReportSubmissionResult.Accepted
     } else {

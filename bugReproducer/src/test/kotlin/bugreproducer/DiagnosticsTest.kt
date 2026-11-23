@@ -1,13 +1,17 @@
 package bugreproducer
 
+import kmpworkshop.common.ApiKey
 import kmpworkshop.common.ClientBugDiagnostics
 import kmpworkshop.common.ClientBugReport
+import workshop.adminaccess.Participant
+import workshop.adminaccess.ReportingParticipantIndexDiagnostic
 import workshop.adminaccess.ServerBugDiagnostics
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StoredClientBugReport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
@@ -56,6 +60,20 @@ class DiagnosticsTest {
             apiKeyFromAppliedClientSource("val clientApiKey: String? = \"historical-key\"").getOrThrow(),
         )
         assertTrue(apiKeyFromAppliedClientSource("val clientApiKey: String? = null").isFailure)
+    }
+
+    @Test
+    fun `new reports identify the reporter in the server snapshot`() {
+        val snapshot = ServerState(
+            participants = listOf(Participant("Ada", ApiKey("active-key"))),
+            deactivatedParticipants = listOf(Participant("Ada", ApiKey("reporter-key"))),
+        )
+        val report = report(validClientValues(), validServerValues()).copy(serverState = snapshot)
+        assertNull(reportingParticipantApiKey(report))
+        val diagnostics = report.serverDiagnostics.copy(
+            values = report.serverDiagnostics.values + (ReportingParticipantIndexDiagnostic to "1"),
+        )
+        assertEquals("reporter-key", reportingParticipantApiKey(report.copy(serverDiagnostics = diagnostics)))
     }
 
     private fun report(

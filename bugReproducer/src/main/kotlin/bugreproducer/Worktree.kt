@@ -135,6 +135,11 @@ class GitBugReproducerWorktreeManager(
     private val git: GitRunner = GitRunner(),
     commitHashDump: Path? = null,
 ) : BugReproducerWorktreeManager {
+    private val temporaryCommitConfig = arrayOf(
+        "-c", "user.name=Bug Reproducer",
+        "-c", "user.email=bug-reproducer@localhost",
+        "-c", "commit.gpgSign=false",
+    )
     private val launcherCheckout: Path = findGitCheckout(launcherCheckout)
     private val commitHashDumpPath: Path? = commitHashDump?.toAbsolutePath()?.normalize()
     private val commitHashDumpText: String? = when {
@@ -206,10 +211,7 @@ class GitBugReproducerWorktreeManager(
 
             val rebase = git.run(
                 finalDirectory,
-                "-c",
-                "user.name=Bug Reproducer",
-                "-c",
-                "user.email=bug-reproducer@localhost",
+                *temporaryCommitConfig,
                 "rebase",
                 "--onto",
                 firstCapturedCommit,
@@ -293,10 +295,7 @@ class GitBugReproducerWorktreeManager(
 
         val continuation = git.run(
             worktree,
-            "-c",
-            "user.name=Bug Reproducer",
-            "-c",
-            "user.email=bug-reproducer@localhost",
+            *temporaryCommitConfig,
             "-c",
             "core.editor=true",
             "rebase",
@@ -401,10 +400,7 @@ class GitBugReproducerWorktreeManager(
         git.require(worktree, "add", "--all")
         git.require(
             worktree,
-            "-c",
-            "user.name=Bug Reproducer",
-            "-c",
-            "user.email=bug-reproducer@localhost",
+            *temporaryCommitConfig,
             "commit",
             "--allow-empty",
             "-m",

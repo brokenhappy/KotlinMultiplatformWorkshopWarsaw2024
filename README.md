@@ -39,6 +39,17 @@ Run the full JVM suite with `./gradlew test --continue`. Gradle writes HTML
 reports to each tested module's `build/reports/tests/test/index.html` and JUnit
 XML to `build/test-results/test/` in the same module.
 
+## Local credentials
+
+Export `ADMIN_PASSWORD` for both the local server and the admin client. The
+server also accepts the deployment variable `admin_access_password`, which
+takes precedence when set.
+
+Registration saves the participant key in `.workshop-api-key` at the checkout
+root. To keep an existing registration, move just its key from the old
+`Secrets.kt` into that file. The desktop client can also read
+`WORKSHOP_API_KEY` from its environment.
+
 Here are the attributions for the sound snippets I used:
 
 success.wav by sophieciruela -- https://freesound.org/s/634450/ -- License: Creative Commons 0

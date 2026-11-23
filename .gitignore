@@ -21,4 +21,6 @@ captures
 .fleet/settings.json
 .kotlin
 /.env
+/.workshop-api-key
+/.workshop-api-key.*
 /serverEventBackup/

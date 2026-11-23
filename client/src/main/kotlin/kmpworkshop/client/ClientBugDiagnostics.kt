@@ -9,6 +9,15 @@ import java.io.File
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
+private val diagnosticGitPaths = arrayOf(
+    "--",
+    ":(exclude,glob)**/AdminPassword.kt",
+    ":(exclude,glob)**/Secrets.kt",
+    ":(exclude,glob)**/Secrets.ini",
+    ":(exclude,glob)**/.env*",
+    ":(exclude,glob)**/.workshop-api-key*",
+)
+
 internal suspend fun collectClientBugDiagnostics(settings: ClientSettings): ClientBugDiagnostics {
     val values = linkedMapOf<String, String>()
     val failures = mutableListOf<String>()
@@ -78,12 +87,13 @@ private suspend fun collectGitDiagnostics(values: MutableMap<String, String>, fa
                 "client.git.changesSinceOrigin",
                 true,
                 "diff", "--no-ext-diff", "--binary", "${values["client.git.nearestOriginCommit"]}..HEAD",
+                *diagnosticGitPaths,
             )
         }
         .onFailure { failures += "client.git.origin: ${it.message ?: it::class.simpleName}" }
 
-    gitValue("client.git.localChanges", true, "diff", "--no-ext-diff", "--binary", "HEAD")
-    gitValue("client.git.untrackedFiles", false, "ls-files", "--others", "--exclude-standard")
+    gitValue("client.git.localChanges", true, "diff", "--no-ext-diff", "--binary", "HEAD", *diagnosticGitPaths)
+    gitValue("client.git.untrackedFiles", false, "ls-files", "--others", "--exclude-standard", *diagnosticGitPaths)
 }
 
 private suspend fun runGit(

@@ -39,7 +39,8 @@ suspend fun runReproducer(
 ) {
     val diagnostics = parseReproductionDiagnostics(report.report).getOrThrow()
     preparedWorktree(diagnostics, ui, worktrees, report.path).use { prepared ->
-        val apiKey = apiKeyFromAppliedClientFiles(prepared.directory).getOrThrow()
+        val apiKey = reportingParticipantApiKey(report.report)
+            ?: apiKeyFromAppliedClientFiles(prepared.directory).getOrThrow()
         while (true) {
             try {
                 historicalClientAttempt(

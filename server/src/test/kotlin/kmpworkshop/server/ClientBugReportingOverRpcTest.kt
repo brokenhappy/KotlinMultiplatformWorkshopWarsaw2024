@@ -27,6 +27,7 @@ import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.Participant
+import workshop.adminaccess.ReportingParticipantIndexDiagnostic
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StoredClientBugReport
 import java.awt.image.BufferedImage
@@ -45,7 +46,7 @@ class ClientBugReportingOverRpcTest {
     fun `a report at the attachment limit reaches the admin stream over real websockets`() = runBlocking {
         val key = ApiKey("participant-key")
         val password = "test-admin-password"
-        val state = ServerState(participants = listOf(Participant("Ada", key)))
+        val state = ServerState(participants = listOf(Participant("Other", ApiKey("other-key")), Participant("Ada", key)))
         val reports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 1)
         val server = rpcServer(
             port = 0,
@@ -82,6 +83,7 @@ class ClientBugReportingOverRpcTest {
                 val stored = received.await()
                 assertEquals(report, stored.clientReport)
                 assertEquals(state, stored.serverState)
+                assertEquals("1", stored.serverDiagnostics.values[ReportingParticipantIndexDiagnostic])
             }
         } finally {
             client.close()

@@ -127,18 +127,25 @@ val generateServerProvenance by tasks.registering {
             ?: System.getenv("BUILD_COMMIT")
             ?: run { failures += failureFor("git commit", commitResult); null }
 
+        val provenancePaths = arrayOf(
+            "common",
+            "server",
+            "serverAndAdminCommon",
+            ":(exclude,glob)**/AdminPassword.kt",
+            ":(exclude,glob)**/Secrets.kt",
+            ":(exclude,glob)**/Secrets.ini",
+            ":(exclude,glob)**/.env*",
+            ":(exclude,glob)**/.workshop-api-key*",
+        )
         val changesResult = git(
             "diff",
             "--no-ext-diff",
             "--binary",
             "HEAD",
             "--",
-            "common",
-            "server",
-            "serverAndAdminCommon",
+            *provenancePaths,
         )
         val changesSource = changesResult?.takeIf { it.exitCode == 0 }?.stdout
-            ?: System.getenv("BUILD_CHANGES")
             ?: run { failures += failureFor("git changes", changesResult); null }
         val changesSha256 = sha256(changesSource)
         val changesTruncated = false
@@ -149,12 +156,10 @@ val generateServerProvenance by tasks.registering {
             "--others",
             "--exclude-standard",
             "--",
-            "common",
-            "server",
-            "serverAndAdminCommon",
+            *provenancePaths,
         )
         val nullDevice = if (System.getProperty("os.name").contains("windows", ignoreCase = true)) "NUL" else "/dev/null"
-        val untrackedChangesRaw: String? = if (untrackedResult?.exitCode == 0) {
+        val untrackedChangesSource: String? = if (untrackedResult?.exitCode == 0) {
             buildString {
                 untrackedResult.stdout
                     .split('\u0000')
@@ -179,11 +184,6 @@ val generateServerProvenance by tasks.registering {
         } else {
             failures += failureFor("git untracked files", untrackedResult)
             null
-        }
-        val untrackedChangesSource = if (untrackedResult?.exitCode == 0) {
-            untrackedChangesRaw
-        } else {
-            System.getenv("BUILD_UNTRACKED_CHANGES")
         }
         val untrackedChangesSha256 = sha256(untrackedChangesSource)
         val untrackedChangesTruncated = false

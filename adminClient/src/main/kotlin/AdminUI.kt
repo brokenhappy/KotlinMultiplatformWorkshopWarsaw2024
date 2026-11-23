@@ -44,7 +44,6 @@ import androidx.compose.ui.window.application
 import io.ktor.client.*
 import io.ktor.http.*
 import kmpworkshop.common.*
-import kmpworkshop.common.superSecretFallbackPassword
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
@@ -76,7 +75,7 @@ fun main() {
     }
 }
 
-private val adminPassword = System.getenv("ADMIN_PASSWORD") ?: superSecretFallbackPassword()
+private val adminPassword by lazy { requireAdminPassword(System.getenv("ADMIN_PASSWORD")) }
 private val isMacOs = System.getProperty("os.name").contains("mac", ignoreCase = true)
 private val adminSettingsShortcut = KeyShortcut(
     Key.Comma,
