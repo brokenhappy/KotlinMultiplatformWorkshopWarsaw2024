@@ -19,6 +19,7 @@ suspend fun main() {
 }
 
 suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
+    val adminAccessPassword = requireAdminAccessPassword(System.getenv("admin_access_password"))
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     val soundEvents = MutableSharedFlow<SoundPlayEvent>(
@@ -38,6 +39,7 @@ suspend fun hostServer(): Nothing = withContext(Dispatchers.Default) {
             },
             rpcService {
                 adminAccess(
+                    adminAccessPassword = adminAccessPassword,
                     serverState,
                     onEvent = { eventBus.trySend(it) },
                     sounds = soundEvents,

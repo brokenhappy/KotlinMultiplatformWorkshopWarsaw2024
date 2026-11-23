@@ -3,7 +3,6 @@ package kmpworkshop.server
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kmpworkshop.common.superSecretFallbackPassword
 import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.OnEvent
 import workshop.adminaccess.ServerState
@@ -14,14 +13,18 @@ import workshop.adminaccess.WorkshopEventWithResult
 import workshop.adminaccess.fire
 import workshop.adminaccess.schedule
 
+internal fun requireAdminAccessPassword(password: String?): String {
+    check(!password.isNullOrBlank()) { "admin_access_password must be set to a non-blank value." }
+    return password
+}
+
 fun adminAccess(
+    adminAccessPassword: String,
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
     sounds: Flow<SoundPlayEvent>,
     clientBugReports: Flow<StoredClientBugReport>,
 ): AdminAccess = object : AdminAccess {
-    private val adminAccessPassword = System.getenv("admin_access_password") ?: superSecretFallbackPassword()
-
     override fun serverState(password: String): Flow<ServerState> = serverState.also { _ ->
         if (password != adminAccessPassword) error("Incorrect password")
     }

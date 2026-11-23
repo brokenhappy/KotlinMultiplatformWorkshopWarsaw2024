@@ -5,7 +5,6 @@ import io.ktor.client.engine.cio.*
 import io.ktor.http.*
 import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.coroutinesToLoom
-import kmpworkshop.common.superSecretFallbackPassword
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,6 +29,7 @@ import kotlin.time.Duration.Companion.seconds
 class AdminStageChangesOverRpcTest {
     @Test
     fun `delayed concurrent stage changes leave the server event loop responsive`() = runTest(timeout = 10.seconds) {
+        val password = "test-admin-password"
         val serverState = MutableStateFlow(ServerState())
         val eventBus = Channel<ScheduledWorkshopEvent>(Channel.UNLIMITED)
         val eventLoopScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -46,6 +46,7 @@ class AdminStageChangesOverRpcTest {
             services = listOf(
                 rpcService {
                     adminAccess(
+                        adminAccessPassword = password,
                         serverState = serverState,
                         onEvent = eventBus::trySend,
                         sounds = MutableSharedFlow(),
@@ -70,7 +71,6 @@ class AdminStageChangesOverRpcTest {
                     rpcConfig { serialization { json() } }
                 }.withService<AdminAccess>()
             }
-            val password = superSecretFallbackPassword()
             val firstStage = WorkshopStage.KotlinBasicsPuzzleStage.PalindromeCheckTask
             val secondStage = WorkshopStage.KotlinBasicsPuzzleStage.FindMinimumAgeOfUserTask
             val finalStage = WorkshopStage.KotlinBasicsPuzzleStage.FindOldestUserTask
