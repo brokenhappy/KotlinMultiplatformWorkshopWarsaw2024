@@ -30,10 +30,10 @@ Run the workshop smoke checks after setup.
 ```
 
 The lifecycle check starts an empty workshop on a loopback port and exercises
-the health endpoint, participant registration, host stage controls, and
-submission tracking over real RPC. It uses a test-only password and in-memory
-state. The Compose checks exercise the participant screen, including stage
-changes, puzzle results, and the call timeline.
+the public health endpoint, invitation-code rejection, participant registration
+with a Unicode code, host stage controls, and submission tracking over real RPC.
+It uses fixture credentials and in-memory state. The Compose checks exercise the
+participant screen, including stage changes, puzzle results, and the call timeline.
 
 Run the full JVM suite with `./gradlew test --continue`. Gradle writes HTML
 reports to each tested module's `build/reports/tests/test/index.html` and JUnit
@@ -45,10 +45,19 @@ Export `ADMIN_PASSWORD` for both the local server and the admin client. The
 server also accepts the deployment variable `admin_access_password`, which
 takes precedence when set.
 
-Registration saves the participant key in `.workshop-api-key` at the checkout
-root. To keep an existing registration, move just its key from the old
-`Secrets.kt` into that file. The desktop client can also read
-`WORKSHOP_API_KEY` from its environment.
+Set `WORKSHOP_INVITATION_CODE` to the same non-blank, single-line code in the
+server and admin client environments. When connecting, clients send the UTF-8
+code as unpadded Base64url in the `X-Workshop-Invitation-Code` header.
+`GET /healthz` is public.
+
+Participants enter their name and the host's invitation code in
+`registerMyselfWithTheNameIWillUseForTheRestOfTheSessionsAndMyInvitationCode(name, invitationCode)`.
+Registration saves the participant API key on the first line of
+`.workshop-api-key` at the checkout root and the
+invitation code on the second line. The desktop client and registration
+verification also accept `WORKSHOP_API_KEY` and `WORKSHOP_INVITATION_CODE`
+from their environment. For an existing registration, keep the API key and
+add the invitation code on the second line or set `WORKSHOP_INVITATION_CODE`.
 
 Here are the attributions for the sound snippets I used:
 

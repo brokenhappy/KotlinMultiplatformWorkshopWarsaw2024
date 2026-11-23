@@ -18,10 +18,13 @@ suspend fun main() {
     val adminAccessPassword = requireAdminAccessPassword(
         System.getenv("admin_access_password") ?: System.getenv("ADMIN_PASSWORD"),
     )
-    hostServer(adminAccessPassword)
+    val invitationCode = checkNotNull(normalizeWorkshopInvitationCode(System.getenv("WORKSHOP_INVITATION_CODE"))) {
+        "WORKSHOP_INVITATION_CODE must be set to a non-blank, single-line value."
+    }
+    hostServer(adminAccessPassword, invitationCode)
 }
 
-private suspend fun hostServer(adminAccessPassword: String): Nothing = withContext(Dispatchers.Default) {
+private suspend fun hostServer(adminAccessPassword: String, invitationCode: String): Nothing = withContext(Dispatchers.Default) {
     val serverState = MutableStateFlow(ServerState())
     val eventBus = Channel<ScheduledWorkshopEvent>(capacity = Channel.UNLIMITED)
     val soundEvents = MutableSharedFlow<SoundPlayEvent>(
@@ -32,6 +35,7 @@ private suspend fun hostServer(adminAccessPassword: String): Nothing = withConte
     val onSoundEvent: (SoundPlayEvent) -> Unit = { soundEvents.tryEmit(it) }
     launch {
         serve(
+            invitationCode,
             rpcService {
                 workshopService(
                     serverState,

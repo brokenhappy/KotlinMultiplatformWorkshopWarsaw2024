@@ -43,6 +43,7 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.ktor.client.*
+import io.ktor.client.request.header
 import io.ktor.http.*
 import kmpworkshop.common.*
 import kotlinx.coroutines.*
@@ -71,9 +72,12 @@ import kotlin.time.Duration.Companion.seconds
 fun main() {
     require(System.getenv("BUG_DIRECTORY") != null) { "BUG_DIRECTORY env is not set up" }
     val adminPassword = validateConfiguredAdminPassword(System.getenv("ADMIN_PASSWORD"))
+    val invitationCode = checkNotNull(normalizeWorkshopInvitationCode(System.getenv("WORKSHOP_INVITATION_CODE"))) {
+        "WORKSHOP_INVITATION_CODE must be set to a non-blank, single-line value."
+    }
 
     application {
-        AdminApp(adminPassword, onExit = ::exitApplication)
+        AdminApp(adminPassword, invitationCode, onExit = ::exitApplication)
     }
 }
 
@@ -110,7 +114,7 @@ private val AdminColors = lightColors(
     error = AdminDanger,
 )
 
-suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
+suspend fun <T> withAdminAccessService(invitationCode: String, onUse: suspend CoroutineScope.(AdminAccess) -> T): T {
     val ktorClient = HttpClient {
         installKrpc {
             connector { }
@@ -118,6 +122,7 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
     }
 
     val client: KtorRpcClient = ktorClient.rpc {
+        header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(invitationCode))
         url {
             protocol = if (serverUrl == "localhost" || serverUrl == "127.0.0.1" || serverUrl == "::1") {
                 URLProtocol.WS
@@ -141,17 +146,18 @@ suspend fun <T> withAdminAccessService(onUse: suspend CoroutineScope.(AdminAcces
         coroutineScope { onUse(service) }
     } finally {
         client.close()
+        ktorClient.close()
     }
 }
 
 private class AdminConnection(val serverState: Flow<ServerState>, val onEvent: OnEvent)
 
 @Composable
-private fun AdminApp(adminPassword: String, onExit: () -> Unit) {
-    var connection: AdminConnection? by remember(adminPassword) { mutableStateOf(null) }
-    LaunchedEffect(adminPassword) {
+private fun AdminApp(adminPassword: String, invitationCode: String, onExit: () -> Unit) {
+    var connection: AdminConnection? by remember(adminPassword, invitationCode) { mutableStateOf(null) }
+    LaunchedEffect(adminPassword, invitationCode) {
         try {
-            withAdminAccessService { adminAccess ->
+            withAdminAccessService(invitationCode) { adminAccess ->
                 val serverState = adminAccess
                     .serverState(adminPassword)
                     .shareIn(this, SharingStarted.Eagerly, replay = 1)

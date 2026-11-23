@@ -50,7 +50,9 @@ internal suspend fun runRealRpcTestClient(
     solution: CoroutinePuzzleSolution,
 ): CoroutinePuzzleResultWithHistory = coroutineScope {
     testWorkshopService(serverStateThatOpened(stage)).use { (service) ->
+        val invitationCode = "test-invitation-code"
         val server = rpcServer(
+            invitationCode = invitationCode,
             port = 0,
             services = listOf(rpcService { service }),
         )
@@ -66,7 +68,7 @@ internal suspend fun runRealRpcTestClient(
         try {
             val boundPort = server.engine.resolvedConnectors().first().port
             val service = coroutinesToLoom {
-                httpClient.connectWorkshopService(protocol = URLProtocol.WS, host = "localhost", port = boundPort)
+                httpClient.connectWorkshopService(invitationCode, protocol = URLProtocol.WS, host = "localhost", port = boundPort)
             }
 
             runCoroutinePuzzleClient(

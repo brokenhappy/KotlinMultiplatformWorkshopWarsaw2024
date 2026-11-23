@@ -2,9 +2,12 @@ package com.kotlinworkshop.test
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.request.header
 import io.ktor.http.*
 import kmpworkshop.common.WorkshopApiService
+import kmpworkshop.common.WorkshopInvitationCodeHeader
 import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.workshopInvitationCodeHeaderValue
 import kmpworkshop.server.rpcServer
 import kmpworkshop.server.rpcService
 import kotlinx.coroutines.flow.first
@@ -24,7 +27,8 @@ class RpcClientCancellationTest {
     @Test
     fun `a cancelled RPC transport rejects the next server stream`() = runTest {
         testWorkshopService(serverStateThatOpened(WorkshopStage.CoroutinePuzzleStage.SimpleFlow)).use { (service) ->
-            val server = rpcServer(port = 0, services = listOf(rpcService { service }))
+            val invitationCode = "test-invitation-code"
+            val server = rpcServer(invitationCode, port = 0, services = listOf(rpcService { service }))
             server.startSuspend(wait = false)
 
             val httpClient = HttpClient(CIO) {
@@ -35,6 +39,7 @@ class RpcClientCancellationTest {
             try {
                 val port = server.engine.resolvedConnectors().first().port
                 val rpcClient: KtorRpcClient = httpClient.rpc {
+                    header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(invitationCode))
                     url {
                         protocol = URLProtocol.WS
                         host = "localhost"

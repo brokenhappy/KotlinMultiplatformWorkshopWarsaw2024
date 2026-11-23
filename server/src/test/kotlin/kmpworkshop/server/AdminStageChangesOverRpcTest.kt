@@ -2,9 +2,12 @@ package kmpworkshop.server
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.request.header
 import io.ktor.http.*
 import kmpworkshop.common.WorkshopStage
+import kmpworkshop.common.WorkshopInvitationCodeHeader
 import kmpworkshop.common.coroutinesToLoom
+import kmpworkshop.common.workshopInvitationCodeHeaderValue
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,6 +33,7 @@ class AdminStageChangesOverRpcTest {
     @Test
     fun `delayed concurrent stage changes leave the server event loop responsive`() = runTest(timeout = 10.seconds) {
         val password = "test-admin-password"
+        val invitationCode = "test-invitation-code"
         val serverState = MutableStateFlow(ServerState())
         val eventBus = Channel<ScheduledWorkshopEvent>(Channel.UNLIMITED)
         val eventLoopScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -42,6 +46,7 @@ class AdminStageChangesOverRpcTest {
             )
         }
         val rpcServer = rpcServer(
+            invitationCode = invitationCode,
             port = 0,
             services = listOf(
                 rpcService {
@@ -62,6 +67,7 @@ class AdminStageChangesOverRpcTest {
             val port = rpcServer.engine.resolvedConnectors().first().port
             val admin = coroutinesToLoom {
                 client.rpc {
+                    header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(invitationCode))
                     url {
                         protocol = URLProtocol.WS
                         host = "localhost"

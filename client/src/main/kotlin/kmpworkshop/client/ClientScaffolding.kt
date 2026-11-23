@@ -4,11 +4,13 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import io.ktor.client.*
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.websocket.*
+import io.ktor.client.request.header
 import io.ktor.http.*
 import kmpworkshop.common.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.runBlocking
 import kotlinx.rpc.krpc.ktor.client.Krpc
 import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.rpc
@@ -40,11 +42,39 @@ internal fun HttpClientConfig<*>.installWorkshopRpc() {
  * Connects to the workshop server and returns a [WorkshopApiService] over a real kotlinx-rpc transport, owning the
  * lifetime of the underlying ktor client for the rest of the process (as befits the app's singleton service).
  */
-fun createWorkshopService(): WorkshopApiService = runBlocking {
-    HttpClient {
+fun createWorkshopService(): WorkshopApiService {
+    val invitationCode = checkNotNull(clientInvitationCode) { "Set WORKSHOP_INVITATION_CODE or finish registration." }
+    return HttpClient {
         installWorkshopRpc()
-    }.connectWorkshopService()
+    }.connectWorkshopService(invitationCode)
 }
+
+/** Opens the workshop service for a single operation and closes the connection afterwards. */
+suspend fun <T> withWorkshopService(
+    invitationCode: String,
+    protocol: URLProtocol = defaultWorkshopProtocol(serverUrl),
+    host: String = serverUrl,
+    port: Int = serverWebsocketPort,
+    action: suspend (WorkshopApiService) -> T,
+): T =
+    HttpClient {
+        HttpResponseValidator {
+            validateResponse { response ->
+                if (response.status == HttpStatusCode.Unauthorized) {
+                    // The default validator tries to read the body as a WebSocket and loses the HTTP status.
+                    throw ClientRequestException(response, "A valid workshop invitation code is required.")
+                }
+            }
+        }
+        installWorkshopRpc()
+    }.use { httpClient ->
+        val rpcClient = httpClient.workshopRpcClient(invitationCode, protocol, host, port)
+        try {
+            action(rpcClient.withService<WorkshopApiService>())
+        } finally {
+            rpcClient.close()
+        }
+    }
 
 /**
  * Wires this ktor client up to the workshop RPC service. The connection parameters default to the production
@@ -53,26 +83,31 @@ fun createWorkshopService(): WorkshopApiService = runBlocking {
  * its lifecycle so it can be closed between runs instead of re-implementing the client setup.
  */
 fun HttpClient.connectWorkshopService(
+    invitationCode: String,
     protocol: URLProtocol = defaultWorkshopProtocol(serverUrl),
     host: String = serverUrl,
     port: Int = serverWebsocketPort,
-): WorkshopApiService {
-    val client: KtorRpcClient = rpc {
-        url {
-            this.protocol = protocol
-            this.host = host
-            this.port = port
-            encodedPath = "rpc"
-        }
+): WorkshopApiService = workshopRpcClient(invitationCode, protocol, host, port).withService<WorkshopApiService>()
 
-        rpcConfig {
-            serialization {
-                json()
-            }
-        }
+private fun HttpClient.workshopRpcClient(
+    invitationCode: String,
+    protocol: URLProtocol = defaultWorkshopProtocol(serverUrl),
+    host: String = serverUrl,
+    port: Int = serverWebsocketPort,
+): KtorRpcClient = rpc {
+    header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(invitationCode))
+    url {
+        this.protocol = protocol
+        this.host = host
+        this.port = port
+        encodedPath = "rpc"
     }
 
-    return client.withService<WorkshopApiService>()
+    rpcConfig {
+        serialization {
+            json()
+        }
+    }
 }
 
 internal fun defaultWorkshopProtocol(host: String): URLProtocol =
@@ -89,6 +124,8 @@ fun ClientEntryPoint(
     val key = clientApiKey
     if (key == null) {
         Text("Finish registration first, then restart WorkshopClient.")
+    } else if (clientInvitationCode == null) {
+        Text("Set WORKSHOP_INVITATION_CODE to the code from your workshop host, then restart WorkshopClient.")
     } else {
         ClientEntryPoint(
             server = remember { context(clientMetadata) { workshopService.asServer(ApiKey(key)) } },

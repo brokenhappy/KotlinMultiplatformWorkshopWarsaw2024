@@ -2,21 +2,28 @@ package com.kotlinworkshop.test
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.websocket.WebSocketException
+import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.URLProtocol
 import kmpworkshop.client.connectWorkshopService
 import kmpworkshop.client.kotlinBasicsPuzzleSolutions
 import kmpworkshop.client.runKotlinBasicsPuzzle
+import kmpworkshop.client.withWorkshopService
 import kmpworkshop.common.ApiKey
 import kmpworkshop.common.ApiKeyRegistrationResult
 import kmpworkshop.common.KotlinBasicsPuzzleResult
 import kmpworkshop.common.NameVerificationResult
 import kmpworkshop.common.WorkshopApiService
+import kmpworkshop.common.WorkshopInvitationCodeHeader
 import kmpworkshop.common.WorkshopStage
 import kmpworkshop.common.asServer
 import kmpworkshop.common.coroutinesToLoom
+import kmpworkshop.common.workshopInvitationCodeHeaderValue
 import kmpworkshop.server.RpcService
 import kmpworkshop.server.adminAccess
 import kmpworkshop.server.rpcServer
@@ -39,7 +46,9 @@ import workshop.adminaccess.PuzzleState
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StageChangeEvent
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -50,8 +59,10 @@ class WorkshopLifecycleQaTest {
     fun `a participant registers and the host sees their first successful submission`() = runTest(timeout = 30.seconds) {
         val host = "127.0.0.1"
         val password = "qa-fixture-password"
+        val invitationCode = "qa-fixture-Łódź-✓"
         testWorkshopService(ServerState()).use { (workshopService, onEvent, state) ->
             val server = rpcServer(
+                invitationCode = invitationCode,
                 port = 0,
                 host = host,
                 services = listOf<RpcService<*>>(
@@ -67,9 +78,20 @@ class WorkshopLifecycleQaTest {
                     assertEquals(HttpStatusCode.OK, health.status)
                     assertEquals("OK", health.bodyAsText())
 
-                    val workshop = coroutinesToLoom { client.connectWorkshopService(URLProtocol.WS, host, port) }
+                    val rpcUrl = "ws://$host:$port/rpc"
+                    for (code in listOf(null, "wrong-code")) {
+                        val failure = assertFailsWith<WebSocketException> {
+                            client.webSocketSession(rpcUrl) {
+                                if (code != null) header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(code))
+                            }
+                        }
+                        assertContains(failure.message.orEmpty(), "but was 401")
+                    }
+
+                    val workshop = coroutinesToLoom { client.connectWorkshopService(invitationCode, URLProtocol.WS, host, port) }
                     val admin = coroutinesToLoom {
-                        client.rpc("ws://$host:$port/rpc") {
+                        client.rpc(rpcUrl) {
+                            header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(invitationCode))
                             rpcConfig { serialization { json() } }
                         }.withService<AdminAccess>()
                     }
@@ -78,10 +100,21 @@ class WorkshopLifecycleQaTest {
                     assertTrue(hostState.first().participants.isEmpty())
 
                     val name = "QA Participant"
-                    val key = assertIs<ApiKeyRegistrationResult.Success>(workshop.registerApiKeyFor(name)).key
+                    val rejected = assertFailsWith<ClientRequestException> {
+                        withWorkshopService("wrong-code", URLProtocol.WS, host, port) { it.registerApiKeyFor(name) }
+                    }
+                    assertEquals(HttpStatusCode.Unauthorized, rejected.response.status)
+
+                    val registration = withWorkshopService(invitationCode, URLProtocol.WS, host, port) {
+                        it.registerApiKeyFor(name)
+                    }
+                    val key = assertIs<ApiKeyRegistrationResult.Success>(registration).key
                     assertEquals(ApiKeyRegistrationResult.NameAlreadyExists, workshop.registerApiKeyFor(name))
                     assertEquals(NameVerificationResult.ApiKeyDoesNotExist, workshop.verifyRegistration(ApiKey("unused")))
-                    assertEquals(NameVerificationResult.Success, workshop.verifyRegistration(key))
+                    val verification = withWorkshopService(invitationCode, URLProtocol.WS, host, port) {
+                        it.verifyRegistration(key)
+                    }
+                    assertEquals(NameVerificationResult.Success, verification)
                     assertEquals(NameVerificationResult.AlreadyRegistered, workshop.verifyRegistration(key))
                     val registered = hostState.first()
                     assertEquals(listOf(Participant(name, key)), registered.participants)

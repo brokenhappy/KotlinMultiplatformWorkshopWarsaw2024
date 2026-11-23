@@ -2,6 +2,7 @@ package kmpworkshop.server
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.request.header
 import io.ktor.http.URLProtocol
 import io.ktor.http.encodedPath
 import io.ktor.server.application.plugin
@@ -14,6 +15,8 @@ import kmpworkshop.common.ClientBugReportSubmissionResult
 import kmpworkshop.common.MaxBugAttachmentBytes
 import kmpworkshop.common.MaxBugDiagnosticValueLength
 import kmpworkshop.common.WorkshopApiService
+import kmpworkshop.common.WorkshopInvitationCodeHeader
+import kmpworkshop.common.workshopInvitationCodeHeaderValue
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -46,9 +49,11 @@ class ClientBugReportingOverRpcTest {
     fun `a report at the attachment limit reaches the admin stream over real websockets`() = runBlocking {
         val key = ApiKey("participant-key")
         val password = "test-admin-password"
+        val invitationCode = "test-invitation-code"
         val state = ServerState(participants = listOf(Participant("Other", ApiKey("other-key")), Participant("Ada", key)))
         val reports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 1)
         val server = rpcServer(
+            invitationCode = invitationCode,
             port = 0,
             services = listOf<RpcService<*>>(
                 rpcService<WorkshopApiService> { workshopService(flowOf(state), { error("Unexpected workshop event") }, reports) },
@@ -65,6 +70,7 @@ class ClientBugReportingOverRpcTest {
             withTimeout(45.seconds) {
                 val boundPort = server.engine.resolvedConnectors().first().port
                 fun connect() = client.rpc {
+                    header(WorkshopInvitationCodeHeader, workshopInvitationCodeHeaderValue(invitationCode))
                     url {
                         protocol = URLProtocol.WS
                         host = "localhost"
