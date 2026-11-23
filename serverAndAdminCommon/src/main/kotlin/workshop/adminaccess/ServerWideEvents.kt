@@ -31,7 +31,8 @@ data class RegistrationStartEvent(
 
     override fun applyWithResultTo(oldState: ServerState): Pair<ServerState, ApiKeyRegistrationResult> = when {
         !"[A-z 0-9]{1,20}".toRegex().matches(name) -> oldState to ApiKeyRegistrationResult.NameTooComplex
-        oldState.participants.any { it.name == name } -> oldState to ApiKeyRegistrationResult.NameAlreadyExists
+        oldState.participants.any { it.name == name } || oldState.unverifiedParticipants.any { it.name == name } ->
+            oldState to ApiKeyRegistrationResult.NameAlreadyExists
         oldState.participants.size + oldState.deactivatedParticipants.size + oldState.unverifiedParticipants.size >= MaxRegistrations ->
             oldState to ApiKeyRegistrationResult.CapacityReached
         else -> UUID.nameUUIDFromBytes(Random(randomSeed).nextBytes(16)).toString()
