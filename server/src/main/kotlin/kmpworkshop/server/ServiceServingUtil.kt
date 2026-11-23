@@ -5,6 +5,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.*
+import io.ktor.server.websocket.WebSockets
 import io.ktor.websocket.timeout
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.rpc.annotations.Rpc
@@ -14,6 +15,11 @@ import kotlinx.rpc.krpc.ktor.server.rpc
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlin.reflect.KClass
 import kotlin.time.Duration.Companion.days
+
+// Reports carry up to 40 MiB of Base64 plus padding. KRPC wraps the payload in a JSON string,
+// which can expand diagnostic text to seven bytes per UTF-16 code unit. Leave room for both
+// sets of diagnostics and the state snapshot carried by the admin report stream.
+internal const val WorkshopMaxWebSocketFrameSize = 80L * 1024 * 1024
 
 suspend fun serve(vararg services: RpcService<*>): Nothing = serve(services.toList())
 
@@ -37,6 +43,9 @@ suspend fun serve(services: List<RpcService<*>>): Nothing {
  */
 fun rpcServer(port: Int = 8080, services: List<RpcService<*>>) =
     embeddedServer(Netty, port = port) {
+        install(WebSockets) {
+            maxFrameSize = WorkshopMaxWebSocketFrameSize
+        }
         install(Krpc)
         routing {
             get("/healthz") {
