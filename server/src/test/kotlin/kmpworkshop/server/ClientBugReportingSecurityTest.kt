@@ -41,16 +41,50 @@ class ClientBugReportingSecurityTest {
     }
 
     @Test
-    fun `rejects malformed and oversized attachment data`(): Unit = runBlocking(Dispatchers.Default) {
-        assertNotNull(validateClientBugReport(report(
+    fun `rejects malformed attachment data`(): Unit = runBlocking(Dispatchers.Default) {
+        assertEquals("An attachment is not valid base64 data.", validateClientBugReport(report(
             image = png(1, 1),
             attachment = BugImageAttachment("image.png", "image/png", "not-base64"),
         )))
-        val oversized = Base64.getEncoder().encodeToString(ByteArray(MaxBugAttachmentBytes + 1))
-        assertNotNull(validateClientBugReport(report(
-            image = png(1, 1),
-            attachment = BugImageAttachment("image.png", "image/png", oversized),
-        )))
+    }
+
+    @Test
+    fun `checks the per-attachment encoded limit before base64 decoding`() = runTest {
+        val oversized = BugImageAttachment("large.png", "image/png", "!".repeat(MaxBugAttachmentEncodedLength + 1))
+        assertEquals("An image attachment is too large.", validateClientBugReport(report(attachment = oversized)))
+    }
+
+    @Test
+    fun `checks the total encoded limit before decoding any attachment`() = runTest {
+        val large = BugImageAttachment("large.png", "image/png", "!".repeat(MaxBugAttachmentEncodedLength))
+        val extra = BugImageAttachment("extra.png", "image/png", "!".repeat(16))
+        val report = report().copy(attachments = listOf(large, large, extra))
+
+        assertEquals("The image attachments are too large in total.", validateClientBugReport(report))
+    }
+
+    @Test
+    fun `counts diagnostic values and failures toward the field limit`() = runTest {
+        val values = mapOf("client.git.repository" to "/workshop")
+        val failures = List(MaxBugDiagnosticFieldCount) { "diagnostic unavailable" }
+        val report = report().copy(diagnostics = ClientBugDiagnostics(values, failures))
+
+        assertEquals("Too many diagnostic fields.", validateClientBugReport(report))
+    }
+
+    @Test
+    fun `counts diagnostic keys values and failures toward the total length limit`() = runTest {
+        val key = "client.git.localChanges"
+        val failure = "git status failed"
+        val value = "a".repeat(MaxBugDiagnosticTotalLength - key.length - failure.length)
+        val diagnostics = ClientBugDiagnostics(mapOf(key to value), listOf(failure))
+        val report = report().copy(attachments = emptyList(), diagnostics = diagnostics)
+
+        assertNull(validateClientBugReport(report))
+        assertEquals(
+            "The diagnostic fields are too large in total.",
+            validateClientBugReport(report.copy(diagnostics = diagnostics.copy(failures = listOf("$failure!")))),
+        )
     }
 
     @Test

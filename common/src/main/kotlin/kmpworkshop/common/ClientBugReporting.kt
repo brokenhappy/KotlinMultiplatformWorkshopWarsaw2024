@@ -8,6 +8,7 @@ const val MaxBugAttachmentCount = 5
 const val MaxBugAttachmentBytes = 15 * 1024 * 1024
 const val MaxBugAttachmentTotalBytes = 30 * 1024 * 1024
 const val MaxBugDiagnosticValueLength = 750_000
+const val MaxBugDiagnosticMetadataLength = 8_192
 
 @Serializable
 data class BugImageAttachment(

@@ -1,13 +1,12 @@
 package kmpworkshop.client
 
 import kmpworkshop.common.ClientBugDiagnostics
+import kmpworkshop.common.MaxBugDiagnosticMetadataLength
 import kmpworkshop.common.MaxBugDiagnosticValueLength
 import kmpworkshop.common.coroutinesToLoom
 import kotlinx.coroutines.*
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 internal suspend fun collectClientBugDiagnostics(settings: ClientSettings): ClientBugDiagnostics {
@@ -16,7 +15,7 @@ internal suspend fun collectClientBugDiagnostics(settings: ClientSettings): Clie
 
     fun collect(name: String, value: () -> String) {
         runCatching { value() }
-            .onSuccess { values[name] = it.take(MaxBugDiagnosticValueLength) }
+            .onSuccess { values[name] = it.take(MaxBugDiagnosticMetadataLength) }
             .onFailure { failures += "$name: ${it.message ?: it::class.simpleName}" }
     }
 
@@ -30,7 +29,7 @@ internal suspend fun collectClientBugDiagnostics(settings: ClientSettings): Clie
     collect("client.workingDirectory") { File(".").absoluteFile.normalize().path }
 
     collectGitDiagnostics(values, failures)
-    return ClientBugDiagnostics(values, failures)
+    return ClientBugDiagnostics(values, failures.map { it.take(MaxBugDiagnosticMetadataLength) })
 }
 
 private suspend fun collectGitDiagnostics(values: MutableMap<String, String>, failures: MutableList<String>) {
@@ -40,11 +39,17 @@ private suspend fun collectGitDiagnostics(values: MutableMap<String, String>, fa
             failures += "client.git.repository: ${it.message ?: it::class.simpleName}"
             return
         }
-    values["client.git.repository"] = repository
+    values["client.git.repository"] = repository.take(MaxBugDiagnosticMetadataLength)
 
     suspend fun gitValue(name: String, preserveWhitespace: Boolean, vararg command: String) {
         runGit(*command, directory = File(repository))
-            .onSuccess { values[name] = if (preserveWhitespace) it else it.trim() }
+            .onSuccess { output ->
+                val value = if (preserveWhitespace) output else output.trim()
+                values[name] = value.take(MaxBugDiagnosticValueLength)
+                if (output.length > MaxBugDiagnosticValueLength) {
+                    values["${name}Truncated"] = "true"
+                }
+            }
             .onFailure { failures += "$name: ${it.message ?: it::class.simpleName}" }
     }
 
@@ -68,7 +73,7 @@ private suspend fun collectGitDiagnostics(values: MutableMap<String, String>, fa
                 failures += "client.git.nearestOriginCommit: ${it.message ?: it::class.simpleName}"
                 return@onSuccess
             }
-            values["client.git.nearestOriginCommit"] = nearestOriginCommit
+            values["client.git.nearestOriginCommit"] = nearestOriginCommit.take(MaxBugDiagnosticMetadataLength)
             gitValue(
                 "client.git.changesSinceOrigin",
                 true,
@@ -93,7 +98,7 @@ private suspend fun runGit(
                 .start()
         }
         process.outputStream.close()
-        val output = async { coroutinesToLoom { readAll(process.inputStream) } }
+        val output = async { coroutinesToLoom { readLimited(process.inputStream, MaxBugDiagnosticValueLength + 1) } }
         val error = async { coroutinesToLoom { readLimited(process.errorStream, 4_000) } }
         try {
             if (!coroutinesToLoom { process.waitFor(3, TimeUnit.SECONDS) }) {
@@ -125,22 +130,15 @@ private suspend fun terminateGitProcess(process: Process) {
     }
 }
 
-private fun readAll(input: InputStream): String = input.use { it.readBytes().toString(StandardCharsets.UTF_8) }
-
 private fun readLimited(input: InputStream, limit: Int): String {
-    val output = ByteArrayOutputStream(minOf(limit, 8_192))
-    val buffer = ByteArray(8_192)
-    var total = 0
-    input.use {
-        while (true) {
-            val read = it.read(buffer)
-            if (read < 0) break
-            if (total < limit) {
-                val amount = minOf(read, limit - total)
-                output.write(buffer, 0, amount)
+    val buffer = CharArray(8_192)
+    return input.reader(Charsets.UTF_8).use { reader ->
+        buildString {
+            while (true) {
+                val read = reader.read(buffer)
+                if (read < 0) break
+                appendRange(buffer, 0, minOf(read, limit - length))
             }
-            total += read
         }
     }
-    return output.toString(StandardCharsets.UTF_8)
 }

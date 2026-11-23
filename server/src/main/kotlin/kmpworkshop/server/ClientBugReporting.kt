@@ -13,6 +13,12 @@ import kotlin.runCatching
 import kotlin.time.Clock
 
 internal const val MaxBugImagePixels = 40_000_000
+internal const val MaxBugDiagnosticFieldCount = 32
+internal const val MaxBugDiagnosticTotalLength = 3_000_000
+internal const val MaxBugAttachmentEncodedLength = 4 * ((MaxBugAttachmentBytes + 2) / 3)
+
+// Each attachment can add up to two padding bytes before rounding to Base64 groups.
+internal const val MaxBugAttachmentTotalEncodedLength = 4 * ((MaxBugAttachmentTotalBytes + 2 * MaxBugAttachmentCount) / 3)
 
 internal fun ServerState.acceptsBugReportFrom(key: ApiKey): Boolean =
     (participants + deactivatedParticipants).any { it.apiKey == key }
@@ -24,8 +30,17 @@ internal suspend fun validateClientBugReport(report: ClientBugReport): String? {
     if (report.attachments.size > MaxBugAttachmentCount) {
         return "Too many image attachments."
     }
+    val (values, failures) = report.diagnostics
+    if (values.size.toLong() + failures.size > MaxBugDiagnosticFieldCount) {
+        return "Too many diagnostic fields."
+    }
+    val diagnosticLength = values.entries.sumOf { (key, value) -> key.length.toLong() + value.length } +
+        failures.sumOf { it.length.toLong() }
+    if (diagnosticLength > MaxBugDiagnosticTotalLength) {
+        return "The diagnostic fields are too large in total."
+    }
 
-    var totalBytes = 0
+    var totalEncodedLength = 0L
     for ((fileName, mimeType, dataBase64) in report.attachments) {
         if (fileName.length > 200 || fileName.any { it == '/' || it == '\\' }) {
             return "An attachment has an invalid name."
@@ -33,7 +48,14 @@ internal suspend fun validateClientBugReport(report: ClientBugReport): String? {
         if (mimeType != "image/png") {
             return "Only PNG image attachments are supported."
         }
-        val bytes = runCatching { Base64.getDecoder().decode(dataBase64) }
+        if (dataBase64.length > MaxBugAttachmentEncodedLength) return "An image attachment is too large."
+        totalEncodedLength += dataBase64.length
+        if (totalEncodedLength > MaxBugAttachmentTotalEncodedLength) return "The image attachments are too large in total."
+    }
+
+    var totalBytes = 0
+    for (attachment in report.attachments) {
+        val bytes = runCatching { Base64.getDecoder().decode(attachment.dataBase64) }
             .getOrElse { return "An attachment is not valid base64 data." }
         if (bytes.size > MaxBugAttachmentBytes) return "An image attachment is too large."
         totalBytes += bytes.size
@@ -78,23 +100,27 @@ internal fun buildStoredClientBugReport(
 
 private fun collectServerBugDiagnostics(provenance: ServerProvenance): ServerBugDiagnostics {
     val values = linkedMapOf<String, String>()
-    val failures = provenance.failures.toMutableList()
+    val failures = provenance.failures.take(MaxBugDiagnosticFieldCount).toMutableList()
     fun collect(name: String, value: () -> String) {
         runCatching { value() }
-            .onSuccess { values[name] = it.take(MaxBugDiagnosticValueLength) }
+            .onSuccess { values[name] = it.take(MaxBugDiagnosticMetadataLength) }
             .onFailure { failures += "$name: ${it.message ?: it::class.simpleName}" }
     }
     collect("server.os") { System.getProperty("os.name") }
     collect("server.os.version") { System.getProperty("os.version") }
     collect("server.jvm") { System.getProperty("java.runtime.version") }
-    provenance.commit?.let { values["server.checkedOutCommit"] = it.take(MaxBugDiagnosticValueLength) }
-    provenance.changes?.let { values["server.changes"] = it }
-    values["server.changesTruncated"] = provenance.changesTruncated.toString()
+    provenance.commit?.let { values["server.checkedOutCommit"] = it.take(MaxBugDiagnosticMetadataLength) }
+    provenance.changes?.let { values["server.changes"] = it.take(MaxBugDiagnosticValueLength) }
+    values["server.changesTruncated"] = (
+        provenance.changesTruncated || (provenance.changes?.length ?: 0) > MaxBugDiagnosticValueLength
+    ).toString()
     provenance.changesSha256?.let { values["server.changesSha256"] = it }
-    provenance.untrackedChanges?.let { values["server.untrackedChanges"] = it }
-    values["server.untrackedChangesTruncated"] = provenance.untrackedChangesTruncated.toString()
+    provenance.untrackedChanges?.let { values["server.untrackedChanges"] = it.take(MaxBugDiagnosticValueLength) }
+    values["server.untrackedChangesTruncated"] = (
+        provenance.untrackedChangesTruncated || (provenance.untrackedChanges?.length ?: 0) > MaxBugDiagnosticValueLength
+    ).toString()
     provenance.untrackedChangesSha256?.let { values["server.untrackedChangesSha256"] = it }
-    return ServerBugDiagnostics(values, failures)
+    return ServerBugDiagnostics(values, failures.take(MaxBugDiagnosticFieldCount).map { it.take(MaxBugDiagnosticMetadataLength) })
 }
 
 internal suspend fun submitClientBugReport(
