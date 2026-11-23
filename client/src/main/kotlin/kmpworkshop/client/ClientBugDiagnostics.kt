@@ -14,6 +14,7 @@ private val diagnosticGitPaths = arrayOf(
     ":(exclude,glob)**/AdminPassword.kt",
     ":(exclude,glob)**/Secrets.kt",
     ":(exclude,glob)**/Secrets.ini",
+    ":(exclude,top)registration/src/main/kotlin/Registration.kt",
     ":(exclude,glob)**/.env*",
     ":(exclude,glob)**/.workshop-api-key*",
 )
