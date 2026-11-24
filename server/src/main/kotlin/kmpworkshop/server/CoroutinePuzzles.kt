@@ -72,35 +72,36 @@ fun coroutinePuzzleWithMetadata(
         })
 
     try {
-        withImportantCleanup {
-            withLaunched(
-                taskThatMustOutliveUsage = {
-                    withLaunched(
-                        taskThatMustOutliveUsage = {
-                            try {
-                                for (batch in incoming) events.send(SubmissionBatch(batch))
-                            } finally {
-                                importantCleanup {
-                                    events.send(SubmissionBatch(null)) // null means that submissions are over
-                                }
-                            }
-                        },
-                    ) {
-                        expectationBatching.runExpectations(builder)
+        val result = try {
+            withImportantCleanup {
+                val attemptJob = coroutineContext.job
+                launch {
+                    try {
+                        for (batch in incoming) events.send(SubmissionBatch(batch))
+                    } finally {
+                        events.trySend(SubmissionBatch(null))
                     }
-                },
-            ) {
-                PuzzleActor(
-                    events,
-                    emitBatch = {
-                        outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(it))
-                    },
-                    serverMetadata,
-                ).run()
-            }.also { outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(it)) }
+                }
+                launch { expectationBatching.runExpectations(attemptJob, builder) }
+                try {
+                    PuzzleActor(
+                        events,
+                        emitBatch = {
+                            attemptJob.ensureActive()
+                            outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Batch(it))
+                        },
+                        serverMetadata,
+                    ).run()
+                } finally {
+                    attemptJob.cancelChildren()
+                }
+            }
+        } catch (failure: FailedPuzzleAttempt) {
+            failure.result
+        } catch (failure: CoroutinePuzzleFailedControlFlowException) {
+            failure.result
         }
-    } catch (c: CoroutinePuzzleFailedControlFlowException) {
-        outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(c.result))
+        outgoing.send(CoroutinePuzzleExpectationBatchOrCompletion.Completion(result))
     } finally {
         outgoing.close()
     }
@@ -116,11 +117,12 @@ fun coroutinePuzzle(
 ): Resource<CoroutinePuzzleProtocol> = context(serverMetadata) { coroutinePuzzleWithMetadata(builder) }
 
 private suspend fun AutoBatchedFunctionId<EvaluatorRequest, EvaluatorResult?>.runExpectations(
+    attemptJob: Job,
     builder: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.() -> Unit,
 ) = autoBatchedOnQuiescence {
     val result = runCatching {
         coroutineScope {
-            context(PuzzleBuilder(this@runExpectations, this@autoBatchedOnQuiescence, coroutineContext.job)) {
+            context(PuzzleBuilder(this@runExpectations, this@autoBatchedOnQuiescence, coroutineContext.job, attemptJob)) {
                 builder()
             }
         }
@@ -137,6 +139,7 @@ private class PuzzleBuilder(
     private val batching: AutoBatchedFunctionId<EvaluatorRequest, EvaluatorResult?>,
     private val cleanupScope: CoroutineScope,
     private val evaluatorJob: Job,
+    val attemptJob: Job,
 ) : CoroutinePuzzleBuilderScope {
     private val callbackIds = AtomicLong()
 
@@ -220,7 +223,7 @@ private class PuzzleBuilder(
             val result = checkNotNull(produced)
             try {
                 evaluatorJob.ensureActive()
-                val completion = batching.batched(EvaluatorRequest.CompleteCall(
+                val completion = awaitActor(EvaluatorRequest.CompleteCall(
                     expectation, result.map { it.result }.toOutcome(),
                 )) as EvaluatorResult.SubmissionCompleted
                 completion.outcome.toResult().getOrThrow()
@@ -250,8 +253,12 @@ private class PuzzleBuilder(
     }
 
     override suspend fun awaitQuiescenceAndGetUnmatchedSubmissions(): List<UnmatchedSubmission<*>> =
-        (batching.batched(EvaluatorRequest.AwaitQuiescence(finishExpectations = false))
+        (awaitActor(EvaluatorRequest.AwaitQuiescence(finishExpectations = false))
             as EvaluatorResult.QuiescenceReached).unmatchedSubmissions
+
+    // A resource can keep its caller alive through teardown. Its wait must also end when the actor stops.
+    private suspend fun awaitActor(request: EvaluatorRequest): EvaluatorResult? =
+        runInOwningScope(cleanupScope) { batching.batched(request) }
 }
 
 private typealias RawExpectationBatch =
@@ -769,8 +776,15 @@ class CoroutinePuzzleFailedControlFlowException(
     val result: CoroutinePuzzleSolutionResult,
 ) : Exception(null, null, false, false)
 
-context(_: CoroutinePuzzleBuilderScope)
-fun fail(reason: CoroutinePuzzleSolutionResult): Nothing = failInternal(reason)
+private class FailedPuzzleAttempt(val result: CoroutinePuzzleSolutionResult) : CancellationException("Puzzle failed")
+
+context(builder: CoroutinePuzzleBuilderScope)
+fun fail(reason: CoroutinePuzzleSolutionResult): Nothing {
+    if (builder !is PuzzleBuilder) failInternal(reason)
+    val failure = FailedPuzzleAttempt(reason)
+    builder.attemptJob.cancel(failure)
+    throw failure
+}
 
 context(_: CoroutinePuzzleBuilderScope)
 fun fail(message: String): Nothing = fail(CustomFailure(message))

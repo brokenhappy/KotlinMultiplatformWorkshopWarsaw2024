@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kmpworkshop.common.CoroutinePuzzleResultWithHistory as ResultsWHistory
 import org.junit.jupiter.api.fail as junitFail
 
@@ -1384,6 +1386,52 @@ class CoroutinePuzzleTest {
         }.result.assertIs<CoroutinePuzzleSolutionResult.CustomFailure>()
 
         assertEquals(listOf(incorrect.id), failure.incorrectSubmissions)
+    }
+
+    @Test
+    fun `failure inside collector resources leaves the incorrect call pending`() = runTestWithRandomizedDispatchOrdering {
+        val endpoint = TestApis.intInt
+        val flow = TestApis.flowUnitInt
+        val returned = mutableListOf<Int>()
+        var producerCleanedUp = false
+        val states = coroutinePuzzle {
+            launch {
+                endpoint.expectCall { argument ->
+                    assertEquals(1, argument)
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        producerCleanedUp = true
+                    }
+                }
+            }
+            flow.expectingFlowCollector().use { collectors ->
+                collectors.use { (_, emit) ->
+                    awaitQuiescenceAndVerifyUnmatchedSubmissions(flow)
+                    launch { emit(2) }
+                    val second = awaitQuiescenceAndGetUnmatchedSubmissions().single()
+                    assertEquals(UnmatchedSubmission(endpoint, 2), second)
+                    fail("Overlapping calls", listOf(second.endPoint))
+                }
+            }
+        }.asPuzzle().solveAsFlow {
+            launch { returned += endpoint.submitCall(1) }
+            flow.asFlow().collect { returned += endpoint.submitCall(it) }
+        }.toList()
+
+        val completion = states.filterIsInstance<CoroutinePuzzleSolveState.Completed>().single()
+        assertEquals(CoroutinePuzzleSolutionResult.CustomFailure("Overlapping calls", listOf(endpoint.id)), completion.result)
+        assertEquals(completion, states.last())
+        val history = states.filterIsInstance<CoroutinePuzzleSolveState.Running>().map { it.batch }
+        val calls = context(testClientMetadata) { coroutineTimeline(history) }.filter { it.endpoint == endpoint.id }
+        assertEquals(2, calls.size)
+        val (first, second) = calls
+        assertTrue(first.startBatch < second.startBatch)
+        assertNull(second.endBatch, "The incorrect call must still be pending")
+        assertNull(first.endBatch)
+        assertEquals(second.startBatch, history.lastIndex, "History must stop at the incorrect call")
+        assertEquals(emptyList(), returned)
+        assertTrue(producerCleanedUp)
     }
 
     @Test

@@ -5,6 +5,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
@@ -28,10 +30,15 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
             val pending = ConcurrentHashMap<Long, GuardedContinuation<JsonElement>>()
             val active = ConcurrentHashMap<Long, LocalPuzzleCall>()
             val outbox = mutableListOf<WithCallId<CoroutinePuzzleSubmissionPayload>>()
+            val historyMutex = Mutex()
+            var completed = false
             suspend fun flush() {
                 val batch = outbox.toList()
                 outbox.clear()
-                send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Submission(batch)))
+                historyMutex.withLock {
+                    if (completed) return
+                    send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Submission(batch)))
+                }
                 submissions.send(batch)
             }
             val batching = AutoBatchedFunctionId<WithCallId<CoroutinePuzzleSubmissionPayload>, JsonElement>(
@@ -66,7 +73,11 @@ fun Resource<CoroutinePuzzleProtocol>.asPuzzle(): CoroutinePuzzle = CoroutinePuz
                 val result = receivePuzzleMessages(expectations, batching, pending, active) {
                     send(CoroutinePuzzleSolveState.Running(CoroutinePuzzleHistoryBatch.Expectation(it)))
                 }
-                send(CoroutinePuzzleSolveState.Completed(result))
+                historyMutex.withLock {
+                    // Solution teardown can trigger another flush after the verdict arrives.
+                    completed = true
+                    send(CoroutinePuzzleSolveState.Completed(result))
+                }
             }
         }
     }

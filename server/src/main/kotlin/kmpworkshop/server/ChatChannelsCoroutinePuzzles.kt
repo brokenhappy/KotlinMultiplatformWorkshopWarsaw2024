@@ -11,10 +11,8 @@ import kmpworkshop.common.DefaultApis.emitSentChatMessage
 import kmpworkshop.common.DefaultApis.emitTypingStatus
 import kmpworkshop.common.DefaultApis.updateCurrentTypingStatus
 import kmpworkshop.common.UnmatchedSubmission
-import kmpworkshop.common.runOnBiggerScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -27,7 +25,7 @@ private val secondIncomingMessage = ChatMessage("Ada", "I found the channel.")
 private val sentMessage = ChatMessage("You", "Yes — I can hear you.")
 
 fun chatMessagesRendezvousPuzzle() = chatChannelsPuzzle { emitIncoming, emitSent, _ ->
-    evaluateSerializedTranscriptWrites(this, emitIncoming, emitSent)
+    evaluateSerializedTranscriptWrites(emitIncoming, emitSent)
 }
 
 fun chatMessagesBufferedPuzzle() = chatChannelsPuzzle { emitIncoming, emitSent, _ ->
@@ -40,19 +38,19 @@ fun chatTypingStatusDropOldestPuzzle() = chatChannelsPuzzle { emitIncoming, emit
 }
 
 private fun chatChannelsPuzzle(
-    evaluate: suspend context(CoroutinePuzzleBuilderScope) CoroutineScope.(
+    evaluate: suspend context(CoroutinePuzzleBuilderScope) (
         emitIncoming: suspend (ChatMessage) -> Unit,
         emitSent: suspend (ChatMessage) -> Unit,
         emitTypingStatus: suspend (TypingStatus) -> Unit,
     ) -> Unit,
-) = coroutinePuzzle puzzle@ {
+) = coroutinePuzzle {
     emitIncomingChatMessage.expectingFlowCollector().use { incomingCollectors ->
         emitSentChatMessage.expectingFlowCollector().use { sentCollectors ->
             emitTypingStatus.expectingFlowCollector().use { typingStatusCollectors ->
                 incomingCollectors.use { (_, emitIncoming) ->
                     sentCollectors.use { (_, emitSent) ->
                         typingStatusCollectors.use { (_, emitTypingStatus) ->
-                            evaluate(this@puzzle, emitIncoming, emitSent, emitTypingStatus)
+                            evaluate(emitIncoming, emitSent, emitTypingStatus)
                         }
                     }
                 }
@@ -63,7 +61,6 @@ private fun chatChannelsPuzzle(
 
 context(_: CoroutinePuzzleBuilderScope)
 private suspend fun evaluateSerializedTranscriptWrites(
-    evaluatorScope: CoroutineScope,
     emitIncoming: suspend (ChatMessage) -> Unit,
     emitSent: suspend (ChatMessage) -> Unit,
 ) = coroutineScope {
@@ -87,10 +84,7 @@ private suspend fun evaluateSerializedTranscriptWrites(
     val submissionsWhileWriting = awaitChatCalls()
     val overlappingWrites = submissionsWhileWriting.filter { it.endPoint == appendChatMessageToTranscript }
     if (overlappingWrites.isNotEmpty()) {
-        // Abort the evaluation before the collector resources unwind and exchange cleanup replies.
-        runOnBiggerScope(evaluatorScope) {
-            fail(CoroutinePuzzleErrorMessages.chatTranscriptCallsMustBeSerialized(), overlappingWrites.map { it.endPoint })
-        }
+        fail(CoroutinePuzzleErrorMessages.chatTranscriptCallsMustBeSerialized(), overlappingWrites.map { it.endPoint })
     }
     verifyOnlyAcceptanceCalls(submissionsWhileWriting, chatMessageAccepted)
     acceptedMessages += consumeMessageAcceptances(submissionsWhileWriting)
