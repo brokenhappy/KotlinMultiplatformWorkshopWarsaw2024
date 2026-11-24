@@ -18,8 +18,7 @@ import kmpworkshop.common.WorkshopApiService
 import kmpworkshop.common.WorkshopInvitationCodeHeader
 import kmpworkshop.common.workshopInvitationCodeHeaderValue
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -29,10 +28,13 @@ import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import workshop.adminaccess.AdminAccess
+import workshop.adminaccess.BugType
 import workshop.adminaccess.Participant
+import workshop.adminaccess.PendingBug
 import workshop.adminaccess.ReportingParticipantIndexDiagnostic
+import workshop.adminaccess.ReportedBug
 import workshop.adminaccess.ServerState
-import workshop.adminaccess.StoredClientBugReport
+import workshop.adminaccess.StageChangeEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -41,24 +43,26 @@ import java.util.zip.CRC32
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class ClientBugReportingOverRpcTest {
     @Test
-    fun `a report at the attachment limit reaches the admin stream over real websockets`() = runBlocking {
+    fun `a report at the attachment limit reaches the admin over real websockets`() = runBlocking {
         val key = ApiKey("participant-key")
         val password = "test-admin-password"
         val invitationCode = "test-invitation-code"
         val state = ServerState(participants = listOf(Participant("Other", ApiKey("other-key")), Participant("Ada", key)))
-        val reports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 1)
+        val bugs = PendingBugReports()
         val server = rpcServer(
             invitationCode = invitationCode,
             port = 0,
             services = listOf<RpcService<*>>(
-                rpcService<WorkshopApiService> { workshopService(flowOf(state), { error("Unexpected workshop event") }, reports) },
+                rpcService<WorkshopApiService> { workshopService(flowOf(state), { error("Unexpected workshop event") }, bugs) },
                 rpcService<AdminAccess> {
-                    adminAccess(password, flowOf(state), { error("Unexpected admin event") }, flowOf(), reports)
+                    adminAccess(password, flowOf(state), { error("Unexpected admin event") }, flowOf(), bugs)
                 },
             ),
         )
@@ -81,15 +85,28 @@ class ClientBugReportingOverRpcTest {
                 }
                 val participant = connect().withService<WorkshopApiService>()
                 val admin = connect().withService<AdminAccess>()
-                val received = async { admin.clientBugReports(password).first() }
-                reports.subscriptionCount.first { it > 0 }
-
+                val waiting = async { admin.receiveNextBug(password, null) }
+                delay(100.milliseconds)
+                assertFalse(waiting.isCompleted)
                 val report = largeReport()
                 assertEquals(ClientBugReportSubmissionResult.Accepted, participant.submitClientBugReport(key, report))
-                val stored = received.await()
+                val stored = (waiting.await() as PendingBug.Client).report
                 assertEquals(report, stored.clientReport)
                 assertEquals(state, stored.serverState)
                 assertEquals("1", stored.serverDiagnostics.values[ReportingParticipantIndexDiagnostic])
+                assertEquals(stored.id, (admin.receiveNextBug(password, "wrong-id") as PendingBug.Client).report.id)
+
+                val serverBug = ReportedBug(
+                    "server-bug-id",
+                    state,
+                    BugType.Error(StageChangeEvent(kmpworkshop.common.WorkshopStage.Registration)),
+                    Clock.System.now(),
+                )
+                val nextServerBug = serverBug.copy(id = "next-server-bug-id")
+                bugs.add(PendingBug.Server(serverBug))
+                bugs.add(PendingBug.Server(nextServerBug))
+                assertEquals(PendingBug.Server(serverBug), admin.receiveNextBug(password, stored.id))
+                assertEquals(PendingBug.Server(nextServerBug), admin.receiveNextBug(password, serverBug.id))
             }
         } finally {
             client.close()

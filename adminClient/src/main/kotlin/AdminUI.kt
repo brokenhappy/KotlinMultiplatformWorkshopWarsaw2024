@@ -184,11 +184,15 @@ private fun AdminApp(adminPassword: String, invitationCode: String, onExit: () -
                     }
                 }
                 launch {
-                    adminAccess.clientBugReports(adminPassword).collect { report ->
-                        runCatching { persistClientBugReportLocally(report) }
-                            .onFailure { failure ->
-                                System.err.println("Could not store client bug report: ${failure.message}")
-                            }
+                    var lastSavedBugId: String? = null
+                    retryingReportDownload("bug report") {
+                        while (true) {
+                            val bug = adminAccess.receiveNextBug(adminPassword, lastSavedBugId)
+                            // Do not acknowledge the newly received bug if its local write fails.
+                            lastSavedBugId = null
+                            withContext(Dispatchers.IO) { persistPendingBugLocally(bug) }
+                            lastSavedBugId = bug.id
+                        }
                     }
                 }
                 launch {
@@ -225,6 +229,19 @@ private fun AdminApp(adminPassword: String, invitationCode: String, onExit: () -
     } else {
         val state by activeConnection.serverState.collectAsState(initial = ServerState())
         AdminApp(state, activeConnection.onEvent, onExit)
+    }
+}
+
+private suspend fun retryingReportDownload(reportType: String, download: suspend () -> Unit): Nothing {
+    while (true) {
+        try {
+            download()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            System.err.println("Could not download $reportType: ${failure.message}")
+        }
+        delay(2.seconds)
     }
 }
 

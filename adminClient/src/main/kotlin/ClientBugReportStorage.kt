@@ -1,39 +1,56 @@
 import kotlinx.serialization.json.Json
+import workshop.adminaccess.PendingBug
+import workshop.adminaccess.ReportedBug
 import workshop.adminaccess.StoredClientBugReport
 import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
+import java.util.UUID
 import kotlin.io.path.createDirectories
-import kotlin.io.path.writeText
 
-internal fun persistClientBugReportLocally(report: StoredClientBugReport) {
-    val bugDirectory = System.getenv("BUG_DIRECTORY")?.let(::javaPath)
-        ?: error("BUG_DIRECTORY is not configured for AdminUI")
-    persistClientBugReportLocally(report, bugDirectory)
+private val bugJson = Json { prettyPrint = true }
+
+internal fun persistPendingBugLocally(bug: PendingBug) {
+    persistPendingBugLocally(bug, configuredBugDirectory())
+}
+
+internal fun persistPendingBugLocally(bug: PendingBug, bugDirectory: Path) {
+    when (bug) {
+        is PendingBug.Client -> persistClientBugReportLocally(bug.report, bugDirectory)
+        is PendingBug.Server -> persistServerBugLocally(bug.report, bugDirectory)
+    }
+}
+
+internal fun persistServerBugLocally(report: ReportedBug, bugDirectory: Path) {
+    persistReport(bugDirectory, "Bug", report.id, bugJson.encodeToString(report))
 }
 
 internal fun persistClientBugReportLocally(report: StoredClientBugReport, bugDirectory: Path) {
-    val reportDirectory = bugDirectory.resolve("client_bug_reports")
-    reportDirectory.createDirectories()
+    persistReport(bugDirectory.resolve("client_bug_reports"), "Client bug", report.id, bugJson.encodeToString(report))
+}
 
-    val stem = "Client bug ${report.receivedAt}".replace(Regex("[^A-Za-z0-9._-]"), "_")
-    val target = generateSequence(0) { it + 1 }
-        .map { index -> reportDirectory.resolve("$stem${if (index == 0) "" else "($index)"}.json") }
-        .first { !Files.exists(it) }
-    val temporary = reportDirectory.resolve(".${target.fileName}.tmp")
+private fun configuredBugDirectory(): Path = System.getenv("BUG_DIRECTORY")?.let(::javaPath)
+    ?: error("BUG_DIRECTORY is not configured for AdminUI")
+
+private fun persistReport(directory: Path, prefix: String, id: String, contents: String) {
+    directory.createDirectories()
+    val target = directory.resolve("$prefix ${UUID.fromString(id)}.json")
+    if (Files.exists(target)) {
+        check(Files.readString(target) == contents) { "A different bug report already exists at $target" }
+        return
+    }
+    val temporary = Files.createTempFile(directory, ".bug-report-", ".tmp")
     try {
-        temporary.writeText(Json { prettyPrint = true }.encodeToString(report))
+        Files.writeString(temporary, contents)
         try {
-            Files.move(
-                temporary,
-                target,
-                StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING,
-            )
+            Files.move(temporary, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
         } catch (_: AtomicMoveNotSupportedException) {
-            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
+            Files.move(temporary, target)
+        } catch (_: FileAlreadyExistsException) {
+            // A second admin connection may have stored the same report already.
         }
+        check(Files.readString(target) == contents) { "A different bug report already exists at $target" }
     } finally {
         Files.deleteIfExists(temporary)
     }

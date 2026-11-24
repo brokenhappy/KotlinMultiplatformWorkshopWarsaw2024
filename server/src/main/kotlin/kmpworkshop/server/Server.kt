@@ -31,7 +31,7 @@ private suspend fun hostServer(adminAccessPassword: String, invitationCode: Stri
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
-    val clientBugReports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 8)
+    val bugs = PendingBugReports()
     val onSoundEvent: (SoundPlayEvent) -> Unit = { soundEvents.tryEmit(it) }
     launch {
         serve(
@@ -40,7 +40,7 @@ private suspend fun hostServer(adminAccessPassword: String, invitationCode: Stri
                 workshopService(
                     serverState,
                     onEvent = { eventBus.trySend(it) },
-                    clientBugReports = clientBugReports,
+                    bugs = bugs,
                 )
             },
             rpcService {
@@ -49,7 +49,7 @@ private suspend fun hostServer(adminAccessPassword: String, invitationCode: Stri
                     serverState,
                     onEvent = { eventBus.trySend(it) },
                     sounds = soundEvents,
-                    clientBugReports = clientBugReports,
+                    bugs = bugs,
                 )
             },
         )
@@ -59,13 +59,14 @@ private suspend fun hostServer(adminAccessPassword: String, invitationCode: Stri
         eventBus,
         onSoundEvent = onSoundEvent,
         onEvent = { launch { eventBus.send(it) } },
+        bugs = bugs,
     )
 }
 
 fun workshopService(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
-    clientBugReports: MutableSharedFlow<StoredClientBugReport> = MutableSharedFlow(extraBufferCapacity = 8),
+    bugs: PendingBugReports? = null,
 ): WorkshopApiService = object : WorkshopApiService {
     override suspend fun registerApiKeyFor(name: String): ApiKeyRegistrationResult =
         onEvent.fire(RegistrationStartEvent(name, Random.nextLong()))
@@ -76,12 +77,7 @@ fun workshopService(
     override suspend fun submitClientBugReport(
         key: ApiKey,
         report: ClientBugReport,
-    ): ClientBugReportSubmissionResult = submitClientBugReport(
-        key,
-        report,
-        serverState.first(),
-        clientBugReports,
-    )
+    ): ClientBugReportSubmissionResult = submitClientBugReport(key, report, serverState.first(), bugs)
 
     override fun currentStage(): Flow<WorkshopStage> = serverState.map { it.currentStage }
 

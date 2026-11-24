@@ -17,4 +17,6 @@ data class StoredClientBugReport(
     val serverDiagnostics: ServerBugDiagnostics,
     val serverState: ServerState,
     val receivedAt: Instant,
+    /** Empty for reports persisted before acknowledgements were introduced. */
+    val id: String = "",
 )

@@ -1,14 +1,15 @@
 package kmpworkshop.server
 
 import kmpworkshop.common.*
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import workshop.adminaccess.PendingBug
 import workshop.adminaccess.ReportingParticipantIndexDiagnostic
 import workshop.adminaccess.ServerBugDiagnostics
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.StoredClientBugReport
 import java.util.Base64
+import java.util.UUID
 import javax.imageio.ImageIO
 import kotlin.runCatching
 import kotlin.time.Clock
@@ -91,6 +92,7 @@ internal fun buildStoredClientBugReport(
     provenance: ServerProvenance,
     reporterIndex: Int,
 ): StoredClientBugReport = StoredClientBugReport(
+    id = UUID.randomUUID().toString(),
     clientReport = report,
     serverDiagnostics = collectServerBugDiagnostics(provenance, reporterIndex),
     serverState = serverState,
@@ -126,22 +128,17 @@ internal suspend fun submitClientBugReport(
     key: ApiKey,
     report: ClientBugReport,
     serverState: ServerState,
-    clientBugReports: MutableSharedFlow<StoredClientBugReport>,
+    bugs: PendingBugReports?,
 ): ClientBugReportSubmissionResult {
     val reporterIndex = (serverState.participants + serverState.deactivatedParticipants).indexOfFirst { it.apiKey == key }
     if (reporterIndex < 0) {
         return ClientBugReportSubmissionResult.Rejected("The client API key is not registered.")
     }
     validateClientBugReport(report)?.let { return ClientBugReportSubmissionResult.Rejected(it) }
-    if (clientBugReports.subscriptionCount.value == 0) {
-        return ClientBugReportSubmissionResult.AdminUiNotConnected
-    }
+    if (bugs == null) return ClientBugReportSubmissionResult.AdminUiNotConnected
     val storedReport = buildStoredClientBugReport(report, serverState, coroutinesToLoom { loadServerProvenance() }, reporterIndex)
-    return if (clientBugReports.tryEmit(storedReport)) {
-        ClientBugReportSubmissionResult.Accepted
-    } else {
-        ClientBugReportSubmissionResult.Rejected("The connected AdminUI could not receive the report.")
-    }
+    bugs.add(PendingBug.Client(storedReport))
+    return ClientBugReportSubmissionResult.Accepted
 }
 
 internal data class ServerProvenance(

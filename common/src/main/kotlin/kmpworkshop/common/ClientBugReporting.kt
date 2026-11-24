@@ -42,6 +42,7 @@ sealed class ClientBugReportSubmissionResult {
     @Serializable
     data object Accepted : ClientBugReportSubmissionResult()
 
+    /** Kept for clients talking to servers from before reports were queued. */
     @Serializable
     data object AdminUiNotConnected : ClientBugReportSubmissionResult()
 

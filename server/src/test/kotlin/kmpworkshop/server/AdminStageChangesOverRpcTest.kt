@@ -12,7 +12,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.rpc.krpc.ktor.client.installKrpc
@@ -55,7 +54,7 @@ class AdminStageChangesOverRpcTest {
                         serverState = serverState,
                         onEvent = eventBus::trySend,
                         sounds = MutableSharedFlow(),
-                        clientBugReports = emptyFlow(),
+                        bugs = PendingBugReports(),
                     )
                 },
             ),

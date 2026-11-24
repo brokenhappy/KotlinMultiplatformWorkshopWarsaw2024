@@ -12,12 +12,13 @@ suspend fun mainEventLoopWritingTo(
     eventBus: ReceiveChannel<ScheduledWorkshopEvent>,
     onSoundEvent: (SoundPlayEvent) -> Unit,
     onEvent: OnEvent,
+    bugs: PendingBugReports = PendingBugReports(),
 ): Nothing = coroutineScope {
     launch {
         for (scheduledEvent in eventBus) {
             when (scheduledEvent) {
                 is ScheduledWorkshopEvent.AwaitingResult<*> -> {
-                    serverState.applyEventWithResult(applicationScope = this, scheduledEvent)
+                    serverState.applyEventWithResult(applicationScope = this, scheduledEvent, bugs)
                 }
                 is ScheduledWorkshopEvent.IgnoringResult -> {
                     serverState.update { oldState ->
@@ -26,7 +27,7 @@ suspend fun mainEventLoopWritingTo(
                         } catch (c: CancellationException) {
                             throw c
                         } catch (t: Throwable) {
-                            launch { reportError(oldState, scheduledEvent.event) }
+                            reportError(oldState, scheduledEvent.event, bugs)
                             oldState
                         }
                     }
@@ -55,6 +56,7 @@ suspend fun mainEventLoopWritingTo(
 private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
     applicationScope: CoroutineScope,
     scheduledEvent: ScheduledWorkshopEvent.AwaitingResult<T>,
+    bugs: PendingBugReports,
 ): Result<T> {
     val result = runCatching {
         var result: T? = null
@@ -64,7 +66,7 @@ private fun <T> MutableStateFlow<ServerState>.applyEventWithResult(
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {
-                applicationScope.launch { reportError(oldState, scheduledEvent.event) }
+                reportError(oldState, scheduledEvent.event, bugs)
                 throw t
             }
             result = value

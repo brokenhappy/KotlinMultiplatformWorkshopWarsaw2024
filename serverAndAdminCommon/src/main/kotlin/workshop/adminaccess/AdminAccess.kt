@@ -8,7 +8,8 @@ import kotlinx.serialization.json.JsonElement
     /** The full current state of the app */
     fun serverState(password: String): Flow<ServerState>
     fun soundEvents(password: String): Flow<SoundPlayEvent>
-    fun clientBugReports(password: String): Flow<StoredClientBugReport>
+    /** Acknowledges [lastSavedBugId] after local persistence, then waits for the next bug. Pass null initially. */
+    suspend fun receiveNextBug(password: String, lastSavedBugId: String?): PendingBug
     suspend fun heartbeat()
     /**
      * Either:

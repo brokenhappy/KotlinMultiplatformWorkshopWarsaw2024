@@ -2,13 +2,11 @@ package kmpworkshop.server
 
 import kmpworkshop.common.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import workshop.adminaccess.Participant
 import workshop.adminaccess.ServerState
-import workshop.adminaccess.StoredClientBugReport
+import workshop.adminaccess.PendingBug
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -95,26 +93,23 @@ class ClientBugReportingSecurityTest {
     }
 
     @Test
-    fun `requires a registered api key and an active admin stream`(): Unit = runTest {
+    fun `requires a registered api key and queues reports without an admin connection`(): Unit = runTest {
         val key = ApiKey("known")
         val state = ServerState(participants = listOf(Participant("Ada", key)))
-        val reports = MutableSharedFlow<StoredClientBugReport>(extraBufferCapacity = 1)
+        val reports = PendingBugReports()
         assertEquals(
             ClientBugReportSubmissionResult.Rejected("The client API key is not registered."),
             submitClientBugReport(ApiKey("unknown"), report(), state, reports),
         )
         assertEquals(
             ClientBugReportSubmissionResult.AdminUiNotConnected,
-            submitClientBugReport(key, report(), state, reports),
+            submitClientBugReport(key, report(), state, null),
         )
-
-        var received = 0
-        val collector = backgroundScope.launch { reports.collect { received++ } }
-        testScheduler.runCurrent()
         assertEquals(ClientBugReportSubmissionResult.Accepted, submitClientBugReport(key, report(), state, reports))
-        testScheduler.runCurrent()
-        assertEquals(1, received)
-        collector.cancel()
+        val queued = reports.receiveNext() as PendingBug.Client
+        assertEquals("Something went wrong", queued.report.clientReport.description)
+        assertEquals(queued, reports.receiveNext("wrong-id"))
+        assertEquals(queued, reports.receiveNext())
     }
 
     private fun report(

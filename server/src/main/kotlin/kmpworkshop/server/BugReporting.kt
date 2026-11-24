@@ -1,54 +1,34 @@
 package kmpworkshop.server
 
-import kmpworkshop.common.coroutinesToLoom
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import workshop.adminaccess.BugType
+import workshop.adminaccess.PendingBug
+import workshop.adminaccess.ReportedBug
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.WorkshopEvent
+import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.Instant
-
-@Serializable
-data class ReportedBug(
-    val initialState: ServerState,
-    val type: BugType,
-    val moment: Instant,
-)
-
-@Serializable
-sealed class BugType {
-    @Serializable
-    data class Behavioral(val description: String, val events: List<WorkshopEvent>): BugType()
-    @Serializable
-    data class IndeterministicEvent(val event: WorkshopEvent): BugType()
-    @Serializable
-    data class Error(val failingEvent: WorkshopEvent): BugType()
-}
 
 fun ServerState.droppingScheduledEventTimes(): ServerState =
     copy(scheduledEvents = scheduledEvents.map { it.copy(time = Instant.DISTANT_PAST) })
 
-suspend fun reportError(safeState: ServerState, event: WorkshopEvent) {
-    reportBug(ReportedBug(safeState, BugType.Error(event), Clock.System.now()))
+fun reportError(safeState: ServerState, event: WorkshopEvent, bugs: PendingBugReports) {
+    reportBug(safeState, BugType.Error(event), bugs)
 }
 
-suspend fun reportBehavioralBug(initialState: ServerState, description: String, events: List<WorkshopEvent>) {
-    reportBug(ReportedBug(initialState, BugType.Behavioral(description, events), Clock.System.now()))
+fun reportBehavioralBug(
+    initialState: ServerState,
+    description: String,
+    events: List<WorkshopEvent>,
+    bugs: PendingBugReports,
+) {
+    reportBug(initialState, BugType.Behavioral(description, events), bugs)
 }
 
-suspend fun reportIndeterministicEvent(initialState: ServerState, event: WorkshopEvent) {
-    reportBug(ReportedBug(initialState, BugType.IndeterministicEvent(event), Clock.System.now()))
+fun reportIndeterministicEvent(initialState: ServerState, event: WorkshopEvent, bugs: PendingBugReports) {
+    reportBug(initialState, BugType.IndeterministicEvent(event), bugs)
 }
 
-suspend fun reportBug(bug: ReportedBug) {
-    if (!bugDirectory!!.toFile().exists()) error("""
-        Server not set up to store bugs! But the following bug happened:
-        ${Json.encodeToString(bug)}
-    """.trimIndent())
-    coroutinesToLoom {
-        val file = generateSequence(0) { it + 1 }
-            .map { bugDirectory.toFile().resolve("Bug: ${bug.moment}${if (it == 0) "" else "($it)"}.json") }
-            .first { !it.exists() }
-        file.writeText(Json.encodeToString(bug))
-    }
+private fun reportBug(initialState: ServerState, type: BugType, bugs: PendingBugReports) {
+    bugs.add(PendingBug.Server(ReportedBug(UUID.randomUUID().toString(), initialState, type, Clock.System.now())))
 }

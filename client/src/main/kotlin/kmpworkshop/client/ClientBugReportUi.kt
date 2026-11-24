@@ -230,7 +230,7 @@ internal fun ClientBugReportPage(
                             ))) {
                                 ClientBugReportSubmissionResult.Accepted -> {
                                     onReset()
-                                    status = "Bug report sent. Thank you!"
+                                    status = "Bug report received by the server. Thank you!"
                                 }
                                 ClientBugReportSubmissionResult.AdminUiNotConnected ->
                                     status = "The AdminUI is not connected. Your draft is still saved."

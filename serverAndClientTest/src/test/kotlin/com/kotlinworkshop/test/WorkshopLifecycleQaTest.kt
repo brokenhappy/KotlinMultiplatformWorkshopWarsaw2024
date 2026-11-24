@@ -25,6 +25,7 @@ import kmpworkshop.common.asServer
 import kmpworkshop.common.coroutinesToLoom
 import kmpworkshop.common.workshopInvitationCodeHeaderValue
 import kmpworkshop.server.RpcService
+import kmpworkshop.server.PendingBugReports
 import kmpworkshop.server.adminAccess
 import kmpworkshop.server.rpcServer
 import kmpworkshop.server.rpcService
@@ -67,7 +68,7 @@ class WorkshopLifecycleQaTest {
                 host = host,
                 services = listOf<RpcService<*>>(
                     rpcService<WorkshopApiService> { workshopService },
-                    rpcService<AdminAccess> { adminAccess(password, state, onEvent, emptyFlow(), emptyFlow()) },
+                    rpcService<AdminAccess> { adminAccess(password, state, onEvent, emptyFlow(), PendingBugReports()) },
                 ),
             )
             try {

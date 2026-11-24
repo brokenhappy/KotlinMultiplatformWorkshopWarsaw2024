@@ -5,9 +5,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import workshop.adminaccess.AdminAccess
 import workshop.adminaccess.OnEvent
+import workshop.adminaccess.PendingBug
 import workshop.adminaccess.ServerState
 import workshop.adminaccess.SoundPlayEvent
-import workshop.adminaccess.StoredClientBugReport
 import workshop.adminaccess.WorkshopEvent
 import workshop.adminaccess.WorkshopEventWithResult
 import workshop.adminaccess.fire
@@ -23,7 +23,7 @@ fun adminAccess(
     serverState: Flow<ServerState>,
     onEvent: OnEvent,
     sounds: Flow<SoundPlayEvent>,
-    clientBugReports: Flow<StoredClientBugReport>,
+    bugs: PendingBugReports = PendingBugReports(),
 ): AdminAccess = object : AdminAccess {
     override fun serverState(password: String): Flow<ServerState> = serverState.also { _ ->
         if (password != adminAccessPassword) error("Incorrect password")
@@ -33,8 +33,9 @@ fun adminAccess(
         if (password != adminAccessPassword) error("Incorrect password")
     }
 
-    override fun clientBugReports(password: String): Flow<StoredClientBugReport> = clientBugReports.also { _ ->
+    override suspend fun receiveNextBug(password: String, lastSavedBugId: String?): PendingBug {
         if (password != adminAccessPassword) error("Incorrect password")
+        return bugs.receiveNext(lastSavedBugId)
     }
 
     override suspend fun heartbeat() { /* pong! */ }
